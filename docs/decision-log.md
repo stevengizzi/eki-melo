@@ -122,6 +122,7 @@ The model isn't going to generate Capcom-quality pixel art. Acceptable — charm
 
 **Cross-References:**
 - Related decisions: DEC-004, DEC-006
+- Superseded in part by DEC-011 (format changed to 32×48 portrait)
 
 ---
 
@@ -239,3 +240,27 @@ Must not break the local-dev path. Must work with the existing artifact runtime 
 **Cross-References:**
 - Related decisions: DEC-004
 - Source: Claude Code session that set up the repo flagged the three blockers (missing auth, missing version header, CORS) and recommended the proxy pattern.
+
+---
+
+**DEC-011:** Avatars upgraded to 32×48 portrait sprites with an archetype-driven prompt
+**Date:** 2026-05-20
+**Sprint:** v4
+
+**Decision:**
+Enlarge avatar sprites from 24×24 to 32×48 (a 2:3 portrait) and reframe them as full-body "class-select" characters. Rewrite the generation prompt so Claude first commits to a character archetype, 2–3 concrete visual hooks, and an explicit animation concept, then places pixels. The JSON now leads with `archetype`, `hooks`, and `animation_concept` reasoning fields before `palette`/`frames`/`fps`. Frames are 2–4 at 3–6 fps, each differing from the previous by 4–20 pixels.
+
+**Alternatives Rejected:**
+1. Stay at 24×24: The head-and-shoulders sprites rarely read as distinct characters — too few pixels for a recognizable silhouette plus a personality hook. The whole "select your character" conceit needs figures, not blobs.
+2. Go 32×32 (square, as floated and rejected in DEC-005): A square gives no room for a full standing figure. The bottleneck was never width, it was vertical room for head + torso + legs + a tall accessory.
+3. Free-form reasoning before the JSON: Prose-then-JSON invites code-fence leakage and parse failures. Putting the reasoning *inside* the JSON as leading fields keeps a single parseable payload while still forcing Claude to design before drawing.
+
+**Rationale:**
+This reverses the "32×32 too big — harder for Claude to keep coherent" call in DEC-005. The earlier worry was real, but the fix isn't a smaller canvas — it's scaffolding. Making Claude declare an archetype and a handful of hooks first gives the larger 32×48 canvas a plan to fill, so the extra pixels read as a deliberate character instead of noise. Rendering sizes the canvas by the largest integer scale that fits the frame, preserving aspect, so legacy 24×24 sprites still render centered and nothing in storage has to change.
+
+**Constraints:**
+Storage key and per-guest schema unchanged (DEC-007); existing avatars must keep rendering. Normalization pads/truncates rows to 32 chars and frames to 48 rows, so a malformed Claude response still yields a sprite rather than a crash — same tolerance posture as DEC-005.
+
+**Cross-References:**
+- Supersedes the format decision in DEC-005
+- Related decisions: DEC-004, DEC-006

@@ -235,7 +235,7 @@ textarea { min-height: 88px; resize: vertical; }
 
 .avatar-wrap {
   width: 96px;
-  height: 96px;
+  height: 144px;       /* was 96px — now portrait, 2:3 aspect for 32×48 sprite */
   background: #000;
   border: 2px solid var(--border);
   position: relative;
@@ -247,8 +247,9 @@ textarea { min-height: 88px; resize: vertical; }
 }
 
 .avatar-wrap canvas {
-  width: 100%;
-  height: 100%;
+  /* width/height now set explicitly in renderAvatar() based on sprite aspect — */
+  /* this lets legacy 24×24 sprites still render correctly (square, centered) */
+  /* while new 32×48 sprites fill the portrait frame. */
   image-rendering: pixelated;
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
@@ -477,7 +478,7 @@ footer .tag { font-family: 'Press Start 2P', monospace; font-size: 8px; letter-s
   .btn-small { font-size: 9px; padding: 8px 10px; }
   .guest-name { font-size: 13px; }
   .guest-left { gap: 12px; }
-  .avatar-wrap { width: 72px; height: 72px; }
+  .avatar-wrap { width: 64px; height: 96px; }   /* was 72×72 — clean 2x scale of 32×48 */
   .guest-header { flex-direction: column; gap: 12px; }
   .guest-actions { width: 100%; }
   .action-row { flex-direction: column; align-items: stretch; }
@@ -903,43 +904,59 @@ Translate their personality into musical choices, then construct a piece with cl
    API: AVATAR GENERATION (24x24 pixel sprite, 2-frame loop)
    ================================================================= */
 async function generateAvatar(name, description) {
-  const system = `You design 16-bit style pixel art character avatars for a party "select character" screen. The avatar should reflect the guest's personality. Output as a hex-indexed palette + frame data.
+  const system = `You design 16-bit style pixel art character sprites for a party "select character" screen. Each sprite captures a guest as an iconic anthropomorphic character — the kind of figure you'd see on a retro RPG class-select screen (think Final Fantasy V/VI job classes, Chrono Trigger party members, Dragon Quest III).
 
-OUTPUT FORMAT — 24x24 pixel sprite, 2 frames for subtle idle animation:
-- Palette: array of 4–12 colors. Index 0 must be "transparent". Indices 1–15 are hex colors like "#ff3864".
-- Each frame is exactly 24 rows, each row exactly 24 characters.
-- Each character is a single hex digit (0-9, a-f) representing the palette index.
+OUTPUT: JSON ONLY, no prose before or after. The JSON has reasoning fields FIRST (archetype, hooks, animation_concept) followed by sprite data. Filling out those reasoning fields IS your design step — commit to an archetype and hooks before placing any pixels.
 
-Return ONLY valid JSON in this shape:
+JSON SHAPE:
 {
-  "palette": ["transparent", "#1d2b53", "#ff004d", "#fee761", "#00e436", "#7e2553", "#ffccaa", "#ffffff"],
+  "archetype": "Forest Ranger",
+  "hooks": ["green hooded cloak", "longbow over shoulder", "small bird companion on hand"],
+  "animation_concept": "bird flutters from hand to shoulder and back",
+  "palette": ["transparent", "#1d2b53", "#3e6e4a", "#6fa86d", "#d4a06b", "#ffccaa", "#ff004d", "#ffffff"],
   "frames": [
-    ["000000000000000000000000", "000000111111110000000000", ...24 rows total...],
-    ["000000000000000000000000", ...24 rows for frame 2...]
+    ["00000000000000000000000000000000", "...48 rows of 32 hex chars total..."],
+    ["...frame 2..."],
+    ["...frame 3 (optional)..."]
   ],
-  "fps": 3
+  "fps": 4
 }
 
-DESIGN RULES:
-- Use a clear pixel-art silhouette. Center the figure horizontally; place head in upper third, body below.
-- 16-bit style: chunky shapes, 1-pixel shading/outlines, but NOT single-pixel noise.
-- Frame 2 differs subtly from frame 1 to suggest idle motion: head tilt, eye blink, hair sway, breathing bob, hand wave, twinkling accessory. NOT a totally different pose.
-- The character can be human, animal, robot, monster, anthropomorphic object, abstract creature — whatever fits the personality.
-- Use a 1-pixel outline (usually the darkest palette color) so the silhouette reads clearly against the black background.
+ARCHETYPE — pick or invent a character class that captures this guest. Fantasy and sci-fi both fair game:
+Ranger, Naturalist, Bard, Sage, Scholar, Cartographer, Astronomer, Apothecary, Tinkerer, Artificer, Inventor, Mechanic, Pilot, Engineer, Drifter, Wanderer, Navigator, Beastmaster, Falconer, Chronomancer, Cyber-monk, Stargazer, Alchemist, Lorekeeper, Star-Pilot, Field Medic, Archivist, Glassblower, Geomancer, Sky-Captain, Botanist, Strategist.
+
+Lean hard into the archetype where the personality has a clear hook (forest-lover → Ranger or Naturalist; tinkerer → Artificer or Inventor; observer / INTJ → Scholar, Lorekeeper, or Strategist; type 5 → Archivist or Sage). If two archetypes both fit, pick the one with the more iconic visual identity.
+
+The character can be human, humanoid, or anthropomorphic animal/creature — but ALWAYS anthropomorphic (stands forward-facing, has a clear head-torso-legs structure), ALWAYS charming, NEVER scary or monstrous. No skulls, no fangs, no blood, no menace.
+
+HOOKS — 2-3 concrete visual elements that make this character read instantly. A tool, an accessory, a color signature, a creature companion, a distinctive hat. These are what you spend your pixel budget on. An iconic silhouette beats a busy one.
+
+ANIMATION CONCEPT — a small moment of delight in the idle loop. The sprite has 2-4 frames at 3-6 fps. Examples: scholar pushes glasses up, ranger has a bird flutter from hand to shoulder, bard plucks a lute string, mechanic's wrench rotates, pilot's visor blinks, astronomer's star-tipped staff twinkles, alchemist's potion bubbles, cartographer's quill scratches a map. Aim for something that makes someone smile when they first see it. Lean toward expressive rather than purely-breathing — this animation is the payoff of the whole avatar.
+
+SPRITE FORMAT — 32 wide × 48 tall:
+- Each frame is exactly 48 rows, each row exactly 32 characters.
+- Each character is a single hex digit (0-9, a-f) representing the palette index.
+- Palette: 6-14 colors. Index 0 must be the string "transparent". Indices 1+ are hex like "#ff3864".
 - Background pixels are index 0 (transparent).
 
-EXAMPLE STYLE (format reminder):
-A row like "00000111111100000000" means: 5 transparent, 7 pixels of palette index 1, then transparent.
-A row like "001112222221110000" means: 2 transparent, 3 of color 1, 6 of color 2, 3 of color 1, etc.
+COMPOSITION GUIDE for the 32×48 canvas:
+- Rows 1-2: usually transparent (leave room for tall accessories — hat brim, antenna, staff-tip).
+- Rows 3-16: head area (head, hair, hat, glasses, ears, facial features).
+- Rows 17-34: torso + arms (signature outfit, gear, held items, companion creature on shoulder or in hand).
+- Rows 35-46: legs / base (boots, robe hem, hover-pad, tail-tip).
+- Character usually occupies columns 6-26, leaving ~6 cols of transparent margin on each side. A held staff or extended arm can reach further.
 
-Design an avatar for this guest:
+DESIGN RULES:
+- 1-pixel outline in the darkest palette color so the silhouette reads cleanly against a dark background.
+- Chunky, readable shapes. No single-pixel noise.
+- Spend pixels on the signature hooks first. Tool / accessory / companion gets premium real estate.
+- Each frame differs from the previous by 4-20 pixels — visible motion, not a totally different pose.
+- The animation concept should be CLEARLY visible — if the only difference is a 1-pixel breath bob, that's not enough. Move something meaningful.`;
+
+  const user = `Design the avatar for this guest.
 
 NAME: ${name}
-DESCRIPTION: ${description}
-
-Capture their essence as a chunky, charming 16-bit character. Think Mega Man, EarthBound, or Final Fantasy IV portrait energy.`;
-
-  const user = `Design the pixel avatar for: ${name}\n\nPersonality: ${description}`;
+DESCRIPTION: ${description}`;
 
   const response = await fetch(API_ENDPOINT, {
     method: "POST",
@@ -963,7 +980,8 @@ Capture their essence as a chunky, charming 16-bit character. Think Mega Man, Ea
     .map(b => b.text || '')
     .join('').trim();
 
-  let cleaned = text.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
+  // Strip code fences anywhere (not just at start/end) — more robust to prose-leak.
+  let cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
   let avatar;
   try { avatar = JSON.parse(cleaned); }
   catch (e) {
@@ -975,20 +993,22 @@ Capture their essence as a chunky, charming 16-bit character. Think Mega Man, Ea
   if (!Array.isArray(avatar.palette)) throw new Error('Avatar missing palette');
   if (!Array.isArray(avatar.frames) || avatar.frames.length === 0) throw new Error('Avatar missing frames');
 
-  // Normalize: pad/truncate each row to 24 chars, ensure 24 rows per frame
+  // Normalize: pad/truncate each row to 32 chars, ensure 48 rows per frame.
+  const ROW_PAD = '00000000000000000000000000000000'; // 32 zeros
   avatar.frames = avatar.frames.map(frame => {
-    if (!Array.isArray(frame)) return Array(24).fill('000000000000000000000000');
-    const rows = frame.slice(0, 24).map(r => {
+    if (!Array.isArray(frame)) return Array(48).fill(ROW_PAD);
+    const rows = frame.slice(0, 48).map(r => {
       const str = String(r).toLowerCase();
-      return (str + '000000000000000000000000').slice(0, 24);
+      return (str + ROW_PAD).slice(0, 32);
     });
-    while (rows.length < 24) rows.push('000000000000000000000000');
+    while (rows.length < 48) rows.push(ROW_PAD);
     return rows;
   });
-  avatar.fps = Number(avatar.fps) || 3;
-  avatar.width = 24;
-  avatar.height = 24;
+  avatar.fps = Number(avatar.fps) || 4;
+  avatar.width = 32;
+  avatar.height = 48;
   avatar.createdAt = Date.now();
+  // archetype, hooks, animation_concept pass through untouched — useful for later UI.
   return avatar;
 }
 
@@ -1004,6 +1024,17 @@ function renderAvatar(canvas, avatar) {
   const W = avatar.width || 24, H = avatar.height || 24;
   canvas.width = W;
   canvas.height = H;
+
+  // Pick the largest integer scale that fits the wrap, preserving aspect.
+  // Wrap is 96×144 on desktop, 64×96 on mobile — read it from parent.
+  const wrap = canvas.parentElement;
+  if (wrap) {
+    const wrapW = wrap.clientWidth || 96;
+    const wrapH = wrap.clientHeight || 144;
+    const scale = Math.max(1, Math.floor(Math.min(wrapW / W, wrapH / H)));
+    canvas.style.width = (W * scale) + 'px';
+    canvas.style.height = (H * scale) + 'px';
+  }
 
   const drawFrame = (frameIdx) => {
     ctx.clearRect(0, 0, W, H);

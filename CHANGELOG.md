@@ -2,6 +2,16 @@
 
 All notable changes to EKI Melo. Most recent first.
 
+## [v4] — 2026-05-20
+
+### Changed
+- **Avatar sprites enlarged 24×24 → 32×48 (portrait).** Sprites are now full-body "class-select" characters instead of head-and-shoulders. The avatar frame is a 2:3 portrait (96×144 desktop, 64×96 mobile); `renderAvatar()` picks the largest integer scale that fits the frame, preserving aspect.
+- **Avatar prompt rewritten around archetypes.** Claude now commits to a character archetype (Ranger, Artificer, Scholar, …), 2–3 concrete visual "hooks", and an explicit animation concept *before* placing pixels. The output JSON carries `archetype`, `hooks`, and `animation_concept` reasoning fields ahead of the sprite data. Frames bumped to 2–4 at 3–6 fps with more pronounced idle motion (4–20 px changed per frame).
+- **More robust JSON cleanup.** Code-fence stripping now removes fences anywhere in the response, not just at the start/end.
+
+### Preserved
+- Storage key and per-guest schema unchanged. Existing 24×24 avatars still load and render (square, centered in the portrait frame). Versioned avatar arrays and reroll behavior intact.
+
 ## [v3] — 2026-05-20
 
 ### Added
