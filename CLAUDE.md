@@ -28,6 +28,8 @@ python3 -m http.server 8000
 **Test changes to the HTML:**
 Open the file directly in a browser. No build step. Hard-refresh after edits.
 
+**Git workflow:** commit straight to `main`. This is a solo weekend project — no branches, no PRs, no review gates. The auto-deploy on push to main IS the deployment workflow.
+
 **Deploy:**
 Push to `main`. Auto-deploy via platform integration (TBD which platform).
 
