@@ -235,7 +235,7 @@ textarea { min-height: 88px; resize: vertical; }
 
 .avatar-wrap {
   width: 96px;
-  height: 144px;       /* was 96px — now portrait, 2:3 aspect for 32×48 sprite */
+  height: 96px;        /* back to square — 24×24 sprite at 4x = 96×96, perfect fit */
   background: #000;
   border: 2px solid var(--border);
   position: relative;
@@ -478,7 +478,7 @@ footer .tag { font-family: 'Press Start 2P', monospace; font-size: 8px; letter-s
   .btn-small { font-size: 9px; padding: 8px 10px; }
   .guest-name { font-size: 13px; }
   .guest-left { gap: 12px; }
-  .avatar-wrap { width: 64px; height: 96px; }   /* was 72×72 — clean 2x scale of 32×48 */
+  .avatar-wrap { width: 72px; height: 72px; }   /* back to square */
   .guest-header { flex-direction: column; gap: 12px; }
   .guest-actions { width: 100%; }
   .action-row { flex-direction: column; align-items: stretch; }
@@ -904,54 +904,62 @@ Translate their personality into musical choices, then construct a piece with cl
    API: AVATAR GENERATION (24x24 pixel sprite, 2-frame loop)
    ================================================================= */
 async function generateAvatar(name, description) {
-  const system = `You design 16-bit style pixel art character sprites for a party "select character" screen. Each sprite captures a guest as an iconic anthropomorphic character — the kind of figure you'd see on a retro RPG class-select screen (think Final Fantasy V/VI job classes, Chrono Trigger party members, Dragon Quest III).
+  const system = `You design 16-bit style pixel art character sprites for a party "select character" screen. Each sprite captures a guest as an iconic anthropomorphic character — the kind of figure you'd see on a retro RPG class-select screen.
 
-OUTPUT: JSON ONLY, no prose before or after. The JSON has reasoning fields FIRST (archetype, hooks, animation_concept) followed by sprite data. Filling out those reasoning fields IS your design step — commit to an archetype and hooks before placing any pixels.
+OUTPUT: JSON ONLY, no prose before or after. The JSON has reasoning fields FIRST (archetype, hooks, animation_concept) followed by sprite data. Filling out those reasoning fields IS your design step — commit to an archetype before placing pixels.
 
 JSON SHAPE:
 {
   "archetype": "Forest Ranger",
-  "hooks": ["green hooded cloak", "longbow over shoulder", "small bird companion on hand"],
-  "animation_concept": "bird flutters from hand to shoulder and back",
+  "hooks": ["green hooded cloak", "longbow over shoulder", "small bird on shoulder"],
+  "animation_concept": "bird turns its head and blinks",
   "palette": ["transparent", "#1d2b53", "#3e6e4a", "#6fa86d", "#d4a06b", "#ffccaa", "#ff004d", "#ffffff"],
   "frames": [
-    ["00000000000000000000000000000000", "...48 rows of 32 hex chars total..."],
-    ["...frame 2..."],
-    ["...frame 3 (optional)..."]
+    ["000000000000000000000000", "...24 rows of 24 hex chars total..."],
+    ["...frame 2..."]
   ],
-  "fps": 4
+  "fps": 3
 }
 
 ARCHETYPE — pick or invent a character class that captures this guest. Fantasy and sci-fi both fair game:
-Ranger, Naturalist, Bard, Sage, Scholar, Cartographer, Astronomer, Apothecary, Tinkerer, Artificer, Inventor, Mechanic, Pilot, Engineer, Drifter, Wanderer, Navigator, Beastmaster, Falconer, Chronomancer, Cyber-monk, Stargazer, Alchemist, Lorekeeper, Star-Pilot, Field Medic, Archivist, Glassblower, Geomancer, Sky-Captain, Botanist, Strategist.
+Ranger, Naturalist, Bard, Sage, Scholar, Cartographer, Astronomer, Apothecary, Tinkerer, Artificer, Inventor, Mechanic, Pilot, Engineer, Drifter, Wanderer, Navigator, Beastmaster, Falconer, Chronomancer, Cyber-monk, Stargazer, Alchemist, Lorekeeper, Archivist, Strategist, Field Medic, Botanist.
 
-Lean hard into the archetype where the personality has a clear hook (forest-lover → Ranger or Naturalist; tinkerer → Artificer or Inventor; observer / INTJ → Scholar, Lorekeeper, or Strategist; type 5 → Archivist or Sage). If two archetypes both fit, pick the one with the more iconic visual identity.
+Lean hard into the archetype where the personality has a clear hook (forest-lover → Ranger or Naturalist; tinkerer → Artificer or Inventor; observer / INTJ → Scholar or Strategist).
 
-The character can be human, humanoid, or anthropomorphic animal/creature — but ALWAYS anthropomorphic (stands forward-facing, has a clear head-torso-legs structure), ALWAYS charming, NEVER scary or monstrous. No skulls, no fangs, no blood, no menace.
+HOOKS — 2-3 concrete visual elements that make this character read instantly. A tool, an accessory, a color signature, a companion creature, a distinctive hat.
 
-HOOKS — 2-3 concrete visual elements that make this character read instantly. A tool, an accessory, a color signature, a creature companion, a distinctive hat. These are what you spend your pixel budget on. An iconic silhouette beats a busy one.
+ANIMATION CONCEPT — a small moment of delight in the idle loop (2 frames at 3-4 fps). Examples: a bird on the shoulder turns its head, a wrench rotates a quarter-turn, a staff-tip twinkles, glasses glint, a small gear at the belt clicks forward, a cloak edge sways. Keep it small — 24×24 doesn't have room for big motion. ONE small thing moving is enough.
 
-ANIMATION CONCEPT — a small moment of delight in the idle loop. The sprite has 2-4 frames at 3-6 fps. Examples: scholar pushes glasses up, ranger has a bird flutter from hand to shoulder, bard plucks a lute string, mechanic's wrench rotates, pilot's visor blinks, astronomer's star-tipped staff twinkles, alchemist's potion bubbles, cartographer's quill scratches a map. Aim for something that makes someone smile when they first see it. Lean toward expressive rather than purely-breathing — this animation is the payoff of the whole avatar.
+==================================================================
+DRAWING RULES — THIS IS THE PART THAT MATTERS MOST. READ CAREFULLY.
+==================================================================
 
-SPRITE FORMAT — 32 wide × 48 tall:
-- Each frame is exactly 48 rows, each row exactly 32 characters.
+You are drawing ONE CHARACTER, not a collection of accessories. The character is a single connected figure that fills most of the canvas vertically.
+
+Draw in this order, mentally:
+1. FIRST — the body silhouette. Head connected to neck connected to torso connected to legs, as ONE continuous outlined shape. This is your foundation. The head sits roughly in the top third, torso in the middle, legs in the bottom third, ALL TOUCHING. The figure is roughly 12-18 pixels tall total and 8-14 pixels wide. There must be no gap between body parts.
+2. THEN — clothe and color the silhouette. Cloak over the shoulders, robes covering the torso, boots on the legs, hat on the head.
+3. THEN — add the signature hooks ON the figure. Tool in the figure's hand. Companion creature ON the figure's shoulder or hand. Belt around the figure's waist. Hat on the figure's head.
+
+THE HOOKS ARE NEVER STANDALONE OBJECTS. They are always attached to the body. If you find yourself drawing a tool floating in space, or a companion creature with no character holding it, or a hood with empty space where the head should be — STOP and add the body underneath. A character with the body present and the hook implied is far better than a hook with no character.
+
+The figure should fill at least 60% of the canvas height. Empty space at the top and bottom is fine — empty space IN THE MIDDLE OF THE FIGURE (between head and torso, or between torso and legs) is a bug.
+
+SPRITE FORMAT — 24 wide × 24 tall:
+- Each frame is exactly 24 rows, each row exactly 24 characters.
 - Each character is a single hex digit (0-9, a-f) representing the palette index.
-- Palette: 6-14 colors. Index 0 must be the string "transparent". Indices 1+ are hex like "#ff3864".
+- Palette: 4-10 colors. Index 0 must be the string "transparent". Indices 1+ are hex like "#ff3864".
 - Background pixels are index 0 (transparent).
-
-COMPOSITION GUIDE for the 32×48 canvas:
-- Rows 1-2: usually transparent (leave room for tall accessories — hat brim, antenna, staff-tip).
-- Rows 3-16: head area (head, hair, hat, glasses, ears, facial features).
-- Rows 17-34: torso + arms (signature outfit, gear, held items, companion creature on shoulder or in hand).
-- Rows 35-46: legs / base (boots, robe hem, hover-pad, tail-tip).
-- Character usually occupies columns 6-26, leaving ~6 cols of transparent margin on each side. A held staff or extended arm can reach further.
+- Forward-facing standing pose, character centered horizontally.
+- 2 frames for idle animation. Frame 2 differs from frame 1 by 2-8 pixels — visible motion of ONE element (the companion, the tool, a blink) while the rest of the body stays still.
 
 DESIGN RULES:
-- 1-pixel outline in the darkest palette color so the silhouette reads cleanly against a dark background.
+- 1-pixel outline in the darkest palette color so the silhouette reads against a dark background.
 - Chunky, readable shapes. No single-pixel noise.
-- Spend pixels on the signature hooks first. Tool / accessory / companion gets premium real estate.
-- Each frame differs from the previous by 4-20 pixels — visible motion, not a totally different pose.
-- The animation concept should be CLEARLY visible — if the only difference is a 1-pixel breath bob, that's not enough. Move something meaningful.`;
+- ALWAYS anthropomorphic (clear head-torso-legs structure). The character can be human, humanoid, or anthropomorphic animal/creature — but always with that connected body structure.
+- ALWAYS charming, NEVER scary or monstrous. No fangs, no skulls, no menace.
+
+REMEMBER: ONE CONNECTED FIGURE. Body first, hooks second. If the body isn't there, the avatar fails no matter how nice the hooks look.`;
 
   const user = `Design the avatar for this guest.
 
@@ -980,7 +988,6 @@ DESCRIPTION: ${description}`;
     .map(b => b.text || '')
     .join('').trim();
 
-  // Strip code fences anywhere (not just at start/end) — more robust to prose-leak.
   let cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
   let avatar;
   try { avatar = JSON.parse(cleaned); }
@@ -993,22 +1000,21 @@ DESCRIPTION: ${description}`;
   if (!Array.isArray(avatar.palette)) throw new Error('Avatar missing palette');
   if (!Array.isArray(avatar.frames) || avatar.frames.length === 0) throw new Error('Avatar missing frames');
 
-  // Normalize: pad/truncate each row to 32 chars, ensure 48 rows per frame.
-  const ROW_PAD = '00000000000000000000000000000000'; // 32 zeros
+  // Normalize: pad/truncate each row to 24 chars, ensure 24 rows per frame.
+  const ROW_PAD = '000000000000000000000000'; // 24 zeros
   avatar.frames = avatar.frames.map(frame => {
-    if (!Array.isArray(frame)) return Array(48).fill(ROW_PAD);
-    const rows = frame.slice(0, 48).map(r => {
+    if (!Array.isArray(frame)) return Array(24).fill(ROW_PAD);
+    const rows = frame.slice(0, 24).map(r => {
       const str = String(r).toLowerCase();
-      return (str + ROW_PAD).slice(0, 32);
+      return (str + ROW_PAD).slice(0, 24);
     });
-    while (rows.length < 48) rows.push(ROW_PAD);
+    while (rows.length < 24) rows.push(ROW_PAD);
     return rows;
   });
-  avatar.fps = Number(avatar.fps) || 4;
-  avatar.width = 32;
-  avatar.height = 48;
+  avatar.fps = Number(avatar.fps) || 3;
+  avatar.width = 24;
+  avatar.height = 24;
   avatar.createdAt = Date.now();
-  // archetype, hooks, animation_concept pass through untouched — useful for later UI.
   return avatar;
 }
 
