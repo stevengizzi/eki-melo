@@ -247,12 +247,28 @@ textarea { min-height: 88px; resize: vertical; }
 }
 
 .avatar-wrap canvas {
-  /* width/height set explicitly in renderAvatar() from each sprite's stored */
-  /* dimensions, so current 24×24 sprites fill the square frame while legacy */
-  /* 32×48 portrait sprites still render (scaled down, aspect-preserved). */
+  /* width/height set explicitly by the renderer from each sprite's stored */
+  /* dimensions: v4 64×64 PNG sprites fill the square frame, while legacy */
+  /* hex-grid sprites (24×24 / 32×32) still render, aspect-preserved. */
   image-rendering: pixelated;
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
+  animation: avatar-idle 2.4s ease-in-out infinite;
+}
+
+/* Gentle idle bob on the sprite; intensifies into a glow while the jingle plays. */
+@keyframes avatar-idle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+.guest-card.playing .avatar-wrap canvas {
+  animation: avatar-idle 1.4s ease-in-out infinite, avatar-glow-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes avatar-glow-pulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.2) drop-shadow(0 0 6px var(--accent-pink)); }
 }
 
 .avatar-wrap.loading::after {
@@ -717,6 +733,14 @@ const API_ENDPOINT = IS_ARTIFACT
   ? "https://api.anthropic.com/v1/messages"
   : "/api/generate";
 
+// Avatars (v4) require the /api/avatar Pages Function — it holds the PixelLab
+// key and orchestrates the Claude→PixelLab calls server-side. The Claude.ai
+// artifact runtime has no Pages Function and can't reach PixelLab, so avatars
+// are unavailable there. Gated on the same IS_ARTIFACT signal the rest of the
+// file uses (more reliable than sniffing window.location.hostname, since the
+// artifact iframe is not served from a claude.ai host).
+const AVATAR_ENDPOINT = IS_ARTIFACT ? null : "/api/avatar";
+
 const storageBackend = IS_ARTIFACT
   ? {
       async get(key) {
@@ -901,135 +925,41 @@ Translate their personality into musical choices, then construct a piece with cl
 }
 
 /* =================================================================
-   API: AVATAR GENERATION (24x24 pixel sprite, 2-frame loop)
+   API: AVATAR GENERATION (v4 — Claude designs, PixelLab renders)
+
+   Two-stage pipeline behind the /api/avatar Pages Function: Claude
+   turns the guest's personality into a character spec, then PixelLab's
+   PixFlux model renders a 64x64 transparent PNG sprite. Returns a v4
+   avatar record; legacy hex-grid avatars (no version field) keep
+   rendering through renderAvatarLegacy.
    ================================================================= */
 async function generateAvatar(name, description) {
-  const system = `You design 16-bit style pixel art character sprites for a party "select character" screen. Each sprite captures a guest as an iconic anthropomorphic character — the kind of figure you'd see on a retro RPG class-select screen.
-
-OUTPUT: JSON ONLY, no prose before or after. The JSON has reasoning fields FIRST (archetype, hooks, animation_concept) followed by sprite data. Filling out those reasoning fields IS your design step — commit to an archetype before placing pixels.
-
-JSON SHAPE:
-{
-  "archetype": "Forest Artificer",
-  "hooks": ["moss-green hooded cloak", "mechanical owl on shoulder", "clockwork device at belt"],
-  "animation_concept": "owl tilts head and blinks",
-  "palette": ["transparent", "#1d2b53", "#3e6e4a", "#6fa86d", "#d4a06b", "#ffccaa", "#ffd700", "#ffffff"],
-  "frames": [
-    ["00000000000000000000000000000000", "...32 rows of 32 hex chars total..."],
-    ["...frame 2..."]
-  ],
-  "fps": 3
-}
-
-ARCHETYPE — pick or invent a character class that captures this guest. Fantasy and sci-fi both fair game:
-Ranger, Naturalist, Bard, Sage, Scholar, Cartographer, Astronomer, Apothecary, Tinkerer, Artificer, Inventor, Mechanic, Pilot, Engineer, Drifter, Wanderer, Navigator, Beastmaster, Falconer, Chronomancer, Cyber-monk, Stargazer, Alchemist, Lorekeeper, Archivist, Strategist, Field Medic, Botanist.
-
-Lean hard into the archetype where the personality has a clear hook (forest-lover → Ranger or Naturalist; tinkerer → Artificer or Inventor; observer / INTJ → Scholar or Strategist).
-
-HOOKS — 2-3 concrete visual elements that make this character read instantly. A tool, an accessory, a color signature, a companion creature, a distinctive hat.
-
-ANIMATION CONCEPT — a small moment of delight in the idle loop (2 frames at 3-4 fps). Examples: a bird on the shoulder tilts its head, a wrench rotates a quarter-turn, a staff-tip twinkles, glasses glint, a small gear at the belt clicks forward, a cloak edge sways. ONE small thing moving is enough.
-
-==================================================================
-DRAWING RULES — THE TWO MOST IMPORTANT RULES. READ BOTH CAREFULLY.
-==================================================================
-
-RULE 1 — DRAW A CONNECTED FIGURE.
-The character is ONE connected silhouette. Head connected to neck connected to torso connected to legs, as ONE continuous outlined shape. No floating heads. No detached accessories with empty space between them and the body. The figure occupies roughly the central 22 columns of the 32-wide canvas and roughly 22-28 rows of the 32-tall canvas. Head in top third, torso in middle, legs in bottom third, ALL TOUCHING — there must be no empty rows between body parts.
-
-Draw in this order, mentally:
-1. The body silhouette as ONE continuous shape — head, neck, torso, arms, legs.
-2. Clothe the silhouette — cloak, robe, armor, boots over the body.
-3. Add the signature hooks ON the figure — tool in the figure's hand, companion on the figure's shoulder, hat on the figure's head, gear at the figure's belt.
-
-The hooks adorn the character. They are never standalone objects. If you find yourself drawing a tool floating in space, or a companion creature with no character holding it, or a hood with empty space where the head should be — STOP and add the body underneath.
-
-RULE 2 — THE HOOKS MUST BE VISIBLE IN THE FINAL IMAGE.
-Listing the hooks in the JSON is not enough. They must actually appear, drawn in pixels, on the sprite. A viewer looking at the sprite alone (no JSON, no description) should be able to identify the archetype from what they see.
-
-You have a 32×32 canvas — that's enough room for a body AND 1-2 small accessories. Use it. Concretely:
-- A small shoulder companion (bird, drone, sprite) fits in a 4×4 to 6×6 pixel area on the figure's shoulder.
-- A held tool (staff, wrench, book, wand) takes 3-6 pixels of additional width extending from the figure's hand.
-- A distinctive hat or hood occupies 6-10 pixels of the head area.
-- A belt accessory (gear, pouch, lantern) takes 3-5 pixels at the figure's waist.
-
-You can fit roughly 2-3 of these alongside the body. Pick the 2-3 from your hooks list that are MOST visually iconic for the archetype and make sure they actually appear.
-
-If the final sprite looks like "a generic small hooded figure" with no archetype-specific elements visible, you have failed at RULE 2 and the avatar is no better than a stick figure.
-
-==================================================================
-
-SPRITE FORMAT — 32 wide × 32 tall:
-- Each frame is exactly 32 rows, each row exactly 32 characters.
-- Each character is a single hex digit (0-9, a-f) representing the palette index.
-- Palette: 5-12 colors. Index 0 must be the string "transparent". Indices 1+ are hex like "#ff3864".
-- Background pixels are index 0 (transparent).
-- Forward-facing standing pose, character centered horizontally.
-- 2 frames for idle animation. Frame 2 differs from frame 1 by 3-12 pixels — visible motion of ONE element (the companion, the tool, a blink) while the rest of the body stays still.
-
-DESIGN RULES:
-- 1-pixel outline in the darkest palette color so the silhouette reads against a dark background.
-- Chunky, readable shapes. No single-pixel noise.
-- ALWAYS anthropomorphic (clear head-torso-legs structure). The character can be human, humanoid, or anthropomorphic animal/creature.
-- ALWAYS charming, NEVER scary or monstrous. No fangs, no skulls, no menace.
-
-REMEMBER: connected figure (RULE 1) AND visible signature hooks (RULE 2). Both must be true. Either alone is a failure.`;
-
-  const user = `Design the avatar for this guest.
-
-NAME: ${name}
-DESCRIPTION: ${description}`;
-
-  const response = await fetch(API_ENDPOINT, {
+  if (!AVATAR_ENDPOINT) {
+    throw new Error('Avatar generation not available in artifact mode');
+  }
+  const response = await fetch(AVATAR_ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4000,
-      system,
-      messages: [{ role: "user", content: user }]
-    })
+    body: JSON.stringify({ name, description })
   });
-
   if (!response.ok) {
     const errText = await response.text().catch(() => '');
     throw new Error(`Avatar API ${response.status}: ${errText.slice(0,120)}`);
   }
-
   const data = await response.json();
-  const text = (data.content || [])
-    .filter(b => b.type === 'text')
-    .map(b => b.text || '')
-    .join('').trim();
-
-  let cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-  let avatar;
-  try { avatar = JSON.parse(cleaned); }
-  catch (e) {
-    const m = cleaned.match(/\{[\s\S]*\}/);
-    if (!m) throw new Error('Could not parse avatar JSON');
-    avatar = JSON.parse(m[0]);
-  }
-
-  if (!Array.isArray(avatar.palette)) throw new Error('Avatar missing palette');
-  if (!Array.isArray(avatar.frames) || avatar.frames.length === 0) throw new Error('Avatar missing frames');
-
-  // Normalize: pad/truncate each row to 32 chars, ensure 32 rows per frame.
-  const ROW_PAD = '00000000000000000000000000000000'; // 32 zeros
-  avatar.frames = avatar.frames.map(frame => {
-    if (!Array.isArray(frame)) return Array(32).fill(ROW_PAD);
-    const rows = frame.slice(0, 32).map(r => {
-      const str = String(r).toLowerCase();
-      return (str + ROW_PAD).slice(0, 32);
-    });
-    while (rows.length < 32) rows.push(ROW_PAD);
-    return rows;
-  });
-  avatar.fps = Number(avatar.fps) || 3;
-  avatar.width = 32;
-  avatar.height = 32;
-  avatar.createdAt = Date.now();
-  return avatar;
+  // Expected shape: { archetype, hooks, palette, paletteHints, imageData, visualPrompt }
+  return {
+    archetype: data.archetype,
+    hooks: data.hooks,
+    palette: data.palette,
+    paletteHints: data.paletteHints,
+    visualPrompt: data.visualPrompt,
+    imageData: data.imageData,  // "data:image/png;base64,..."
+    width: 64,
+    height: 64,
+    version: 4,  // marker for the renderer to dispatch correctly
+    createdAt: Date.now()
+  };
 }
 
 /* =================================================================
@@ -1037,7 +967,50 @@ DESCRIPTION: ${description}`;
    ================================================================= */
 const avatarAnimations = new Map();
 
+// Dispatch on avatar version: v4+ avatars carry a PixelLab PNG (imageData) and
+// render as an image; legacy hex-grid avatars (no version field) keep using the
+// original per-pixel canvas renderer.
 function renderAvatar(canvas, avatar) {
+  if (!avatar) return;
+  if (avatar.version >= 4 && avatar.imageData) {
+    return renderAvatarImage(canvas, avatar);
+  }
+  return renderAvatarLegacy(canvas, avatar);
+}
+
+function renderAvatarImage(canvas, avatar) {
+  const W = avatar.width || 64, H = avatar.height || 64;
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+
+  // Scale the canvas to fill its square wrap (96 desktop / 72 mobile). The
+  // sprite is square and the wrap is square, so one factor fills the frame
+  // while preserving aspect; image-rendering:pixelated keeps the upscale crisp.
+  const wrap = canvas.parentElement;
+  if (wrap) {
+    const wrapW = wrap.clientWidth || 96, wrapH = wrap.clientHeight || 96;
+    const scale = Math.max(1, Math.min(wrapW / W, wrapH / H));
+    canvas.style.width = (W * scale) + 'px';
+    canvas.style.height = (H * scale) + 'px';
+  }
+
+  const img = new Image();
+  img.onload = () => {
+    ctx.clearRect(0, 0, W, H);
+    ctx.drawImage(img, 0, 0, W, H);
+  };
+  img.src = avatar.imageData;
+
+  // Static sprite: CSS handles the idle motion, so cancel any legacy raf loop
+  // registered for this canvas and drop it from the animation map.
+  const existing = avatarAnimations.get(canvas);
+  if (existing) cancelAnimationFrame(existing.raf);
+  avatarAnimations.delete(canvas);
+}
+
+function renderAvatarLegacy(canvas, avatar) {
   if (!avatar) return;
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = false;

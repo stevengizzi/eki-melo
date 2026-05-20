@@ -4,7 +4,7 @@
 
 ## What it does
 
-You enter a guest's name and a sentence about their personality. The app calls Claude to compose a 3-voice chiptune piece (square-wave lead, pulse harmony, triangle bass) with proper musical form — AABA / ABA' / ABCA — and to design a 24×24 animated pixel avatar in their character. Every reroll preserves the previous version so you can compare and pick favorites. You can download any jingle as a WAV.
+You enter a guest's name and a sentence about their personality. The app calls Claude to compose a 3-voice chiptune piece (square-wave lead, pulse harmony, triangle bass) with proper musical form — AABA / ABA' / ABCA — and to design a pixel-art character: Claude writes the character spec, then PixelLab's PixFlux model renders a 64×64 sprite. Every reroll preserves the previous version so you can compare and pick favorites. You can download any jingle as a WAV.
 
 The whole thing renders inline as a "character select" screen with section markers on the piano-roll visualization.
 
@@ -15,7 +15,8 @@ eki-melo/
 ├── index.html              ← the entire app
 ├── functions/
 │   └── api/
-│       └── generate.js     ← Cloudflare Pages Function: proxies to Anthropic
+│       ├── generate.js     ← Cloudflare Pages Function: proxies jingles to Anthropic
+│       └── avatar.js       ← Cloudflare Pages Function: Claude → PixelLab avatar pipeline
 ├── docs/
 │   ├── project-knowledge.md
 │   ├── architecture.md
@@ -31,15 +32,17 @@ eki-melo/
 
 ## Running locally
 
-The app requires the `/api/generate` proxy to be reachable. Easiest is Cloudflare's local dev tool:
+The app requires the `/api/generate` and `/api/avatar` functions to be reachable. Easiest is Cloudflare's local dev tool:
 
 ```bash
 # One-time setup
 npm install -g wrangler
 
-# Set your Anthropic API key for local use
-echo 'ANTHROPIC_API_KEY="sk-ant-..."' > .dev.vars
-# (.dev.vars is gitignored)
+# Set your API keys for local use (.dev.vars is gitignored)
+cat > .dev.vars <<'EOF'
+ANTHROPIC_API_KEY="sk-ant-..."
+PIXELLAB_API_KEY="your-pixellab-token"
+EOF
 
 # Run the local dev server (serves the static file + runs functions)
 wrangler pages dev .
@@ -47,7 +50,7 @@ wrangler pages dev .
 # Visit http://localhost:8788
 ```
 
-If you just want to preview the UI without API calls, a plain static server works (`python3 -m http.server 8000`) — composition will fail with a 404 on `/api/generate`, but the design and existing data renders.
+If you just want to preview the UI without API calls, a plain static server works (`python3 -m http.server 8000`) — composition will fail with a 404 on `/api/generate`, but the design and existing data renders. (Avatars also need `/api/avatar` + a PixelLab key; jingles need `/api/generate` + an Anthropic key.)
 
 ## Deployment (Cloudflare Pages)
 
@@ -57,7 +60,7 @@ One-time setup:
 2. **Workers & Pages → Create application → Pages → Connect to Git.**
 3. **Authorize Cloudflare on GitHub**, select the `eki-melo` repo.
 4. **Build settings:** leave the framework preset as "None", build command empty, build output directory `/`. There's no build step.
-5. **Environment variables:** add `ANTHROPIC_API_KEY` as a **secret** (not a plaintext variable) with your `sk-ant-...` key. Set scope to "Production". Add the same secret to "Preview" if you want preview deployments to work.
+5. **Environment variables:** add `ANTHROPIC_API_KEY` (your `sk-ant-...` key) and `PIXELLAB_API_KEY` (your PixelLab token) as **secrets** (not plaintext variables). Set scope to "Production". Add the same secrets to "Preview" if you want preview deployments to work. Get a PixelLab token at https://www.pixellab.ai/signin.
 6. **Save and deploy.** First deployment takes ~30 seconds.
 
 After deployment:
@@ -76,7 +79,8 @@ Keep backups outside the repo — `.gitignore` blocks them from accidentally bei
 - Single-file HTML, vanilla JS, no build step
 - Web Audio API for chiptune synthesis (pulse waves via Fourier coefficients, triangle bass, ADSR envelopes)
 - OfflineAudioContext + hand-rolled 16-bit PCM encoder for WAV export
-- Claude API (`claude-sonnet-4-20250514`) via Cloudflare Pages Function proxy
+- Claude API (`claude-sonnet-4-20250514`) via Cloudflare Pages Function proxy — jingles and avatar character specs
+- PixelLab API (PixFlux) for avatar sprite rendering, orchestrated server-side by `/api/avatar`
 - Browser `localStorage` for persistence (`window.storage` adapter when running in Claude.ai artifact context)
 
 ## Documentation

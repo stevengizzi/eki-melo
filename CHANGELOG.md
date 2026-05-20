@@ -2,6 +2,22 @@
 
 All notable changes to EKI Melo. Most recent first.
 
+## [v7] — 2026-05-20
+
+### Added
+- **PixelLab-powered avatar generation.** Avatars are now rendered by PixelLab's PixFlux model at 64×64 with a transparent background. Claude (Sonnet 4) becomes the *character designer*: it reads the guest's personality and returns a structured spec (`archetype`, `hooks`, `palette`, `paletteHints`, `visualPrompt`), and PixelLab renders the sprite from that `visualPrompt`. A new Cloudflare Pages Function — `/api/avatar` (`functions/api/avatar.js`) — orchestrates both API calls server-side so neither key reaches the client. ~$0.008 per sprite (~$0.50 for a 24-guest party).
+- **CSS-based idle animation on avatars** — a gentle vertical bob, intensifying into a brighter glow pulse while that guest's jingle plays.
+
+### Changed
+- **Avatar generation pipeline replaced**, ending the three-iteration run of in-house LLM-pixel-art (v4 32×48 → v5 24×24 → v6 32×32). Sonnet 4 reliably interprets archetypes but cannot render coherent pixel grids; a purpose-built pixel-art model does, for trivial cost. See DEC-012.
+- **Avatar storage schema** now stores PNG image data (`imageData`) and a `version: 4` marker for new avatars (the avatar *format* version — distinct from this v7 release tag). The renderer dispatches on `version`: legacy hex-encoded avatars (no `version` field) keep rendering through the original canvas path, now named `renderAvatarLegacy`.
+
+### Preserved
+- Storage key and per-guest schema unchanged (DEC-007). All legacy avatars (24×24, 32×48, 32×32) still load and render. Versioned avatar arrays and reroll behavior intact. JSON backup export/import round-trips v4 avatars — the base64 PNG inflates backups modestly (~6–12 KB per 64×64 sprite).
+
+### Note
+- Avatars are **unavailable in the Claude.ai artifact runtime** — it has no Pages Function and cannot reach PixelLab. Jingles still work there. `AVATAR_ENDPOINT` is gated on the same `IS_ARTIFACT` signal the rest of the app uses.
+
 ## [v6] — 2026-05-20
 
 ### Changed

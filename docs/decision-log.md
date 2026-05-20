@@ -276,3 +276,34 @@ Moved the canvas to 32×32 (square) — a middle ground between the cramped 24×
 The prompt was restructured around exactly two co-equal rules: **RULE 1 — draw a connected figure** (head→torso→legs, no floating parts, no empty rows between body parts) and **RULE 2 — the hooks must be visible in the final image** (a viewer should identify the archetype from the pixels alone, with concrete pixel budgets for a shoulder companion, a held tool, a hat, a belt accessory). The 24×24 rewrite had over-corrected toward connectedness and silently dropped the "distinct character" goal that motivated DEC-011 in the first place; naming both failure modes as explicit, named rules is the fix. Frame-delta tolerance widened to 3–12 px; palette allowance raised to 5–12 colors; normalization pads/truncates to 32 rows × 32 chars.
 
 Net trajectory of the avatar canvas: 24×24 (DEC-005) → 32×48 (DEC-011) → 24×24 (revert) → 32×32 (here). The stable lessons across all four: square beats tall for this model's coherence, and prompt scaffolding must hold *both* "connected" and "distinctive" as named constraints or the model optimizes one at the expense of the other. Legacy 24×24 and 32×48 avatars still render unchanged — `renderAvatar()` reads each sprite's stored width/height and scales to fit; nothing in storage changed (DEC-007).
+
+---
+
+**DEC-012:** Adopt PixelLab API for avatar rendering; Claude becomes the character designer
+**Date:** 2026-05-20
+**Sprint:** v7
+
+**Decision:**
+Replace the in-house LLM-pixel-art approach with a two-stage pipeline. Claude (Sonnet 4) reads the guest's name and description and returns a structured character spec — `archetype`, `hooks`, `palette`, `paletteHints`, and a concrete `visualPrompt`. PixelLab's PixFlux model then renders that `visualPrompt` into a 64×64 transparent-background PNG sprite. A new Cloudflare Pages Function, `/api/avatar` (`functions/api/avatar.js`), orchestrates both calls server-side, holding both `ANTHROPIC_API_KEY` and a new `PIXELLAB_API_KEY` as secrets. New avatars carry `version: 4` plus `imageData`; the renderer dispatches on version so legacy hex-grid avatars keep rendering through the (renamed) `renderAvatarLegacy`.
+
+**Alternatives Rejected:**
+1. Keep iterating on LLM-pixel-art (the DEC-005 / DEC-011 lineage): Three iterations (32×48 → 24×24 → 32×32, with progressively stronger prompts) established a real capability ceiling. Sonnet 4 reliably interprets archetypes and proposes specific hooks, but cannot render coherent pixel grids — outputs are either disconnected accessories with no figure, or coherent generic figures with no archetype-specific detail. More prompt scaffolding did not break through.
+2. SVG portraits via Claude: Viable, and Claude renders SVG well, but vector portraits break the chiptune/pixel aesthetic the whole app is built around.
+3. Templated pre-drawn archetype sprites: Loses the per-guest uniqueness that makes the "select your character" conceit feel personal.
+4. Ship charming-generic (accept the LLM ceiling): Viable, but a pixel-art-specialized model produces dramatically better, recognizably-distinct output for ~$0.008 a sprite — a 24-guest party costs ~$0.50.
+
+**Rationale:**
+Keep Claude doing what it is good at — interpreting personality into a character concept and a concrete visual prompt — and hand pixel rendering to a model purpose-built for it. The split also makes each side independently improvable (tune the Claude prompt without touching rendering, or swap PixelLab models without touching the spec). Both keys stay server-side behind `/api/avatar`, consistent with DEC-010's reasoning for the jingle proxy.
+
+**Constraints:**
+- New external dependency: a PixelLab account + API token, required for avatars in production. New `PIXELLAB_API_KEY` secret in the Cloudflare environment (and in `.dev.vars` locally).
+- Avatars are unavailable in the Claude.ai artifact runtime — it has no Pages Function and cannot reach PixelLab. `AVATAR_ENDPOINT` is gated on the same `IS_ARTIFACT` signal used elsewhere; jingles still work in artifact mode. Artifact mode is now a dev convenience, not a production target.
+- Storage stays backward-compatible (DEC-007): legacy hex avatars (no `version`) and v4 PNG avatars coexist in the same per-guest `avatars` array; `renderAvatar()` dispatches on `version`. The `version: 4` marker is the avatar-*format* version, distinct from the v7 release tag.
+- Base64 PNGs inflate JSON backups modestly (~6–12 KB per 64×64 sprite); still well within reason.
+
+**Implementation note — endpoint correction:**
+The v7 spec referenced `POST /v2/generate-image-pixflux`. The live PixelLab API (verified against the api.pixellab.ai OpenAPI spec) exposes the operation at `POST /v2/create-image-pixflux`; `generate-image-pixflux` does not exist and would 404. The request fields (`description`, `image_size`, `no_background`, `text_guidance_scale`), Bearer auth, and the `image.base64` response field all matched the spec. The `base64` field is documented only as "Base64 encoded image data" with no guaranteed `data:` prefix, so the function adds the data-URI prefix only when absent.
+
+**Cross-References:**
+- Supersedes the avatar-generation approach in DEC-005 and DEC-011 (the hex-grid renderer is retained as legacy-only for backward compatibility)
+- Related decisions: DEC-010 (server-side key proxy), DEC-006 (versioned arrays), DEC-007 (non-destructive storage)
