@@ -1,0 +1,7 @@
+# .dev.vars.example — template only. Copy this to .dev.vars and fill in your key.
+# Never commit the real .dev.vars file.
+#
+# `wrangler pages dev` reads this file automatically when running the
+# proxy function locally.
+
+ANTHROPIC_API_KEY="sk-ant-paste-your-key-here"

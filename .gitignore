@@ -6,10 +6,12 @@ backups/*
 eki-greetings-backup-*.json
 *-backup-*.json
 
-# Local environment files (would contain API keys)
+# Secrets — never commit these. Examples files (.example suffix) are OK to commit.
 .env
 .env.local
+.env.*.local
 .dev.vars
+.dev.vars.local
 
 # Wrangler local state (Cloudflare CLI)
 .wrangler/
