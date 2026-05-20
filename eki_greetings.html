@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EKI GREETINGS — Birthday Party Jingles</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-deep: #0d0221;
+  --bg-card: #1a0f3a;
+  --bg-card-light: #2a1959;
+  --text: #fffefb;
+  --text-dim: #b8b3d4;
+  --accent-red: #ff3864;
+  --accent-blue: #29adff;
+  --accent-yellow: #fee761;
+  --accent-green: #00e436;
+  --accent-pink: #ff77a8;
+  --border: #4a3a8a;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { background: var(--bg-deep); }
+
+body {
+  font-family: 'VT323', monospace;
+  background: var(--bg-deep);
+  background-image:
+    radial-gradient(circle at 18% 25%, rgba(255, 56, 100, 0.10) 0%, transparent 45%),
+    radial-gradient(circle at 82% 75%, rgba(41, 173, 255, 0.10) 0%, transparent 45%),
+    radial-gradient(circle at 50% 100%, rgba(255, 119, 168, 0.07) 0%, transparent 50%);
+  background-attachment: fixed;
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 20px;
+  line-height: 1.45;
+  padding: 28px 20px;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Scanline overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.07),
+    rgba(0, 0, 0, 0.07) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  pointer-events: none;
+  z-index: 1000;
+}
+
+.container {
+  max-width: 760px;
+  margin: 0 auto;
+  position: relative;
+}
+
+header {
+  text-align: center;
+  padding: 32px 8px 28px;
+}
+
+h1 {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 30px;
+  color: var(--accent-yellow);
+  text-shadow:
+    3px 3px 0 var(--accent-red),
+    6px 6px 0 rgba(255, 56, 100, 0.3);
+  line-height: 1.5;
+  margin-bottom: 18px;
+  letter-spacing: 2px;
+}
+
+.subtitle {
+  color: var(--text-dim);
+  font-size: 22px;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.subtitle .hl { color: var(--accent-pink); }
+
+.heart {
+  display: inline-block;
+  animation: bounce 1.5s infinite;
+  color: var(--accent-red);
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-3px) scale(1.1); }
+}
+
+/* Pixel-art card */
+.pixel-card {
+  background: var(--bg-card);
+  padding: 28px 24px;
+  margin-bottom: 22px;
+  position: relative;
+  box-shadow:
+    0 0 0 3px var(--border),
+    inset 2px 2px 0 0 rgba(255,255,255,0.04),
+    inset -2px -2px 0 0 rgba(0,0,0,0.4),
+    8px 8px 0 0 rgba(0,0,0,0.5);
+}
+
+.form-section h2 {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 13px;
+  color: var(--accent-blue);
+  margin-bottom: 18px;
+  letter-spacing: 1.5px;
+}
+
+label {
+  display: block;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  color: var(--accent-yellow);
+  margin: 16px 0 8px;
+  letter-spacing: 1.5px;
+}
+
+label:first-child, .form-section label:nth-of-type(1) { margin-top: 0; }
+
+input[type="text"], textarea {
+  width: 100%;
+  background: var(--bg-deep);
+  border: 2px solid var(--border);
+  color: var(--text);
+  font-family: 'VT323', monospace;
+  font-size: 20px;
+  padding: 10px 12px;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+input[type="text"]:focus, textarea:focus {
+  border-color: var(--accent-pink);
+  background: #18093a;
+}
+
+textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+/* Buttons */
+.btn {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 12px;
+  padding: 14px 20px;
+  background: var(--accent-red);
+  color: var(--text);
+  border: none;
+  cursor: pointer;
+  letter-spacing: 1.5px;
+  transition: transform 0.08s, box-shadow 0.08s;
+  box-shadow: 4px 4px 0 #000;
+  margin-top: 16px;
+  text-transform: uppercase;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 5px 0 #000;
+}
+
+.btn:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 #000;
+}
+
+.btn:disabled {
+  background: var(--border);
+  cursor: wait;
+  color: var(--text-dim);
+}
+
+.btn-play { background: var(--accent-green); color: #000; }
+.btn-secondary { background: var(--accent-blue); color: #000; }
+.btn-danger { background: var(--accent-red); }
+
+.btn-small {
+  font-size: 9px;
+  padding: 9px 12px;
+  margin-top: 0;
+  box-shadow: 3px 3px 0 #000;
+}
+
+.btn-small:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 #000;
+}
+
+.btn-small:active:not(:disabled) {
+  transform: translate(1px, 1px);
+  box-shadow: 2px 2px 0 #000;
+}
+
+/* Section heading */
+.section-heading {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 12px;
+  color: var(--accent-pink);
+  margin: 32px 0 18px;
+  letter-spacing: 1.5px;
+}
+
+/* Guest card */
+.guest-card {
+  background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-card-light) 100%);
+  padding: 22px;
+  margin-bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+  box-shadow:
+    0 0 0 3px var(--border),
+    inset 2px 2px 0 0 rgba(255,255,255,0.04),
+    8px 8px 0 0 rgba(0,0,0,0.4);
+  transition: box-shadow 0.2s;
+}
+
+.guest-card.playing {
+  animation: glow-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 3px var(--accent-green),
+      inset 2px 2px 0 0 rgba(255,255,255,0.04),
+      0 0 18px rgba(0, 228, 54, 0.35),
+      8px 8px 0 0 rgba(0,0,0,0.4);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px var(--accent-green),
+      inset 2px 2px 0 0 rgba(255,255,255,0.04),
+      0 0 32px rgba(0, 228, 54, 0.7),
+      8px 8px 0 0 rgba(0,0,0,0.4);
+  }
+}
+
+.guest-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.guest-info { flex: 1; min-width: 0; }
+
+.guest-name {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 15px;
+  color: var(--accent-yellow);
+  margin-bottom: 6px;
+  letter-spacing: 1px;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+.guest-theme {
+  color: var(--accent-pink);
+  font-size: 22px;
+  font-style: italic;
+}
+
+.guest-meta {
+  color: var(--text-dim);
+  font-size: 17px;
+  margin-top: 4px;
+  letter-spacing: 0.5px;
+}
+
+.guest-desc {
+  color: var(--text-dim);
+  font-size: 17px;
+  margin-top: 6px;
+  font-style: italic;
+  opacity: 0.75;
+}
+
+.guest-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.action-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Piano roll */
+.piano-roll {
+  background: #000;
+  border: 2px solid var(--border);
+  height: 84px;
+  position: relative;
+  overflow: hidden;
+}
+
+.note-block {
+  position: absolute;
+  border: 1px solid rgba(0,0,0,0.5);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.15);
+}
+
+.note-block.lead { background: var(--accent-green); }
+.note-block.harmony { background: var(--accent-blue); }
+.note-block.bass { background: var(--accent-yellow); }
+
+.piano-roll-legend {
+  position: absolute;
+  bottom: 4px;
+  right: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+  display: flex;
+  gap: 10px;
+  pointer-events: none;
+  font-family: 'VT323', monospace;
+}
+
+.piano-roll-legend span::before {
+  content: '■ ';
+  display: inline;
+}
+
+.piano-roll-legend .lead-l { color: var(--accent-green); }
+.piano-roll-legend .harm-l { color: var(--accent-blue); }
+.piano-roll-legend .bass-l { color: var(--accent-yellow); }
+
+.playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent-red);
+  box-shadow: 0 0 6px var(--accent-red), 0 0 12px var(--accent-red);
+  pointer-events: none;
+  left: 0;
+  display: none;
+}
+
+.playhead.active { display: block; }
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 40px 24px;
+  color: var(--text-dim);
+}
+
+.empty-state-icon {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 24px;
+  margin-bottom: 16px;
+  color: var(--accent-pink);
+  letter-spacing: 4px;
+}
+
+.empty-state p { font-size: 19px; }
+
+/* Loading dots */
+@keyframes dots {
+  0%, 20% { content: '.'; }
+  40% { content: '..'; }
+  60%, 100% { content: '...'; }
+}
+
+.loading::after {
+  content: '.';
+  animation: dots 1.2s infinite;
+}
+
+/* Error */
+.error {
+  background: rgba(255, 56, 100, 0.18);
+  border-left: 4px solid var(--accent-red);
+  color: var(--accent-red);
+  padding: 12px;
+  margin-top: 14px;
+  font-size: 18px;
+}
+
+/* Footer */
+footer {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 16px;
+  padding: 40px 16px 20px;
+}
+
+footer .tag {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  letter-spacing: 2px;
+  color: var(--border);
+  margin-bottom: 8px;
+}
+
+/* Coin sprite */
+.coin {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  background: var(--accent-yellow);
+  box-shadow:
+    -2px 0 0 var(--accent-yellow),
+    2px 0 0 var(--accent-yellow),
+    0 -2px 0 var(--accent-yellow),
+    0 2px 0 var(--accent-yellow),
+    inset -1px -1px 0 rgba(0,0,0,0.3);
+  margin: 0 2px;
+  vertical-align: middle;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  body { padding: 16px 12px; font-size: 18px; }
+  h1 { font-size: 19px; letter-spacing: 1px; }
+  .subtitle { font-size: 20px; }
+  .pixel-card { padding: 20px 16px; }
+  .guest-card { padding: 18px 14px; }
+  .btn { font-size: 11px; padding: 12px 16px; }
+  .btn-small { font-size: 9px; padding: 8px 10px; }
+  .guest-name { font-size: 13px; }
+  .guest-header { flex-direction: column; gap: 12px; }
+  .guest-actions { width: 100%; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>EKI GREETINGS</h1>
+    <p class="subtitle">A <span class="hl">birthday-party arrival jingle</span> generator <span class="heart">♥</span> Inspired by Japanese train-station <em>eki melodies</em>, rendered NES-style.</p>
+  </header>
+
+  <div class="pixel-card form-section">
+    <h2>＋ ADD A GUEST</h2>
+    <label for="guest-name">GUEST NAME</label>
+    <input type="text" id="guest-name" placeholder="e.g. Patrick" maxlength="60" autocomplete="off">
+    <label for="guest-desc">PERSONALITY / VIBE</label>
+    <textarea id="guest-desc" placeholder="e.g. Mellow and dreamy, loves shoegaze and houseplants. Walks slowly, talks even slower. Always brings the perfect record." maxlength="500"></textarea>
+    <button class="btn" id="generate-btn">► COMPOSE JINGLE</button>
+    <div id="form-error" class="error" style="display:none"></div>
+  </div>
+
+  <div id="guest-list"></div>
+
+  <footer>
+    <p class="tag">▶ PRESS START TO CONTINUE ◀</p>
+    <p>Made for a real birthday <span class="coin"></span> Three voices: square lead, pulse harmony, triangle bass.</p>
+  </footer>
+</div>
+
+<script>
+/* =================================================================
+   CHIPTUNE SYNTHESIS — proper NES-style polyphony
+   ================================================================= */
+class ChiptuneSynth {
+  constructor() {
+    this.ctx = null;
+    this.activeNodes = [];
+    this.currentId = null;
+    this.onStart = null;
+    this.onEnd = null;
+    this._endTimer = null;
+  }
+
+  init() {
+    if (!this.ctx) {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = 0.65;
+      this.master.connect(this.ctx.destination);
+      this.pulse50  = this._makePulse(0.50);
+      this.pulse25  = this._makePulse(0.25);
+      this.pulse125 = this._makePulse(0.125);
+    }
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+  }
+
+  // Pulse wave via Fourier coefficients — sounds like an NES APU square channel
+  _makePulse(duty) {
+    const n = 32;
+    const real = new Float32Array(n);
+    const imag = new Float32Array(n);
+    for (let i = 1; i < n; i++) {
+      imag[i] = (2 / (i * Math.PI)) * Math.sin(i * Math.PI * duty);
+    }
+    return this.ctx.createPeriodicWave(real, imag);
+  }
+
+  noteToFreq(note) {
+    if (!note || note === 'rest' || note === 'r') return 0;
+    const map = { C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11 };
+    const m = String(note).match(/^([A-G][#b]?)(-?\d+)$/);
+    if (!m) return 0;
+    const semis = map[m[1]] + (parseInt(m[2]) - 4) * 12;
+    return 440 * Math.pow(2, (semis - 9) / 12);
+  }
+
+  _scheduleNote(freq, startTime, duration, waveform, volume) {
+    if (freq === 0 || duration <= 0.01) return;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    if (waveform === 'pulse50')      osc.setPeriodicWave(this.pulse50);
+    else if (waveform === 'pulse25') osc.setPeriodicWave(this.pulse25);
+    else if (waveform === 'pulse125')osc.setPeriodicWave(this.pulse125);
+    else osc.type = waveform; // 'triangle' etc.
+
+    osc.frequency.setValueAtTime(freq, startTime);
+
+    // Tight chiptune ADSR
+    const attack  = 0.003;
+    const decay   = 0.04;
+    const sustain = volume * 0.72;
+    const release = Math.min(0.08, duration * 0.3);
+    const sustainEnd = Math.max(startTime + attack + decay, startTime + duration - release);
+
+    gain.gain.setValueAtTime(0, startTime);
+    gain.gain.linearRampToValueAtTime(volume, startTime + attack);
+    gain.gain.linearRampToValueAtTime(sustain, startTime + attack + decay);
+    gain.gain.setValueAtTime(sustain, sustainEnd);
+    gain.gain.linearRampToValueAtTime(0, startTime + duration);
+
+    osc.connect(gain);
+    gain.connect(this.master);
+    osc.start(startTime);
+    osc.stop(startTime + duration + 0.02);
+    this.activeNodes.push(osc);
+  }
+
+  stop() {
+    this.activeNodes.forEach(n => { try { n.stop(); } catch(e) {} });
+    this.activeNodes = [];
+    if (this._endTimer) { clearTimeout(this._endTimer); this._endTimer = null; }
+    if (this.currentId && this.onEnd) this.onEnd(this.currentId);
+    this.currentId = null;
+  }
+
+  play(jingle, id) {
+    this.init();
+    this.stop();
+
+    const beat = 60 / (jingle.tempo || 140);
+    const start = this.ctx.currentTime + 0.06;
+    let totalDur = 0;
+
+    const playTrack = (track, waveform, volume) => {
+      if (!Array.isArray(track)) return;
+      let t = 0;
+      for (const ev of track) {
+        if (!Array.isArray(ev) || ev.length < 2) continue;
+        const [note, beats] = ev;
+        const dur = (Number(beats) || 0) * beat;
+        const freq = this.noteToFreq(note);
+        // 94% of the slot — leaves a tiny gap for note articulation
+        this._scheduleNote(freq, start + t, dur * 0.94, waveform, volume);
+        t += dur;
+      }
+      if (t > totalDur) totalDur = t;
+    };
+
+    playTrack(jingle.lead,    'pulse50',  0.13);
+    playTrack(jingle.harmony, 'pulse25',  0.085);
+    playTrack(jingle.bass,    'triangle', 0.22);
+
+    this.currentId = id;
+    if (this.onStart) this.onStart(id, totalDur);
+    this._endTimer = setTimeout(() => {
+      if (this.onEnd) this.onEnd(id);
+      this.currentId = null;
+    }, (totalDur + 0.25) * 1000);
+  }
+}
+
+const synth = new ChiptuneSynth();
+
+/* =================================================================
+   PERSISTENT STORAGE
+   ================================================================= */
+const STORAGE_KEY = 'eki_guests_v1';
+let guests = [];
+
+async function loadGuests() {
+  try {
+    const r = await window.storage.get(STORAGE_KEY);
+    if (r && r.value) guests = JSON.parse(r.value);
+  } catch (e) {
+    guests = [];
+  }
+  render();
+}
+
+async function saveGuests() {
+  try {
+    await window.storage.set(STORAGE_KEY, JSON.stringify(guests));
+  } catch (e) {
+    console.error('Save failed', e);
+  }
+}
+
+/* =================================================================
+   JINGLE GENERATION VIA CLAUDE API
+   ================================================================= */
+async function generateJingle(name, description) {
+  const system = `You are composing short 8-bit chiptune jingles in the style of Japanese train-station "eki melodies" combined with NES-era video-game music. You compose a personalized jingle for a party guest based on a description of their personality.
+
+Compose THREE tracks:
+- LEAD: square-wave melody, the main hook (range C4–C6)
+- HARMONY: a counter-line or sparse harmony (range C4–B5). MAY be empty array [] if a unison melody fits the personality.
+- BASS: triangle-wave bass, mostly roots and fifths with some passing tones (range C2–C4)
+
+Constraints:
+- Total length 8–16 beats (~4–7 seconds at chosen tempo)
+- Tempo 110–170 BPM
+- 4/4 time
+- Use rhythmic variety (mix sixteenths, eighths, quarters, dotted values)
+- Choose a mode/key that fits the personality: major for cheerful, natural minor for moody, lydian for dreamy/floating, mixolydian for playful/grooving, dorian for cool/jazzy, etc.
+- End with a satisfying cadence — usually landing on the tonic, or an open V→I gesture
+- Smooth voice leading; bass should harmonically support the melody
+- Lead and harmony should be contrapuntally interesting when both present (parallel thirds/sixths, contrary motion, simple counterpoint)
+
+Return ONLY valid JSON. No markdown fences, no commentary, no prose before or after. Exact shape:
+{
+  "title": "short evocative theme name (2-5 words)",
+  "tempo": 140,
+  "key": "C major",
+  "mood": "one word for the feel",
+  "lead": [["C5", 0.5], ["E5", 0.5]],
+  "harmony": [["G5", 1]],
+  "bass": [["C3", 1], ["G2", 1]]
+}
+
+Note format: pitch with octave like "C4", "F#5", "Bb3", OR literal "rest". Duration in beats where 1 = quarter note, 0.5 = eighth, 0.25 = sixteenth, 1.5 = dotted quarter, 2 = half.`;
+
+  const user = `Compose an arrival jingle for this guest:
+
+NAME: ${name}
+DESCRIPTION: ${description}
+
+Translate their personality into musical choices: energy → tempo, warmth → mode, pace → rhythmic density, vibe → melodic contour. Make it instantly memorable in five seconds.`;
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1500,
+      system,
+      messages: [{ role: "user", content: user }]
+    })
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '');
+    throw new Error(`API ${response.status}: ${errText.slice(0,120)}`);
+  }
+
+  const data = await response.json();
+  const text = (data.content || [])
+    .filter(b => b.type === 'text')
+    .map(b => b.text || '')
+    .join('').trim();
+
+  // Strip markdown fences if Claude added them despite instructions
+  let cleaned = text
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/, '')
+    .replace(/```\s*$/, '')
+    .trim();
+
+  let jingle;
+  try {
+    jingle = JSON.parse(cleaned);
+  } catch (e) {
+    // Last-ditch: find a JSON object in the response
+    const m = cleaned.match(/\{[\s\S]*\}/);
+    if (!m) throw new Error('Could not parse jingle response');
+    jingle = JSON.parse(m[0]);
+  }
+
+  if (!Array.isArray(jingle.lead) || jingle.lead.length === 0) {
+    throw new Error('Jingle missing a lead melody');
+  }
+  jingle.harmony = Array.isArray(jingle.harmony) ? jingle.harmony : [];
+  jingle.bass    = Array.isArray(jingle.bass) ? jingle.bass : [];
+  jingle.tempo   = Number(jingle.tempo) || 140;
+  jingle.title   = String(jingle.title || 'untitled theme');
+  jingle.key     = String(jingle.key   || '');
+  jingle.mood    = String(jingle.mood  || '');
+
+  return jingle;
+}
+
+/* =================================================================
+   PIANO-ROLL RENDERING
+   ================================================================= */
+function renderPianoRoll(jingle) {
+  const tempo = jingle.tempo || 140;
+  const beat = 60 / tempo;
+
+  const trackLens = ['lead', 'harmony', 'bass']
+    .map(t => (jingle[t] || []).reduce((s, ev) => s + (Number(ev[1]) || 0), 0));
+  const totalBeats = Math.max(...trackLens, 1);
+
+  const noteMap = { C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11 };
+  const events = [];
+  ['lead', 'harmony', 'bass'].forEach(tname => {
+    let t = 0;
+    (jingle[tname] || []).forEach(ev => {
+      if (!Array.isArray(ev)) return;
+      const [note, beats] = ev;
+      const d = Number(beats) || 0;
+      if (note && note !== 'rest') {
+        const m = String(note).match(/^([A-G][#b]?)(-?\d+)$/);
+        if (m) {
+          const midi = noteMap[m[1]] + (parseInt(m[2]) + 1) * 12;
+          events.push({ track: tname, t, d, midi });
+        }
+      }
+      t += d;
+    });
+  });
+
+  if (events.length === 0) return '<div class="piano-roll"><div class="playhead" data-duration="0"></div></div>';
+
+  const midis = events.map(e => e.midi);
+  const minMidi = Math.min(...midis) - 1;
+  const maxMidi = Math.max(...midis) + 1;
+  const range = Math.max(maxMidi - minMidi, 8);
+  const innerH = 76;
+  const noteH = Math.max(3, Math.floor(innerH / range));
+
+  let html = '<div class="piano-roll">';
+  events.forEach(e => {
+    const left  = (e.t / totalBeats) * 100;
+    const width = Math.max((e.d / totalBeats) * 100 - 0.4, 0.6);
+    const top   = ((maxMidi - e.midi) / range) * innerH + 2;
+    html += `<div class="note-block ${e.track}" style="left:${left}%;width:${width}%;top:${top}px;height:${noteH}px"></div>`;
+  });
+  html += `<div class="piano-roll-legend"><span class="lead-l">LEAD</span><span class="harm-l">HARM</span><span class="bass-l">BASS</span></div>`;
+  html += `<div class="playhead" data-duration="${totalBeats * beat}"></div></div>`;
+  return html;
+}
+
+/* =================================================================
+   UI RENDERING
+   ================================================================= */
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s == null ? '' : String(s);
+  return d.innerHTML;
+}
+
+function render() {
+  const listEl = document.getElementById('guest-list');
+  if (guests.length === 0) {
+    listEl.innerHTML = `
+      <div class="pixel-card empty-state">
+        <div class="empty-state-icon">♪ ♫ ♪</div>
+        <p>No guests yet. Add one above to compose their arrival theme.</p>
+      </div>
+    `;
+    return;
+  }
+
+  listEl.innerHTML =
+    `<h2 class="section-heading">★ GUEST LIST (${guests.length})</h2>` +
+    guests.map(g => `
+      <div class="guest-card" data-id="${g.id}">
+        <div class="guest-header">
+          <div class="guest-info">
+            <div class="guest-name">${escapeHtml(g.name)}</div>
+            <div class="guest-theme">"${escapeHtml(g.jingle.title)}"</div>
+            <div class="guest-meta">${escapeHtml(g.jingle.key)} · ${escapeHtml(g.jingle.mood)} · ${g.jingle.tempo} BPM</div>
+            ${g.description ? `<div class="guest-desc">${escapeHtml(g.description)}</div>` : ''}
+          </div>
+          <div class="guest-actions">
+            <button class="btn btn-play btn-small" data-act="play" data-id="${g.id}">▶ PLAY</button>
+          </div>
+        </div>
+        ${renderPianoRoll(g.jingle)}
+        <div class="action-row">
+          <button class="btn btn-secondary btn-small" data-act="reroll" data-id="${g.id}">↻ REROLL</button>
+          <button class="btn btn-danger btn-small" data-act="delete" data-id="${g.id}">✕ DELETE</button>
+        </div>
+      </div>
+    `).join('');
+}
+
+/* =================================================================
+   HANDLERS
+   ================================================================= */
+function showError(msg) {
+  const el = document.getElementById('form-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function hideError() {
+  document.getElementById('form-error').style.display = 'none';
+}
+
+async function handleGenerate() {
+  const nameEl = document.getElementById('guest-name');
+  const descEl = document.getElementById('guest-desc');
+  const btn = document.getElementById('generate-btn');
+  hideError();
+
+  const name = nameEl.value.trim();
+  const description = descEl.value.trim();
+  if (!name) return showError('Please enter a name.');
+  if (!description) return showError('Describe their vibe — even a sentence works.');
+
+  // Prime audio context on this user gesture
+  synth.init();
+
+  btn.disabled = true;
+  btn.innerHTML = 'COMPOSING<span class="loading"></span>';
+
+  try {
+    const jingle = await generateJingle(name, description);
+    const guest = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+      name, description, jingle
+    };
+    guests.unshift(guest);
+    await saveGuests();
+    nameEl.value = '';
+    descEl.value = '';
+    render();
+    // Auto-preview
+    setTimeout(() => synth.play(jingle, guest.id), 180);
+  } catch (e) {
+    showError(`Couldn't compose: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '► COMPOSE JINGLE';
+  }
+}
+
+async function handleReroll(id) {
+  const guest = guests.find(g => g.id === id);
+  if (!guest) return;
+  const card = document.querySelector(`.guest-card[data-id="${id}"]`);
+  if (!card) return;
+  const btn = card.querySelector('[data-act="reroll"]');
+  btn.disabled = true;
+  btn.innerHTML = 'RE-ROLLING<span class="loading"></span>';
+
+  try {
+    const jingle = await generateJingle(guest.name, guest.description);
+    guest.jingle = jingle;
+    await saveGuests();
+    render();
+    setTimeout(() => synth.play(jingle, id), 120);
+  } catch (e) {
+    showError(`Re-roll failed: ${e.message}`);
+    btn.disabled = false;
+    btn.innerHTML = '↻ REROLL';
+  }
+}
+
+async function handleDelete(id) {
+  if (synth.currentId === id) synth.stop();
+  guests = guests.filter(g => g.id !== id);
+  await saveGuests();
+  render();
+}
+
+/* Playhead animation */
+let playheadAnim = null;
+function setPlayingCard(id, isPlaying) {
+  document.querySelectorAll('.guest-card.playing').forEach(c => c.classList.remove('playing'));
+  document.querySelectorAll('.playhead.active').forEach(p => {
+    p.classList.remove('active');
+    p.style.left = '0%';
+  });
+  if (playheadAnim) { cancelAnimationFrame(playheadAnim); playheadAnim = null; }
+  if (!isPlaying) return;
+
+  const card = document.querySelector(`.guest-card[data-id="${id}"]`);
+  if (!card) return;
+  card.classList.add('playing');
+
+  const playhead = card.querySelector('.playhead');
+  if (!playhead) return;
+  const duration = parseFloat(playhead.dataset.duration) * 1000;
+  if (!duration || duration <= 0) return;
+
+  playhead.classList.add('active');
+  const startedAt = performance.now();
+  const tick = (now) => {
+    const elapsed = now - startedAt;
+    const pct = Math.min(elapsed / duration, 1) * 100;
+    playhead.style.left = pct + '%';
+    if (elapsed < duration) {
+      playheadAnim = requestAnimationFrame(tick);
+    }
+  };
+  playheadAnim = requestAnimationFrame(tick);
+}
+
+synth.onStart = (id) => setPlayingCard(id, true);
+synth.onEnd   = (id) => setPlayingCard(id, false);
+
+/* Wire up */
+document.getElementById('generate-btn').addEventListener('click', handleGenerate);
+
+document.getElementById('guest-list').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  const act = btn.dataset.act;
+  const guest = guests.find(g => g.id === id);
+  if (!guest) return;
+  if (act === 'play')   synth.play(guest.jingle, id);
+  if (act === 'reroll') handleReroll(id);
+  if (act === 'delete') handleDelete(id);
+});
+
+// Ctrl/Cmd+Enter in description = generate
+document.getElementById('guest-desc').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleGenerate();
+});
+
+loadGuests();
+</script>
+</body>
+</html>
