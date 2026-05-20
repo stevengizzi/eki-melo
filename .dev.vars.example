@@ -1,7 +1,12 @@
-# .dev.vars.example — template only. Copy this to .dev.vars and fill in your key.
+# .dev.vars.example — template only. Copy this to .dev.vars and fill in your keys.
 # Never commit the real .dev.vars file.
 #
 # `wrangler pages dev` reads this file automatically when running the
-# proxy function locally.
+# Pages Functions locally.
 
+# Used by /api/generate (jingles) and /api/avatar (avatar character spec).
 ANTHROPIC_API_KEY="sk-ant-paste-your-key-here"
+
+# Used by /api/avatar to render pixel-art sprites (PixFlux model).
+# Create a token at https://www.pixellab.ai/signin
+PIXELLAB_API_KEY="paste-your-pixellab-token-here"

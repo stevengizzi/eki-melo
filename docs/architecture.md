@@ -5,7 +5,7 @@
 
 ## Overview
 
-Single-file HTML web app with no build step. All synthesis, rendering, and API orchestration happens in the browser. A thin serverless proxy holds the Anthropic API key and forwards requests from the client to the Claude Messages API.
+Single-file HTML web app with no build step. All synthesis and rendering happen in the browser. Two serverless Pages Functions hold the API keys and orchestrate outbound calls: `/api/generate` proxies jingle requests to the Claude Messages API, and `/api/avatar` runs a two-stage avatar pipeline (Claude designs a character spec, then PixelLab's PixFlux model renders the sprite). Both keys stay server-side.
 
 ## Components
 
@@ -33,21 +33,28 @@ Single-file HTML web app with no build step. All synthesis, rendering, and API o
 │         └─────────────────┘                              │
 │                                                          │
 └─────────────────────────────────────────────────────────┘
-                  │
-                  │  POST /api/generate
-                  ▼
-┌─────────────────────────────────────────────────────────┐
-│  Serverless proxy (Cloudflare Pages Function or similar)│
-│                                                          │
-│  - Reads ANTHROPIC_API_KEY from env                     │
-│  - Adds x-api-key + anthropic-version headers           │
-│  - Per-IP rate limit (TBD)                              │
-│  - Forwards body to api.anthropic.com/v1/messages       │
-│  - Returns response as-is                               │
-└─────────────────────────────────────────────────────────┘
-                  │
-                  ▼
-          api.anthropic.com (Claude Sonnet 4)
+                  │                                  │
+        POST /api/generate                  POST /api/avatar
+              (jingle)                    (name + description)
+                  │                                  │
+                  ▼                                  ▼
+┌──────────────────────────┐   ┌────────────────────────────────────┐
+│ Pages Function           │   │ Pages Function /api/avatar          │
+│ /api/generate            │   │ (functions/api/avatar.js)           │
+│                          │   │                                      │
+│ - Reads ANTHROPIC_API_KEY│   │ Stage 1 — Claude designs the         │
+│ - Adds x-api-key +       │   │   character spec (archetype, hooks,  │
+│   anthropic-version      │   │   palette, visualPrompt) using       │
+│ - Per-IP rate limit (TBD)│   │   ANTHROPIC_API_KEY                  │
+│ - Forwards body to       │   │ Stage 2 — PixelLab PixFlux renders a │
+│   api.anthropic.com      │   │   64×64 transparent PNG from the     │
+│ - Returns response as-is │   │   visualPrompt using PIXELLAB_API_KEY│
+└──────────────────────────┘   │ - Returns { ...spec, imageData }     │
+                  │             └────────────────────────────────────┘
+                  │                    │                      │
+                  ▼                    ▼                      ▼
+       api.anthropic.com      api.anthropic.com     api.pixellab.ai
+       (Claude Sonnet 4)      (Claude Sonnet 4)     (PixFlux model)
 ```
 
 ## Tech Stack
@@ -60,12 +67,13 @@ Single-file HTML web app with no build step. All synthesis, rendering, and API o
 - Browser `localStorage` for persistence (with `window.storage` fallback when running in Claude.ai artifact context)
 
 **API:**
-- Anthropic Claude API, model `claude-sonnet-4-20250514`
-- Two parallel calls per guest generation (jingle + avatar) via `Promise.allSettled`
+- Anthropic Claude API, model `claude-sonnet-4-20250514` — composes jingles and (since v7) designs avatar character specs
+- PixelLab API, PixFlux model (`POST /v2/create-image-pixflux`) — renders 64×64 transparent-background pixel sprites from the Claude-authored visual prompt (Bearer auth)
+- The client fires two parallel requests per guest via `Promise.allSettled`: `/api/generate` (jingle) and `/api/avatar` (avatar). The avatar request is itself a server-side two-stage Claude→PixelLab pipeline.
 
 **Deployment:**
-- Static hosting on a platform that supports serverless functions (Cloudflare Pages, Vercel, Netlify — TBD)
-- Single serverless function: `/api/generate` proxies to Anthropic with key injection
+- Static hosting on a platform that supports serverless functions (Cloudflare Pages — the `functions/` convention is in use)
+- Two serverless functions: `/api/generate` (jingle proxy) and `/api/avatar` (Claude→PixelLab avatar orchestration). Secrets: `ANTHROPIC_API_KEY` and `PIXELLAB_API_KEY`.
 
 ## File Structure
 
@@ -81,7 +89,8 @@ eki-melo/
 │   └── decision-log.md
 ├── functions/              ← Cloudflare Pages convention
 │   └── api/
-│       └── generate.js     ← serverless proxy (TBD)
+│       ├── generate.js     ← jingle proxy → Anthropic
+│       └── avatar.js       ← avatar pipeline → Claude + PixelLab
 └── archive/                ← preserved earlier versions
     ├── eki_greetings_v1.html
     └── eki_greetings_v2.html  (the artifact-runtime version)
@@ -92,8 +101,8 @@ eki-melo/
 ### Storage adapter (planned)
 A small adapter that exposes the same async `get(key)` / `set(key, value)` / `delete(key)` interface backed by either `window.storage` (when running in the Claude.ai artifact runtime) or `localStorage` (when running standalone). Feature detection on `typeof window.storage !== 'undefined'`. Same `STORAGE_KEY = 'eki_guests_v1'` and same non-destructive migration logic regardless of backend.
 
-### Endpoint detection (planned)
-`const API_ENDPOINT = (typeof window.storage !== 'undefined') ? 'https://api.anthropic.com/v1/messages' : '/api/generate';` — uses the same artifact-context signal to choose whether to hit the API directly (proxied automatically by the artifact runtime) or via the deployed proxy.
+### Endpoint detection
+`API_ENDPOINT` (jingles) resolves via the artifact-context signal `IS_ARTIFACT`: `api.anthropic.com/v1/messages` when running inside the Claude.ai artifact (which proxies API calls automatically) or `/api/generate` when standalone. `AVATAR_ENDPOINT` is `'/api/avatar'` standalone but `null` in the artifact — avatars require the Pages Function (it holds the PixelLab key) and the artifact runtime cannot reach PixelLab, so `generateAvatar()` throws early in that mode. Jingles still work in artifact mode; avatars do not.
 
 ### Versioned arrays for user-generated content
 Both `jingles` and `avatars` are arrays per guest, with a cursor field (`currentJingleIndex`, `currentAvatarIndex`). Reroll always appends; navigation cursors are user-controlled. No automatic deletion — pruning happens only via the JSON backup workflow.
@@ -107,8 +116,10 @@ Both `jingles` and `avatars` are arrays per guest, with a cursor field (`current
 ### Schema migration on read, not on write
 `loadGuests()` checks for the old `{jingle: {...}}` shape on each guest and transforms in memory to the new `{jingles: [...], currentJingleIndex, avatars, currentAvatarIndex}` shape. Writes the migrated data back only after successful in-memory transformation. Idempotent (already-migrated guests pass through unchanged).
 
-### Pixel sprite format
-24×24 grid stored as an array of 24 strings, each 24 hex characters long. Each character is a palette index (0 = transparent, 1–15 = colors from the `palette` array). Two frames per avatar for subtle idle animation at 3 fps. Render loop uses `requestAnimationFrame` for cross-tab efficiency.
+### Avatar formats (versioned, two renderers)
+Two avatar shapes coexist in the per-guest `avatars` array, and `renderAvatar()` dispatches on the `version` field:
+- **v4 (current, PixelLab):** `version: 4` with `imageData` (a `data:image/png;base64,…` URL), `width`/`height` of 64, plus the Claude-authored metadata (`archetype`, `hooks`, `palette`, `paletteHints`, `visualPrompt`). Rendered by `renderAvatarImage()` — draws the PNG onto a canvas scaled to fill the square wrap; idle/playing motion comes from CSS, so no `requestAnimationFrame` loop runs.
+- **Legacy (no `version` field):** a hex-grid sprite — an array of frame strings, each row a line of palette-index hex chars (0 = transparent), with `palette`, `fps`, and stored `width`/`height` (24×24, 32×48, or 32×32 across earlier iterations). Rendered by `renderAvatarLegacy()` with a `requestAnimationFrame` frame-swap loop. Retained read-only for backward compatibility; no new legacy avatars are produced.
 
 ### Aesthetic ground rules
 NES "select character" screen vibe. Dark purple palette anchored by `#0d0221`. Pixel-art borders via layered box-shadows. Scanline overlay via repeating-linear-gradient. Glow-pulse animation on the currently-playing card. Animated red playhead on the piano-roll viz. Press Start 2P for headers, VT323 for body — both monospace, both pixel-era.

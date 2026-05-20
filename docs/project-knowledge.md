@@ -5,7 +5,7 @@
 
 ## What Is This Project
 
-EKI Melo is a personal web app that generates 8-bit chiptune arrival jingles and 16-bit pixel avatars for birthday-party guests. Each guest gets a personalized NES-style theme composed with proper musical form (AABA / ABA' / ABCA, motivic development, voice exchange, cadence resolution) and a 24×24 animated sprite that captures their personality. The aesthetic is "character select screen meets Japanese train-station eki melody."
+EKI Melo is a personal web app that generates 8-bit chiptune arrival jingles and pixel avatars for birthday-party guests. Each guest gets a personalized NES-style theme composed with proper musical form (AABA / ABA' / ABCA, motivic development, voice exchange, cadence resolution) and a 64×64 pixel-art character sprite that captures their personality (Claude designs the character; PixelLab's PixFlux model renders it — see DEC-012). The aesthetic is "character select screen meets Japanese train-station eki melody."
 
 This is a weekend project built for one real birthday party. It is not a production product — it has one user (Steven), is shared with friends as a curiosity, and is intentionally tiny in scope.
 
@@ -29,10 +29,11 @@ See `docs/architecture.md` for the full picture.
 
 - HTML / vanilla JavaScript / CSS (no React, no build step, no bundler)
 - Web Audio API (online context for playback, OfflineAudioContext for WAV rendering)
-- Claude API — model: `claude-sonnet-4-20250514`
+- Claude API — model: `claude-sonnet-4-20250514` (jingles + avatar character specs)
+- PixelLab API — PixFlux model (`/v2/create-image-pixflux`) renders avatar sprites
 - Browser `localStorage` for persistence
 - Google Fonts (Press Start 2P, VT323) for the NES aesthetic
-- **Deployment target:** TBD — likely Cloudflare Pages with Functions
+- **Deployment target:** Cloudflare Pages with Functions (`/api/generate`, `/api/avatar`); secrets `ANTHROPIC_API_KEY` + `PIXELLAB_API_KEY`
 
 ## Key Active Decisions
 
@@ -44,6 +45,7 @@ See `docs/decision-log.md` for full rationale. Headlines:
 - **DEC-006:** Versioned arrays for both jingles and avatars; reroll appends. Combined with JSON backup export/import.
 - **DEC-008:** WAV download via `OfflineAudioContext` + hand-rolled 16-bit PCM encoder (no external libraries)
 - **DEC-010:** Serverless proxy in front of the Anthropic API to keep the key off the client (platform TBD)
+- **DEC-012:** Avatars rendered by PixelLab (PixFlux); Claude is the character designer. Two-stage `/api/avatar` Pages Function. Ends the three-iteration LLM-pixel-art run (DEC-005/DEC-011); legacy hex avatars still render via `renderAvatarLegacy`. Avatars unavailable in artifact mode.
 
 ## Workflow
 
