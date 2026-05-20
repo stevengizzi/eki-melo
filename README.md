@@ -8,35 +8,76 @@ You enter a guest's name and a sentence about their personality. The app calls C
 
 The whole thing renders inline as a "character select" screen with section markers on the piano-roll visualization.
 
-## Run locally
+## Project structure
 
-It's a single HTML file. Once the serverless proxy is wired up (see Deployment below), you can:
-
-```bash
-git clone https://github.com/stevengizzi/eki-melo.git
-cd eki-melo
-# serve locally with any static server
-python3 -m http.server 8000
-# visit http://localhost:8000
+```
+eki-melo/
+├── index.html              ← the entire app
+├── functions/
+│   └── api/
+│       └── generate.js     ← Cloudflare Pages Function: proxies to Anthropic
+├── docs/
+│   ├── project-knowledge.md
+│   ├── architecture.md
+│   └── decision-log.md
+├── archive/                ← preserved earlier versions
+│   ├── eki_greetings_v1.html
+│   └── eki_greetings_v2.html
+├── README.md
+├── CHANGELOG.md
+├── CLAUDE.md               ← Claude Code session entry point
+└── .gitignore
 ```
 
-For the API calls to work outside the artifact context, you need either:
-- A deployed proxy (recommended — see Deployment), or
-- A local proxy (e.g. `wrangler pages dev` for Cloudflare)
+## Running locally
 
-## Deployment
+The app requires the `/api/generate` proxy to be reachable. Easiest is Cloudflare's local dev tool:
 
-The app needs a tiny serverless proxy in front of the Anthropic API to keep the API key off the client. See `docs/architecture.md` for the rationale.
+```bash
+# One-time setup
+npm install -g wrangler
 
-[To be filled in after deployment platform is chosen.]
+# Set your Anthropic API key for local use
+echo 'ANTHROPIC_API_KEY="sk-ant-..."' > .dev.vars
+# (.dev.vars is gitignored)
+
+# Run the local dev server (serves the static file + runs functions)
+wrangler pages dev .
+
+# Visit http://localhost:8788
+```
+
+If you just want to preview the UI without API calls, a plain static server works (`python3 -m http.server 8000`) — composition will fail with a 404 on `/api/generate`, but the design and existing data renders.
+
+## Deployment (Cloudflare Pages)
+
+One-time setup:
+
+1. **Create a Cloudflare account** at https://dash.cloudflare.com/sign-up if you don't have one.
+2. **Workers & Pages → Create application → Pages → Connect to Git.**
+3. **Authorize Cloudflare on GitHub**, select the `eki-melo` repo.
+4. **Build settings:** leave the framework preset as "None", build command empty, build output directory `/`. There's no build step.
+5. **Environment variables:** add `ANTHROPIC_API_KEY` as a **secret** (not a plaintext variable) with your `sk-ant-...` key. Set scope to "Production". Add the same secret to "Preview" if you want preview deployments to work.
+6. **Save and deploy.** First deployment takes ~30 seconds.
+
+After deployment:
+- Production URL: `https://eki-melo.pages.dev` (or your custom subdomain)
+- Every push to `main` triggers a new deployment automatically
+- Branch pushes get preview URLs
+
+## First-run data restore
+
+If you have a JSON backup from the Claude.ai artifact preview, click `↑ IMPORT BACKUP` in the deployed app and select the file. Your guests, jingle versions, and avatars will restore from disk.
+
+Keep backups outside the repo — `.gitignore` blocks them from accidentally being committed, but a folder like `~/Documents/eki-melo-backups/` is a sensible home.
 
 ## Tech stack
 
 - Single-file HTML, vanilla JS, no build step
 - Web Audio API for chiptune synthesis (pulse waves via Fourier coefficients, triangle bass, ADSR envelopes)
 - OfflineAudioContext + hand-rolled 16-bit PCM encoder for WAV export
-- Claude API (`claude-sonnet-4-20250514`) for jingle and avatar generation
-- Browser `localStorage` for guest persistence (with JSON backup export/import as a safety net)
+- Claude API (`claude-sonnet-4-20250514`) via Cloudflare Pages Function proxy
+- Browser `localStorage` for persistence (`window.storage` adapter when running in Claude.ai artifact context)
 
 ## Documentation
 
@@ -50,7 +91,8 @@ The app needs a tiny serverless proxy in front of the Anthropic API to keep the 
 
 ## Workflow
 
-This project uses a lightweight subset of the [claude-workflow](https://github.com/stevengizzi/claude-workflow) methodology — decision logging and the canon-doc structure, but not the full sprint cycle (it's a weekend party app, not production software). Future iteration happens via:
-- **Claude.ai project** for design conversations and HTML rewrites
+This project uses a lightweight subset of the [claude-workflow](https://github.com/stevengizzi/claude-workflow) methodology — decision logging and the canon-doc structure, but not the full sprint cycle. Future iteration happens via:
+
+- **Claude.ai project** for design conversations and HTML rewrites (the storage adapter means the same `index.html` works in the artifact runtime)
 - **Claude Code** for refactors, proxy work, and deployment plumbing
 - **Git** as the bridge between them

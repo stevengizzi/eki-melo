@@ -1,0 +1,23 @@
+# Never commit guest data backups — your repo is public and backups
+# contain guest names + personality descriptions.
+eki-greetings-backup-*.json
+*-backup-*.json
+
+# Local environment files (would contain API keys)
+.env
+.env.local
+.dev.vars
+
+# Wrangler local state (Cloudflare CLI)
+.wrangler/
+
+# Node — only relevant if wrangler ever installs locally
+node_modules/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*~

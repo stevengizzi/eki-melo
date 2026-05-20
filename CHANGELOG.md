@@ -2,14 +2,21 @@
 
 All notable changes to EKI Melo. Most recent first.
 
-## [Unreleased]
+## [v3] — 2026-05-20
 
-### Planned
-- Storage adapter (`window.storage` / `localStorage` feature detection)
-- Endpoint detection (artifact-context vs deployed-proxy)
-- Serverless proxy at `/api/generate` (platform TBD)
-- GitHub auto-deploy
-- Per-IP rate limit on the proxy
+### Added
+- **Storage adapter** with feature detection. Same `index.html` runs in both the Claude.ai artifact runtime (`window.storage` backend) and a regular browser (`localStorage` backend). Same `STORAGE_KEY = 'eki_guests_v1'` in both modes — schema and migration logic unchanged.
+- **API endpoint detection.** `API_ENDPOINT` resolves to `https://api.anthropic.com/v1/messages` when running in the artifact (which proxies API calls automatically) or `/api/generate` when running standalone.
+- **Cloudflare Pages Function at `/api/generate`** (`functions/api/generate.js`). Holds `ANTHROPIC_API_KEY` server-side, adds required `x-api-key` and `anthropic-version` headers, forwards the request body to the Anthropic Messages API. Defenses: 8 KiB body cap, model allow-list, `max_tokens` clamped to 4000, POST-only.
+- **`.gitignore`** with rules to block backup JSON files (`*-backup-*.json`), local env files (`.dev.vars`, `.env`), wrangler state, and OS noise. Backups stay out of the public repo by default.
+- **Deployment runbook in README.md** — six-step Cloudflare Pages setup.
+
+### Changed
+- `eki_greetings.html` renamed to `index.html` (the canonical deployable file).
+- Earlier versions moved to `archive/` (`eki_greetings_v1.html`, `eki_greetings_v2.html`).
+
+### Preserved
+- All v2 features: versioned jingles, versioned avatars, WAV download, JSON backup, multi-section musical form, schema migration. Visible behavior is identical; only the storage and network plumbing changed.
 
 ## [v2] — 2026-05-19
 
