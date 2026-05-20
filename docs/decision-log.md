@@ -264,3 +264,8 @@ Storage key and per-guest schema unchanged (DEC-007); existing avatars must keep
 **Cross-References:**
 - Supersedes the format decision in DEC-005
 - Related decisions: DEC-004, DEC-006
+
+**Update — 2026-05-20 (same day):**
+Reverted the canvas to 24×24. The archetype-first prompt framing was a clear win and is kept, but 32×48 was not: Claude (Sonnet 4) reliably produced well-conceived characters whose pieces didn't connect — a hood with empty space where the head should be, a tool floating beside a body that was never drawn. The extra vertical pixels invited the model to spread elements out and then fail to bridge them. Dropping back to 24×24 forces the figure to be compact and connected, which the model handles far more reliably; the rewritten drawing rules now make "one connected silhouette first, hooks attached second" the explicit top priority, with frames reduced to 2 at 3 fps.
+
+This vindicates the original DEC-005 intuition ("32×32 too big — harder for Claude to keep coherent") more than DEC-011 expected: the bottleneck really was coherence at scale, and scaffolding alone didn't overcome it at 32×48. Lesson for future-self — for this model and sprite style, prefer the smallest canvas that fits the concept and spend the design budget on the *prompt's* structure, not on more pixels. Legacy 32×48 avatars still render (scaled down, aspect-preserved); nothing in storage changed.

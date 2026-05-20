@@ -2,6 +2,14 @@
 
 All notable changes to EKI Melo. Most recent first.
 
+## [v5] — 2026-05-20
+
+### Changed
+- **Avatar canvas retreated 32×48 → 24×24; drawing rules rewritten.** Kept v4's archetype-first interpretation framing (Claude commits to an archetype, 2–3 visual hooks, and an animation concept before placing pixels), but walked the canvas back to a 24×24 square. The drawing rules now demand a single *connected* body silhouette — head→torso→legs as one continuous shape — built first, with hooks (tools, companions, hats) attached to that body second. The 32×48 portraits tended to render as well-conceived hooks floating in empty space rather than a coherent figure; the smaller canvas forces the compactness the model handles better. Frames reduced to 2 at 3 fps.
+
+### Preserved
+- Storage key and per-guest schema unchanged. Old v4 32×48 avatars still load and render — `renderAvatar()` reads each sprite's stored width/height and picks the largest integer scale that fits the (now square) frame, so legacy portrait sprites render at reduced scale (64×96, centered in the 96×96 box) with aspect intact.
+
 ## [v4] — 2026-05-20
 
 ### Changed

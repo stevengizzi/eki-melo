@@ -247,9 +247,9 @@ textarea { min-height: 88px; resize: vertical; }
 }
 
 .avatar-wrap canvas {
-  /* width/height now set explicitly in renderAvatar() based on sprite aspect — */
-  /* this lets legacy 24×24 sprites still render correctly (square, centered) */
-  /* while new 32×48 sprites fill the portrait frame. */
+  /* width/height set explicitly in renderAvatar() from each sprite's stored */
+  /* dimensions, so current 24×24 sprites fill the square frame while legacy */
+  /* 32×48 portrait sprites still render (scaled down, aspect-preserved). */
   image-rendering: pixelated;
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
