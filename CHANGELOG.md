@@ -2,6 +2,14 @@
 
 All notable changes to EKI Melo. Most recent first.
 
+## [v6] — 2026-05-20
+
+### Changed
+- **Avatar canvas 24×24 → 32×32 (square); prompt restructured around two named rules.** The v5 retreat to 24×24 fixed figure coherence but starved the archetype hooks of room, so sprites read as generic hooded blobs. 32×32 keeps the square aspect that holds figures compact while giving back pixels for 2–3 visible accessories. The prompt now leads with two co-equal rules — **RULE 1: draw a connected figure** (head→torso→legs, no floating parts), and **RULE 2: the hooks must be visible in the final sprite** (identifiable from the pixels alone, with concrete pixel budgets per accessory). Frame-delta tolerance widened to 3–12 px and the palette allowance raised to 5–12 colors; normalization now pads/truncates to 32 rows × 32 chars.
+
+### Preserved
+- Storage key and per-guest schema unchanged. Legacy 24×24 and 32×48 avatars still load and render — `renderAvatar()` reads each sprite's stored width/height and picks the largest integer scale that fits the frame, aspect intact.
+
 ## [v5] — 2026-05-20
 
 ### Changed
