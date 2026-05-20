@@ -1,5 +1,8 @@
-# Never commit guest data backups — your repo is public and backups
-# contain guest names + personality descriptions.
+# Backups folder — all contents ignored, but keep the directory in repo
+backups/*
+!backups/README.md
+
+# Catch any backup JSONs that end up outside backups/ by accident
 eki-greetings-backup-*.json
 *-backup-*.json
 
