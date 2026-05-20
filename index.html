@@ -910,12 +910,12 @@ OUTPUT: JSON ONLY, no prose before or after. The JSON has reasoning fields FIRST
 
 JSON SHAPE:
 {
-  "archetype": "Forest Ranger",
-  "hooks": ["green hooded cloak", "longbow over shoulder", "small bird on shoulder"],
-  "animation_concept": "bird turns its head and blinks",
-  "palette": ["transparent", "#1d2b53", "#3e6e4a", "#6fa86d", "#d4a06b", "#ffccaa", "#ff004d", "#ffffff"],
+  "archetype": "Forest Artificer",
+  "hooks": ["moss-green hooded cloak", "mechanical owl on shoulder", "clockwork device at belt"],
+  "animation_concept": "owl tilts head and blinks",
+  "palette": ["transparent", "#1d2b53", "#3e6e4a", "#6fa86d", "#d4a06b", "#ffccaa", "#ffd700", "#ffffff"],
   "frames": [
-    ["000000000000000000000000", "...24 rows of 24 hex chars total..."],
+    ["00000000000000000000000000000000", "...32 rows of 32 hex chars total..."],
     ["...frame 2..."]
   ],
   "fps": 3
@@ -928,38 +928,52 @@ Lean hard into the archetype where the personality has a clear hook (forest-love
 
 HOOKS — 2-3 concrete visual elements that make this character read instantly. A tool, an accessory, a color signature, a companion creature, a distinctive hat.
 
-ANIMATION CONCEPT — a small moment of delight in the idle loop (2 frames at 3-4 fps). Examples: a bird on the shoulder turns its head, a wrench rotates a quarter-turn, a staff-tip twinkles, glasses glint, a small gear at the belt clicks forward, a cloak edge sways. Keep it small — 24×24 doesn't have room for big motion. ONE small thing moving is enough.
+ANIMATION CONCEPT — a small moment of delight in the idle loop (2 frames at 3-4 fps). Examples: a bird on the shoulder tilts its head, a wrench rotates a quarter-turn, a staff-tip twinkles, glasses glint, a small gear at the belt clicks forward, a cloak edge sways. ONE small thing moving is enough.
 
 ==================================================================
-DRAWING RULES — THIS IS THE PART THAT MATTERS MOST. READ CAREFULLY.
+DRAWING RULES — THE TWO MOST IMPORTANT RULES. READ BOTH CAREFULLY.
 ==================================================================
 
-You are drawing ONE CHARACTER, not a collection of accessories. The character is a single connected figure that fills most of the canvas vertically.
+RULE 1 — DRAW A CONNECTED FIGURE.
+The character is ONE connected silhouette. Head connected to neck connected to torso connected to legs, as ONE continuous outlined shape. No floating heads. No detached accessories with empty space between them and the body. The figure occupies roughly the central 22 columns of the 32-wide canvas and roughly 22-28 rows of the 32-tall canvas. Head in top third, torso in middle, legs in bottom third, ALL TOUCHING — there must be no empty rows between body parts.
 
 Draw in this order, mentally:
-1. FIRST — the body silhouette. Head connected to neck connected to torso connected to legs, as ONE continuous outlined shape. This is your foundation. The head sits roughly in the top third, torso in the middle, legs in the bottom third, ALL TOUCHING. The figure is roughly 12-18 pixels tall total and 8-14 pixels wide. There must be no gap between body parts.
-2. THEN — clothe and color the silhouette. Cloak over the shoulders, robes covering the torso, boots on the legs, hat on the head.
-3. THEN — add the signature hooks ON the figure. Tool in the figure's hand. Companion creature ON the figure's shoulder or hand. Belt around the figure's waist. Hat on the figure's head.
+1. The body silhouette as ONE continuous shape — head, neck, torso, arms, legs.
+2. Clothe the silhouette — cloak, robe, armor, boots over the body.
+3. Add the signature hooks ON the figure — tool in the figure's hand, companion on the figure's shoulder, hat on the figure's head, gear at the figure's belt.
 
-THE HOOKS ARE NEVER STANDALONE OBJECTS. They are always attached to the body. If you find yourself drawing a tool floating in space, or a companion creature with no character holding it, or a hood with empty space where the head should be — STOP and add the body underneath. A character with the body present and the hook implied is far better than a hook with no character.
+The hooks adorn the character. They are never standalone objects. If you find yourself drawing a tool floating in space, or a companion creature with no character holding it, or a hood with empty space where the head should be — STOP and add the body underneath.
 
-The figure should fill at least 60% of the canvas height. Empty space at the top and bottom is fine — empty space IN THE MIDDLE OF THE FIGURE (between head and torso, or between torso and legs) is a bug.
+RULE 2 — THE HOOKS MUST BE VISIBLE IN THE FINAL IMAGE.
+Listing the hooks in the JSON is not enough. They must actually appear, drawn in pixels, on the sprite. A viewer looking at the sprite alone (no JSON, no description) should be able to identify the archetype from what they see.
 
-SPRITE FORMAT — 24 wide × 24 tall:
-- Each frame is exactly 24 rows, each row exactly 24 characters.
+You have a 32×32 canvas — that's enough room for a body AND 1-2 small accessories. Use it. Concretely:
+- A small shoulder companion (bird, drone, sprite) fits in a 4×4 to 6×6 pixel area on the figure's shoulder.
+- A held tool (staff, wrench, book, wand) takes 3-6 pixels of additional width extending from the figure's hand.
+- A distinctive hat or hood occupies 6-10 pixels of the head area.
+- A belt accessory (gear, pouch, lantern) takes 3-5 pixels at the figure's waist.
+
+You can fit roughly 2-3 of these alongside the body. Pick the 2-3 from your hooks list that are MOST visually iconic for the archetype and make sure they actually appear.
+
+If the final sprite looks like "a generic small hooded figure" with no archetype-specific elements visible, you have failed at RULE 2 and the avatar is no better than a stick figure.
+
+==================================================================
+
+SPRITE FORMAT — 32 wide × 32 tall:
+- Each frame is exactly 32 rows, each row exactly 32 characters.
 - Each character is a single hex digit (0-9, a-f) representing the palette index.
-- Palette: 4-10 colors. Index 0 must be the string "transparent". Indices 1+ are hex like "#ff3864".
+- Palette: 5-12 colors. Index 0 must be the string "transparent". Indices 1+ are hex like "#ff3864".
 - Background pixels are index 0 (transparent).
 - Forward-facing standing pose, character centered horizontally.
-- 2 frames for idle animation. Frame 2 differs from frame 1 by 2-8 pixels — visible motion of ONE element (the companion, the tool, a blink) while the rest of the body stays still.
+- 2 frames for idle animation. Frame 2 differs from frame 1 by 3-12 pixels — visible motion of ONE element (the companion, the tool, a blink) while the rest of the body stays still.
 
 DESIGN RULES:
 - 1-pixel outline in the darkest palette color so the silhouette reads against a dark background.
 - Chunky, readable shapes. No single-pixel noise.
-- ALWAYS anthropomorphic (clear head-torso-legs structure). The character can be human, humanoid, or anthropomorphic animal/creature — but always with that connected body structure.
+- ALWAYS anthropomorphic (clear head-torso-legs structure). The character can be human, humanoid, or anthropomorphic animal/creature.
 - ALWAYS charming, NEVER scary or monstrous. No fangs, no skulls, no menace.
 
-REMEMBER: ONE CONNECTED FIGURE. Body first, hooks second. If the body isn't there, the avatar fails no matter how nice the hooks look.`;
+REMEMBER: connected figure (RULE 1) AND visible signature hooks (RULE 2). Both must be true. Either alone is a failure.`;
 
   const user = `Design the avatar for this guest.
 
@@ -1000,20 +1014,20 @@ DESCRIPTION: ${description}`;
   if (!Array.isArray(avatar.palette)) throw new Error('Avatar missing palette');
   if (!Array.isArray(avatar.frames) || avatar.frames.length === 0) throw new Error('Avatar missing frames');
 
-  // Normalize: pad/truncate each row to 24 chars, ensure 24 rows per frame.
-  const ROW_PAD = '000000000000000000000000'; // 24 zeros
+  // Normalize: pad/truncate each row to 32 chars, ensure 32 rows per frame.
+  const ROW_PAD = '00000000000000000000000000000000'; // 32 zeros
   avatar.frames = avatar.frames.map(frame => {
-    if (!Array.isArray(frame)) return Array(24).fill(ROW_PAD);
-    const rows = frame.slice(0, 24).map(r => {
+    if (!Array.isArray(frame)) return Array(32).fill(ROW_PAD);
+    const rows = frame.slice(0, 32).map(r => {
       const str = String(r).toLowerCase();
-      return (str + ROW_PAD).slice(0, 24);
+      return (str + ROW_PAD).slice(0, 32);
     });
-    while (rows.length < 24) rows.push(ROW_PAD);
+    while (rows.length < 32) rows.push(ROW_PAD);
     return rows;
   });
   avatar.fps = Number(avatar.fps) || 3;
-  avatar.width = 24;
-  avatar.height = 24;
+  avatar.width = 32;
+  avatar.height = 32;
   avatar.createdAt = Date.now();
   return avatar;
 }
