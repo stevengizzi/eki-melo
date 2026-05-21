@@ -307,3 +307,50 @@ The v7 spec referenced `POST /v2/generate-image-pixflux`. The live PixelLab API 
 **Cross-References:**
 - Supersedes the avatar-generation approach in DEC-005 and DEC-011 (the hex-grid renderer is retained as legacy-only for backward compatibility)
 - Related decisions: DEC-010 (server-side key proxy), DEC-006 (versioned arrays), DEC-007 (non-destructive storage)
+
+---
+
+**DEC-013:** Multi-file client code organization
+**Date:** 2026-05-21
+**Sprint:** v8
+
+**Decision:**
+Split the client code that lived inline in `index.html` into ES modules under `js/`, and move the CSS into `styles.css`. `index.html` becomes markup only: a `<link rel="stylesheet" href="styles.css">` and a single `<script type="module" src="js/main.js">`. Load order is the import graph, not script-tag order. Layout:
+
+```
+index.html        ← markup; loads styles.css + js/main.js
+styles.css        ← all CSS
+js/
+  env.js          ← IS_ARTIFACT, API/AVATAR endpoints, storageBackend detection
+  storage.js      ← STORAGE_KEY, guests, setGuests, migrate/load/saveGuests
+  jingle/
+    synth.js      ← pulse-wave synthesis, LiveSynth, synth singleton, WAV render
+    composition.js← JINGLE_SYSTEM_PROMPT ("what a jingle should be")
+    api.js        ← generateJingle ("how we ask Claude")
+    render.js     ← renderPianoRoll + playhead animation
+  avatar/
+    api.js        ← generateAvatar (client caller for /api/avatar)
+    render.js     ← renderAvatar dispatch, mountAvatars, avatarAnimations
+  ui.js           ← render, renderGuestCard, escapeHtml, showError/hideError, toast
+  handlers.js     ← orchestration: click/keyboard handlers
+  main.js         ← event wire-up + loadGuests() init
+```
+
+Server-side Pages Functions (`functions/api/*`) are untouched.
+
+**Alternatives Rejected:**
+1. Keep the single inline file: It crossed the point where navigation friction outweighed the portability of one file. Jingle composition is about to grow (a dedicated `composition.js` now owns the musical brief, separate from the API plumbing in `api.js`), and a 1500-line single file made every change a scroll-hunt.
+2. Add a bundler (Vite/esbuild) while splitting: Reintroduces the build step DEC-001 deliberately avoided. Native ES modules need no build — Cloudflare Pages serves the files directly and the browser resolves the import graph.
+3. Concatenate into a few large files instead of one-module-per-concern: Less churn, but the `/* === SECTION === */` banners already mapped cleanly to per-concern files, so the finer split cost little and reads better.
+
+**Rationale:**
+The existing section banners were the natural seams. One section split across two files — the jingle prompt went to `composition.js` (owns the compositional intent, the place future composition logic grows) and the fetch/parse stayed in `api.js` (owns the request). The `guests` array stays a live module binding in `storage.js`: importers mutate it in place (`push`/`unshift`) and reassign through `setGuests()` so the live binding updates everywhere. `loadGuests()` no longer calls `render()` — storage stays UI-free and `main.js` orchestrates `loadGuests().then(render)`.
+
+**Constraints:**
+- No build step and no external JS libraries (DEC-001 still holds for those aspects). This entry supersedes only the *single-file* aspect of DEC-001.
+- `STORAGE_KEY = 'eki_guests_v1'` and the migrate-on-read path unchanged (DEC-007); JSON backup format unchanged (DEC-009); the Anthropic key never reaches the client (DEC-010).
+- The `env.js` endpoint/storage detection seam is preserved so the artifact-runtime adaptation logic still works; artifact mode remains a dev convenience, not a production target (per DEC-012). `index.html` is the canonical deployable; `archive/` keeps the historical single-file artifact versions.
+
+**Cross-References:**
+- Supersedes the single-file aspect of DEC-001 (vanilla JS, no framework, no build step all retained)
+- Related decisions: DEC-007 (storage key/migration), DEC-009 (backup format), DEC-010 (key proxy)

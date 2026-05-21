@@ -2,6 +2,14 @@
 
 All notable changes to EKI Melo. Most recent first.
 
+## [v8] — 2026-05-21
+
+### Changed
+- **Client code split into ES modules.** The JavaScript that lived inline in `index.html` now lives under `js/` (`env`, `storage`, `jingle/{synth,composition,api,render}`, `avatar/{api,render}`, `ui`, `handlers`, `main`), and all CSS moved to `styles.css`. `index.html` is now markup only — it loads `styles.css` and a single `<script type="module" src="js/main.js">`; load order is the import graph, not script tags. Still no build step and no external libraries — Cloudflare Pages serves the files directly and the browser resolves the imports. The jingle system prompt now lives in `jingle/composition.js` (the musical brief) separate from `jingle/api.js` (the request to Claude), giving future composition logic a home. See DEC-013.
+
+### Preserved
+- Behavior is identical. `STORAGE_KEY = 'eki_guests_v1'` and the migrate-on-read path unchanged (DEC-007); JSON backup export/import format unchanged (DEC-009); the Anthropic key never reaches the client (DEC-010); the `env.js` artifact/standalone detection seam is intact. Server-side Pages Functions (`functions/api/*`) untouched.
+
 ## [v7] — 2026-05-20
 
 ### Added

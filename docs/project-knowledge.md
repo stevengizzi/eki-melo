@@ -21,7 +21,7 @@ This is a weekend project built for one real birthday party. It is not a product
 
 ## Architecture
 
-Single-file HTML, vanilla JS, no build step. Three Web Audio voices recreate the NES APU (50% pulse lead, 25% pulse harmony, triangle bass) via Fourier-coefficient PeriodicWave construction. Jingle and avatar generation happen in parallel via `Promise.allSettled` against the Anthropic Messages API. Each guest stores arrays of versioned jingles and avatars; reroll appends rather than overwrites.
+Multi-file vanilla JS, no build step. Three Web Audio voices recreate the NES APU (50% pulse lead, 25% pulse harmony, triangle bass) via Fourier-coefficient PeriodicWave construction. Jingle and avatar generation happen in parallel via `Promise.allSettled` against the Anthropic Messages API. Each guest stores arrays of versioned jingles and avatars; reroll appends rather than overwrites.
 
 See `docs/architecture.md` for the full picture.
 

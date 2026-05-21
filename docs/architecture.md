@@ -5,13 +5,13 @@
 
 ## Overview
 
-Single-file HTML web app with no build step. All synthesis and rendering happen in the browser. Two serverless Pages Functions hold the API keys and orchestrate outbound calls: `/api/generate` proxies jingle requests to the Claude Messages API, and `/api/avatar` runs a two-stage avatar pipeline (Claude designs a character spec, then PixelLab's PixFlux model renders the sprite). Both keys stay server-side.
+Vanilla-JS web app with no build step — `index.html` markup plus ES modules under `js/` and a single `styles.css`, served directly (no bundler). All synthesis and rendering happen in the browser. Two serverless Pages Functions hold the API keys and orchestrate outbound calls: `/api/generate` proxies jingle requests to the Claude Messages API, and `/api/avatar` runs a two-stage avatar pipeline (Claude designs a character spec, then PixelLab's PixFlux model renders the sprite). Both keys stay server-side.
 
 ## Components
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  Browser (index.html — one file, vanilla JS)            │
+│  Browser (index.html + js/ ES modules, vanilla JS)      │
 │                                                          │
 │  ┌─────────────┐  ┌──────────────┐  ┌──────────────┐  │
 │  │  UI layer   │  │  Synthesis   │  │  Avatar      │  │
@@ -77,9 +77,29 @@ Single-file HTML web app with no build step. All synthesis and rendering happen 
 
 ## File Structure
 
+The client code is split into ES modules under `js/`; `index.html` is markup
+only and loads `styles.css` plus `js/main.js` (`type="module"`). Load order is
+the import graph, not script-tag order. No build step — Cloudflare Pages serves
+the files directly and the browser resolves the imports (DEC-013).
+
 ```
 eki-melo/
-├── index.html              ← the entire app
+├── index.html              ← markup; loads styles.css + js/main.js
+├── styles.css              ← all CSS
+├── js/
+│   ├── env.js              ← IS_ARTIFACT, API/AVATAR endpoints, storage detection
+│   ├── storage.js          ← STORAGE_KEY, guests, setGuests, migrate/load/save
+│   ├── jingle/
+│   │   ├── synth.js        ← pulse synthesis, LiveSynth, synth singleton, WAV render
+│   │   ├── composition.js  ← JINGLE_SYSTEM_PROMPT (the musical brief)
+│   │   ├── api.js          ← generateJingle (the request to Claude)
+│   │   └── render.js       ← renderPianoRoll + playhead animation
+│   ├── avatar/
+│   │   ├── api.js          ← generateAvatar (client caller for /api/avatar)
+│   │   └── render.js       ← renderAvatar dispatch, mountAvatars, avatarAnimations
+│   ├── ui.js               ← render, renderGuestCard, escapeHtml, errors, toast
+│   ├── handlers.js         ← orchestration: click/keyboard handlers
+│   └── main.js             ← event wire-up + loadGuests() init
 ├── README.md
 ├── CHANGELOG.md
 ├── CLAUDE.md
@@ -95,6 +115,21 @@ eki-melo/
     ├── eki_greetings_v1.html
     └── eki_greetings_v2.html  (the artifact-runtime version)
 ```
+
+### Module graph notes
+- `storage.js` exposes `guests` as a live module binding: importers read it and
+  mutate it in place (`push`/`unshift`), and reassign through `setGuests()` so the
+  binding updates for every importer. `storage.js` imports only `env.js` — it has
+  no UI dependency, so `loadGuests()` does not render; `main.js` runs
+  `loadGuests().then(render)`.
+- `jingle/composition.js` owns *what a jingle should be* (the system prompt);
+  `jingle/api.js` owns *how we ask Claude* (the request). The split gives future
+  composition logic a home apart from the network plumbing.
+- `ui.js` and `jingle/render.js` form a deliberate import cycle (`renderGuestCard`
+  needs `renderPianoRoll`; `renderPianoRoll` needs `escapeHtml`). ES modules
+  resolve it because both bindings are used at call time, not module-eval time.
+- `jingle/render.js` wires `synth.onStart`/`synth.onEnd` to the playhead at module
+  load; `synth` is the singleton exported by `jingle/synth.js`.
 
 ## Key Patterns
 
