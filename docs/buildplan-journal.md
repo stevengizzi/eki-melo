@@ -1569,3 +1569,216 @@ working alternative preset off the default path. Cleared to proceed
 to Session 8 — the first LLM-driven stage (Stage 5b texture
 choreography), a real architectural shift from deterministic to
 creative.**
+
+## Session 8 — 2026-05-21 — Stage 5b texture choreography (FIRST LLM stage)
+
+> Implementation entry. This is the first LLM-driven stage and a real
+> architectural shift: Sessions 1–7 built the deterministic back-half; Stage 5b
+> begins the LLM front-half. The human checkpoint is SUBSTANTIAL this session
+> (listen to a generated case, A/B against the hand-supplied twin, try all three
+> freedom-knob values) and is recorded at the END of this entry AFTER Steven's
+> pass — it is not here yet.
+
+**What landed (commits):**
+- feat(jingle): add Stage 5b texture choreography (first LLM stage)
+  - `js/jingle/pipeline/stage-5b-texture.js` — `generateTexturePlan`
+    (with `__mockResponse` offline fallback + `onTrace`), `validateTexturePlan`,
+    `buildTexturePlanPrompt`; LLM call mimics api.js; validate-then-retry-once
+  - `js/jingle/pipeline/pipeline-config.js` — new `texture_adventurousness` knob
+    on all four presets (tame/adventurous/wild)
+  - `js/jingle/pipeline/pipeline-runner.js` — sync `runPipeline` kept bit-for-bit
+    (now with a clear guard if texturePlan is absent); new async
+    `runPipelineGenerating` calls Stage 5b when texturePlan is absent
+- feat(jingle): wire Stage 5b into the inspector + add the offline verifier
+  - `js/jingle/debug/pipeline-inspector-cases.js` — `GENERATED_CASES` export
+    (Sunrise + Wanderer's with texturePlan omitted); `CASES` unchanged
+  - `js/jingle/debug/pipeline-inspector.html` — generated cases (optgroup-labeled
+    vs hand-supplied), a texture-adventurousness selector, and a Stage-5b panel
+    (prompt / raw response(s) / generated TexturePlan)
+  - `js/jingle/theory/verify-stage5b.mjs` — committed offline regression check
+- docs(jingle): record Session 8 implementation (this entry)
+
+**Exit criteria status:**
+- [x] `stage-5b-texture.js` exports `generateTexturePlan` (with `__mockResponse`)
+  + `validateTexturePlan`.
+- [x] System + user prompts are built from a clearly-named `buildTexturePlanPrompt`
+  separated from the fetch logic, so Sessions 9–11 can mimic the structure.
+- [x] The validator catches every documented defect — unknown texture, unknown
+  bass pattern, out-of-range bars, coverage gap, coverage overlap, missing
+  section, extra section (plus non-object params + envelope-shape errors). Each
+  is asserted in `verify-stage5b.mjs` with a keyword check on the message.
+- [x] pipeline-runner threads hand-supplied OR generated texturePlan, with the
+  hand-supplied path bit-for-bit unchanged (see the decision below — the sync
+  core is untouched; generation lives in an async sibling).
+- [x] `pipeline-inspector.html` exposes both old and new cases (clearly labeled
+  by optgroup), and the generated case ACTUALLY HITS THE LLM in the browser
+  (the only place a real LLM call happens this session).
+- [x] `verify-stage5b.mjs` passes offline (no API calls); all prior verifiers
+  still pass (verify-spelling / -forms / -motif / -stage6 / -stage8 / -textures /
+  -stage7, all exit 0).
+- [x] This journal entry (prompt design, validation strategy, prompt-engineering
+  notes below).
+- [ ] **Human checkpoint** — substantial; PENDING Steven's listening pass.
+
+**Verification anchors that passed (`verify-stage5b.mjs`, committed, OFFLINE):**
+- `validateTexturePlan` on a valid wrapped plan → `{ ok:true, errors:[] }`; each
+  of the eight+ defect classes → `{ ok:false }` with a message naming the defect.
+- `generateTexturePlan({ __mockResponse })`: a valid mock parses + validates and
+  returns the FLAT plan (keys = section labels, no `sections` wrapper); threaded
+  through `runPipelineGenerating` it runs end-to-end (Stage 6 → 7 → 8 →
+  toSynthString) to a FinalJingle whose every pitch parses through the **real**
+  synth.js `noteToFreq` to a finite positive frequency, all three voices
+  beat-aligned. A malformed mock (bad JSON) throws; a semantically-invalid mock
+  (unknown texture, or a missing section) throws on validation.
+- `buildTexturePlanPrompt` is pure and names the exact section labels, the strict
+  texture/bass vocabularies, and the active adventurousness directive.
+- Prompt body size measured 4.4–4.7 KB across the three cases at `wild` — under
+  the `/api/generate` 8 KiB cap (a one-shot retry adds the prior response +
+  correction, ~6 KB worst case, still under).
+
+**Prompt design choices:**
+- **System prompt** establishes the role verbatim from the buildplan: "You are a
+  composer choosing textures and bass patterns to choreograph a chiptune piece.
+  Your output is a strict JSON object matching the given schema; no commentary."
+- **User prompt** is assembled from compact, labeled blocks: PIECE (key/mode/
+  form/tempo/meter/register/harmonic-rhythm/sections-with-bar-counts), MOTIFS
+  (degree shapes + contour + register + any anomaly), HARMONIC PLAN (per-section
+  Roman numerals + cadence), PHRASE PLAN (which motif/transform lands where),
+  the STRICT texture + bass vocabularies (each name + a one-line description so
+  the model knows what it's choosing from), the active adventurousness directive,
+  and a JSON skeleton that lists every section by its exact label and bar count.
+- **Vocabulary listings are generated off the registries' own keys**
+  (`TEXTURE_REGISTRY`, `BASS_PATTERNS`), so the prompt's choice set can never
+  drift from what validation accepts — add a texture and it shows up in both.
+- **Forced-JSON by instruction, not a parameter.** The Anthropic Messages API has
+  no `response_format`, so (per the buildplan's fallback) the prompt demands
+  "RESPOND WITH ONLY THIS JSON OBJECT — no markdown fences, no commentary"; the
+  parser strips fences and brace-matches, mirroring api.js exactly. (Tool-forced
+  JSON was considered and rejected — it would diverge from the api.js text-block
+  parsing pattern Sessions 9–11 will reuse, for no real gain on a small object.)
+
+**Validation strategy:**
+- `validateTexturePlan` collects ALL defects (it does not stop at the first), so
+  the single retry can be handed every problem at once. Each message names the
+  section, the voice, the assignment index, and the offending value.
+- The five rigour checks from the prompt are all enforced: (a) the section-label
+  set matches `computeSectionPlan(macroParams)` exactly — none missing, none
+  extra; (b) harmony/bass are arrays of well-formed assignments with a valid
+  registry name and a `[start,end]` integer tuple; (c) bars within `[1, N]`,
+  `start<=end`; (d) per voice, ranges tile `[1, N]` contiguously — gaps and
+  overlaps detected by an expected-next-bar walk; (e) optional `params` is an
+  object or absent.
+- **The validator reuses `computeSectionPlan`** (exported from stage-6-voice.js)
+  as the single source of truth for labels + bar counts — the same function
+  Stage 6 and the runner use — so "what's a valid section" can't drift between
+  the validator and the realizer.
+
+**Surprises / decisions made:**
+- **Wrapped LLM envelope, flat inter-stage plan.** The Session-8 prompt's OUTPUT
+  diagram and validation spec ("`sections` is an object…") describe a WRAPPED
+  shape `{ sections: { <label>: {…} } }`, but the canonical inter-stage
+  TexturePlan (buildplan §3, what Stage 6 consumes, what the hand-supplied cases
+  use) is FLAT `{ <label>: {…} }`. Reconciled by treating the wrapped shape as
+  Stage 5b's LLM I/O envelope only: the model emits it, `validateTexturePlan`
+  checks it, then `generateTexturePlan` UNWRAPS `.sections` and returns the flat
+  §3 plan. So `input.texturePlan` is one consistent shape whether hand-supplied
+  or generated, Stage 6 needs no change, and the §3 contract holds. A top-level
+  `sections` key is also genuinely easier for the model than a bare map of labels
+  like `"A'"`.
+- **`runPipeline` stays SYNCHRONOUS; generation lives in an async sibling.** The
+  prompt's pseudocode puts an `await generateTexturePlan(...)` inside the runner's
+  if/else, which would make `runPipeline` async and force every existing
+  synchronous caller (the inspector's hand-supplied path + verify-stage6/7/8/
+  textures, which all call `runPipeline(testCase)` and use the result directly)
+  to change. To keep the hand-supplied path bit-for-bit unchanged AND all prior
+  verifiers passing, the if/else is realized as: `runPipeline` (sync core,
+  unchanged, now with a clear guard if texturePlan is absent) + a new async
+  `runPipelineGenerating` that calls Stage 5b when texturePlan is absent then
+  delegates to the sync core. This is the pattern the remaining LLM stages
+  (1/2/3/4/5a) will follow — present-supplied input wins; otherwise call the LLM
+  stage — and it means adding an LLM stage never changes the deterministic
+  back-half's calling convention.
+- **New `texture_adventurousness` knob (≠ `texture_change_rate`).** The prompt
+  reads `config.knobs.texture_adventurousness` ∈ {tame, adventurous, wild}, which
+  did not exist — the config had `texture_change_rate` ∈ {low, medium, high},
+  reserved for the deterministic side. Added `texture_adventurousness` to all four
+  presets (conservative→tame, balanced→adventurous, adventurous→adventurous,
+  wild→wild) rather than overloading the existing knob. Additive — no other stage
+  reads it; the existing presets/verifiers are unaffected. The reader falls back
+  to `adventurous` if the knob is absent.
+- **Model pinned to `claude-sonnet-4-20250514`.** The deployed `/api/generate`
+  proxy's `ALLOWED_MODELS` permits only this one (and api.js uses it), so pinning
+  it keeps BOTH runtime modes working — the Cloudflare proxy path and the
+  artifact direct-to-anthropic path — without a server change. A model upgrade is
+  a coordinated allow-list + client change, deferred (Session 12+). Noted so a
+  future session doesn't silently switch the model and 400 the deployed path.
+- **`onTrace` callback (no input mutation) feeds the inspector.** Rather than
+  mutating an out-param, `generateTexturePlan` accepts an optional `onTrace`
+  called once per model round-trip (or the mock) with `{ attempt, raw, ok,
+  errors }`. The inspector collects these to show every attempt's raw response
+  and which one validated; the prompt itself is displayed by calling the pure
+  `buildTexturePlanPrompt` directly.
+- **Retry ceiling is one (two tries total), per the buildplan.** On a validation
+  (or first-response parse) failure, the stage appends the assistant's bad
+  response + a correction prompt listing the specific errors, and asks once more.
+  Still invalid → throw with the full error list and the raw response logged.
+  An unparseable FIRST response is treated as a validation failure so the retry
+  gets a chance; an unparseable SECOND response throws directly.
+
+**Prompt-engineering notes (from offline testing — the live aesthetic test is the
+human checkpoint):**
+- Verification this session was OFFLINE only (no API key in the build context):
+  the `__mockResponse` path exercises the full parse+validate+e2e pipeline, and
+  prompt structure/size were checked, but no live model output was generated or
+  judged here. The quality of the model's *texture choices* is exactly what
+  Steven's listening pass evaluates.
+- The JSON skeleton lists each section with its bar count inline
+  (`"A1": { "harmony": [ /* tile bars 1..4 */ ], … }`) because coverage (no gaps/
+  overlaps tiling `[1,N]`) is the constraint a model is most likely to get wrong;
+  putting N right next to each label is the cheapest nudge. If the model still
+  miscovers in practice, the retry feeds back the exact gap/overlap bars.
+- The adventurousness directive only prints the ACTIVE level's instruction (not
+  all three), to avoid diluting the steer. tame ≈ "mostly parallel_thirds_below +
+  root_fifth"; adventurous ≈ "vary per section, use contrast/breath"; wild ≈ "a
+  different texture every 4–8 bars, reach for the bold ones."
+
+**Deferred:**
+- **Live prompt tuning.** Any aesthetic adjustments to the prompt (texture-choice
+  tendencies, how strongly each adventurousness level varies) wait on Steven's
+  listening pass — those are findings, not blockers, per the checkpoint rules.
+- **`params` semantics are validated but not richly specified to the model.** The
+  prompt mentions `{"degree": 5}` for oblique/drone/pedal; the validator only
+  checks `params` is an object. If the model invents unsupported param keys, Stage
+  6 ignores them harmlessly (textures read only the keys they know). Tighten later
+  if it matters.
+- **Tonal-vs-chromatic, transition smoothing, compound meter** — all inherited
+  Session-6 deferrals; Stage 5b just chooses WHICH textures, it doesn't change how
+  they realize.
+- **Model upgrade + allow-list** — pinned to sonnet-4 for now (see above).
+
+**Notes for next session (Session 9 — Stage 5a phrase structure + motif
+placement):**
+- Mimic this stage's structure: a pure `build<Stage>Prompt({…}) → { system, user }`
+  separated from the fetch; a `validate<Output>(plan, macroParams) → { ok, errors }`
+  that collects ALL defects and reuses `computeSectionPlan` for section truth; a
+  `generate<Output>({ …, __mockResponse, onTrace })` with the offline fallback and
+  the one-shot validate-then-retry loop; the model pinned to
+  `claude-sonnet-4-20250514`; the wrapped-LLM-envelope / flat-inter-stage-plan
+  split if §3's shape and a clean LLM schema disagree.
+- The async `runPipelineGenerating` is where the front-half assembles. Session 9+
+  will add their own "generate if absent" step there (PhrasePlan before Stage 5b's
+  TexturePlan, since 5b consumes the phrasePlan). Keep `runPipeline` synchronous.
+- `verify-stage5b.mjs` runs with the throwaway-package.json dance like the others.
+- Stage 5b post-LLM enforcement is intentionally just shape/coverage/vocabulary —
+  no musical-quality rejection (e.g. "don't dropout the whole A section"). Session
+  9's PhrasePlan validator, by contrast, DOES owe motivic-development rules
+  (B-section non-literal, reprise contains the A motif, no adjacent-identical
+  transform patterns) per the buildplan — those are post-LLM rejections, not just
+  prompt asks.
+
+**Verdict: Session 8 implementation complete; `verify-stage5b` and all seven
+prior verifiers pass offline. The first LLM stage is wired end-to-end with strict
+schema validation, a one-shot retry, a deterministic offline fallback, and the
+freedom-knob plumbing. The session is NOT closed until Steven completes the
+listening pass (run a generated case, A/B it against the hand-supplied twin,
+try tame/adventurous/wild) and his findings are recorded here.**
