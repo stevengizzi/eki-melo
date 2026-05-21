@@ -1381,8 +1381,8 @@ voice-leading pass.**
   (verify-spelling / -forms / -motif / -stage6 / -stage8 / -textures) still
   PASS — no regression.
 - [x] This journal entry.
-- [ ] **Human checkpoint** — lightweight confirm + one cpp_strict listen
-  (pending; see the checkpoint note at the end of this entry).
+- [x] **Human checkpoint** — lightweight confirm CLEARED (see the checkpoint
+  note at the end of this entry).
 
 **Verification anchors that passed (`verify-stage7.mjs`, committed):**
 - Primitives: `clampToRange` octave-displaces (E7 → E6, C1 → C4, in-range
@@ -1508,18 +1508,22 @@ stage):**
   (it builds a config with the chosen `voice_leading_strictness`), so an LLM-stage
   inspector panel can sit above it unchanged.
 
-**HUMAN CHECKPOINT — PENDING (lightweight).** Not a full audition. After this
-implementation, Steven will: (1) open the inspector and run each case under both
-presets; (2) confirm chiptune_idiomatic is audibly identical to pre-Session-7
-(the repairs summary should read "Repairs: 0" on every case — the rules don't
-fire); (3) listen briefly to one case under cpp_strict to hear what strict
-counterpoint does to the chiptune sound (curiosity, not a gate — cpp_strict is a
-correctness configuration, not the desired aesthetic). The session closes after
-that quick listen + a sanity check that the repairs summary makes sense.
+**HUMAN CHECKPOINT — CLEARED (2026-05-21, lightweight).** Steven opened the
+inspector, ran the cases under both presets, and confirmed chiptune_idiomatic is
+audibly unchanged from pre-Session-7. Verdict, verbatim:
 
-**Verdict: Session 7 implementation complete; all seven verifiers pass, the
-identity stub is gone, and the rule set runs end-to-end under both presets.
+> Ok great, so these are pretty much the same as before. All good.
+
+That is exactly the gate: under the default preset the rules do not fire on the
+existing cases (the inspector reads "Repairs: 0" on every case), so the
+deterministic back-half sounds identical to Session 6 — Stage 7 is a transparent
+pass-through until a future stage (or a non-default preset) gives it something to
+repair. cpp_strict remains the correctness/curiosity configuration, not the
+target aesthetic, and is off the default path.
+
+**Verdict: Session 7 complete and confirmed by ear. All seven verifiers pass,
+the identity stub is gone, and the rule set runs end-to-end under both presets.
 chiptune_idiomatic is a measured no-op on the existing cases (zero repairs);
-cpp_strict produces the expected crossing/parallel/tritone repairs. The session
-is NOT closed until Steven's lightweight checkpoint listen is recorded here. Do
-NOT start Session 8 automatically.**
+cpp_strict produces the expected crossing/parallel/tritone repairs. Cleared to
+proceed to Session 8 (Stage 5b — texture choreography, the first LLM stage) when
+Steven kicks it off. Do NOT start Session 8 automatically.**
