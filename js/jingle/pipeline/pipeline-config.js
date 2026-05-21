@@ -1,0 +1,82 @@
+/* =================================================================
+   PIPELINE CONFIG — the freedom knobs (buildplan §3, Session 4).
+
+   DEFAULT_CONFIG is the PipelineConfig object the pipeline threads through its
+   stages. The knobs control how tightly the deterministic stages constrain the
+   LLM's creative choices (max melodic leap, allowed cadences, whether modal
+   interchange or secondary dominants are permitted, texture change rate, voice-
+   leading strictness, per-motif/per-section anomaly budgets, an optional scale
+   filter).
+
+   SESSION 4 STATUS. None of these knobs gate behaviour yet — Stage 6 realizes
+   whatever the hand-written plans say. The object ships now so the later stages
+   that DO read it (Stage 7 voice leading reads voice_leading_strictness, the
+   LLM stages read the cadence/interchange/anomaly knobs) have a stable shape to
+   target. Presets bundle a set of knobs; individual knobs override the preset.
+   ================================================================= */
+
+// Preset knob bundles. `balanced` is the default; the others widen or narrow
+// the creative latitude. Individual knobs in DEFAULT_CONFIG.knobs override
+// whichever preset is active.
+export const PRESETS = {
+  conservative: {
+    max_leap_degrees: 4,
+    cadence_palette: ['PAC', 'half', 'plagal'],
+    allow_modal_interchange: false,
+    allow_secondary_dominants: false,
+    texture_change_rate: 'low',
+    voice_leading_strictness: 'cpp_strict',
+    anomaly_budget_per_motif: 0,
+    anomaly_budget_per_section: 0,
+    scale_palette_filter: null,
+  },
+  balanced: {
+    max_leap_degrees: 5,
+    cadence_palette: ['PAC', 'modal_iv_i', 'half', 'deceptive'],
+    allow_modal_interchange: false,
+    allow_secondary_dominants: false,
+    texture_change_rate: 'medium',
+    voice_leading_strictness: 'chiptune_idiomatic',
+    anomaly_budget_per_motif: 1,
+    anomaly_budget_per_section: 1,
+    scale_palette_filter: null,
+  },
+  adventurous: {
+    max_leap_degrees: 7,
+    cadence_palette: ['PAC', 'IAC', 'modal_iv_i', 'phrygian_ii_i', 'half', 'deceptive', 'plagal'],
+    allow_modal_interchange: true,
+    allow_secondary_dominants: true,
+    texture_change_rate: 'high',
+    voice_leading_strictness: 'chiptune_idiomatic',
+    anomaly_budget_per_motif: 1,
+    anomaly_budget_per_section: 2,
+    scale_palette_filter: null,
+  },
+  wild: {
+    max_leap_degrees: 9,
+    cadence_palette: ['PAC', 'IAC', 'modal_iv_i', 'phrygian_ii_i', 'half', 'deceptive', 'plagal'],
+    allow_modal_interchange: true,
+    allow_secondary_dominants: true,
+    texture_change_rate: 'high',
+    voice_leading_strictness: 'chiptune_idiomatic',
+    anomaly_budget_per_motif: 2,
+    anomaly_budget_per_section: 3,
+    scale_palette_filter: null,
+  },
+};
+
+export const DEFAULT_CONFIG = {
+  preset: 'balanced',
+  knobs: { ...PRESETS.balanced },
+};
+
+/**
+ * Build a config from a preset name plus optional knob overrides. Unknown
+ * preset names throw. Returns a fresh object so callers cannot mutate PRESETS.
+ */
+export function configFromPreset(preset = 'balanced', overrides = {}) {
+  if (!(preset in PRESETS)) {
+    throw new Error(`Unknown config preset "${preset}". Available: ${Object.keys(PRESETS).join(', ')}.`);
+  }
+  return { preset, knobs: { ...PRESETS[preset], ...overrides } };
+}

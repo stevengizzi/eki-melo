@@ -583,3 +583,184 @@ Cleared to proceed to Session 3.**
   Claude.ai-side review re-runs them; the transform algebra (octave
   bookkeeping, inversion, anomaly remapping) is exactly the kind of tricky
   cross-session contract worth a regression check.
+
+**Claude.ai-side verification (Steven + Claude Opus 4.7):**
+- verify-motif.mjs re-run independently — PASSED, exit 0.
+  Session 1 (verify-spelling) and Session 2 (verify-forms) re-run —
+  both still PASSED, no regression.
+- Inversion correctness independently verified across multiple pivots,
+  including the pathological all-tonic case. Linear-space pivot
+  reflection correctly mirrors intervals (negated linear deltas) and
+  flips contour categories appropriately (peak↔valley).
+- Octave bookkeeping confirmed across iterated transposition: the
+  motif [1,2] stepped up by +2 four times produces [3,4]→[5,6]→
+  [7,8]→[9,10], with no wrap at the octave boundary and no gap at
+  the tonic.
+- Chromatic anomaly correctly survives transposition (position
+  unchanged) and retrograde (position mirrored via n-1-pos).
+- Purity confirmed: applying multiple transformations in sequence
+  leaves the input motif untouched.
+- Two design choices noted for downstream awareness, neither blocking:
+  (a) `register` is carried through transformations unchanged, so a
+  transposed motif may be labeled "mid" while sitting in high
+  territory — register is an intent hint, not a derived fact;
+  (b) `ornament_chromatic_passing` replaces any prior anomaly while
+  the neighbor ornaments preserve it. Chaining chromatic_passing
+  after another anomaly drops the prior anomaly. Documented; the
+  LLM stages will need to know.
+
+**Verdict: Session 3 complete. Cleared to proceed to Session 4 —
+the first audible-output session.**
+
+## Session 4 — 2026-05-21 — voice realization. End-to-end audio working.
+
+**What landed (commits):**
+- feat(jingle): add bass patterns + roman-numeral stub
+  - `js/jingle/theory/bass-patterns.js` — the five Pitch-bearing patterns
+    (root_fifth, walking, pedal, arpeggio, cadential_5_1) + a BASS_PATTERNS
+    registry
+  - `js/jingle/theory/roman-numeral-stub.js` — diatonic-triad resolveRoman
+    (placeholder; Session 5 swaps in the full roman-numeral.js)
+- feat(jingle): add Stage 6 voice realization + pipeline runner + inspector
+  - `js/jingle/pipeline/stage-6-voice.js` — realizeVoices (lead/harmony/bass)
+  - `js/jingle/pipeline/pipeline-config.js` — DEFAULT_CONFIG + presets
+  - `js/jingle/pipeline/stage-7-leading.js`, `stage-8-cadence.js` — identity
+    stubs (Session 7 / Session 5)
+  - `js/jingle/pipeline/pipeline-runner.js` — threads 6 → 7-stub → 8-stub →
+    toSynthString → FinalJingle
+  - `js/jingle/debug/pipeline-inspector.html` + `pipeline-inspector-cases.js`
+    — the "we hear chiptune" harness, 3 hand-written cases
+  - `js/jingle/theory/verify-stage6.mjs` — committed regression check
+  - `docs/buildplan-journal.md` — this entry
+
+**Exit criteria status:**
+- [x] `bass-patterns.js` exports the 5 patterns; each returns Pitch-bearing
+  events for ≥ 4/4 (root_fifth also adapts to 3/4 and 6/8; walking falls back
+  to root_fifth outside 4/4 this session, per spec).
+- [x] `roman-numeral-stub.js` exports `resolveRoman` for diatonic triads
+  (root/quality/members as Pitch objects).
+- [x] `stage-6-voice.js` `realizeVoices` walks phrasePlan + texturePlan and
+  produces VoiceTracks with Pitch objects throughout, including chromatic
+  anomaly realization (verified out-of-scale).
+- [x] `pipeline-runner.js` threads 6 → 7-stub → 8-stub → toSynthString →
+  FinalJingle (the existing synth's `[pitch, duration]` JSON shape).
+- [~] `pipeline-inspector.html` plays the 3 cases through LiveSynth — code
+  complete and node-verified end-to-end (every event has positive duration and
+  a synth string that parses to a finite, positive frequency); **awaiting
+  Steven's listen** (the human checkpoint below).
+- [x] All prior verify scripts still PASS, plus `verify-stage6.mjs` (exit 0).
+- [x] This journal entry.
+
+**Verification anchors that passed (`verify-stage6.mjs`, committed):**
+- resolveRoman: C-major I at octave 3 = C3/E3/G3 (major); V = G4/B4/D5; ii =
+  minor; "II" in E phrygian-dominant = F-major triad (the bII colour, spelled
+  by the mode); diminished diatonic triads resolve with quality derived from
+  the pitches; a leading accidental (`bII`) throws.
+- bass-patterns: root_fifth 4/4 on C-major I = C3 G3 C3 G3; 3/4 = three
+  quarter events; 6/8 sums to 6 beat-units. walking/pedal/arpeggio/cadential
+  all return positive-duration Pitch events; arpeggio 4/4 = 8 eighths.
+- realizeVoices: a chromatic_neighbor anomaly between ^1 and ^2 in C major
+  realizes as a genuinely out-of-scale pitch (C→C#→D).
+- End-to-end over all 3 cases: every lead/harmony/bass event has a positive
+  duration and (when not a rest) a synth string parsing through the **real**
+  `synth.js` noteToFreq to a finite positive frequency; all three voices are
+  beat-length-aligned (64/64/64 beats for the 16-bar major case). Sessions
+  1–3's verify-spelling / verify-forms / verify-motif still PASS — no
+  regression.
+
+**The three listening cases (all 4/4):**
+- *Sunrise Fanfare* — C major, AABA, 16 bars. Exercises all five bass patterns
+  and parallel_thirds_below. Lead opens C5 E5 G5 E5 D5 C5 then sequences up a
+  step (D5 F5 A5…) and a third (E5 G5 B5…) — audible motivic development.
+- *Wanderer's Path* — D dorian, ABA, 12 bars. Pedal-drone B section.
+- *Desert Caravan* — E phrygian-dominant, ABA, 12 bars. Carries the chromatic
+  passing tone (ornament_chromatic_passing) in the A′ recap, and declares
+  `phrygian_ii_i` cadences for Session 5 to realize.
+
+**Deferred:**
+- **Cadence realization.** Sections currently end on whatever the last motif
+  fragment + bass pattern produced; `cadential_5_1` is only a bass placeholder
+  and the `cadential_gesture` lead slot is skipped (trailing rest). Real
+  cadence enforcement is Session 5 (Stage 8). The phrygian case is pre-wired
+  with `phrygian_ii_i` to audition then.
+- **Texture vocabulary.** Only `parallel_thirds_below` is built; every other
+  texture name throws a loud "not implemented in Session 4" error by design.
+  Full vocabulary is Session 6.
+- **Roman-numeral chromatics.** The stub rejects leading accidentals (bII,
+  #IV); Session 5's resolver handles them. Mode-relative diatonic numerals
+  cover everything the Session-4 cases need (the mode supplies the spelling).
+- **Non-uniform harmonic_rhythm.** One chord per bar is assumed; the
+  `harmonic_rhythm` field is carried but not yet consumed.
+- **Per-section modulation.** Mode/tonic are piece-global from macroParams
+  this session.
+- **Voice-leading.** No range/crossing repair yet (Session 7). Harmony sits a
+  diatonic third under the lead, clamped to C4–B5; it can sit close to the
+  lead but the pieces stay legible.
+- **walking look-ahead** stops at the bass-assignment boundary (uses the next
+  bar *within* the same assignment as its target); good enough for a placeholder.
+- **3/4 and 6/8** are implemented in bass-patterns and exercised by the
+  verifier, but not used in the listening cases (compound-meter tempo-unit
+  semantics, buildplan §7.3, are untested by ear).
+
+**Notes for next session (Session 5 — Roman resolver + cadence):**
+- `roman-numeral-stub.js` and `roman-numeral.js` (Session 5) share the
+  signature `resolveRoman(romanString, mode, tonic, octave = 4)`. Stage 6 and
+  the bass patterns import `resolveRoman` by name, so the swap is
+  `s/roman-numeral-stub/roman-numeral/` at the two import sites
+  (stage-6-voice.js, and verify-stage6.mjs's spot-checks).
+- `stage-8-cadence.js` is an identity stub exporting `enforceCadences(
+  voiceTracks, harmonicPlan, macroParams)`. The runner already calls it in
+  position; Session 5 fills the body. VoiceTracks events are
+  `{ pitch: Pitch|null, duration }` (null = rest) in playback order — cadence
+  formulas overwrite the final events of each section's slice.
+- Section boundaries: `computeSectionPlan(macroParams)` (exported from
+  stage-6) is the single source of truth for per-section bar offsets; reuse it
+  in Stage 8 to find each section's final beats.
+
+**Surprises / decisions made:**
+- **The synth plays events back-to-back, not by absolute beat.** `scheduleJingle`
+  accumulates `t += duration` per event; it never reads an absolute position.
+  So VoiceTracks must be a contiguous sequence and gaps must be explicit
+  **rests**. Stage 6 builds beat-stamped events internally, then flattens
+  (sort by beat, insert `{ pitch: null }` rests for gaps, pad to total beats).
+  The runner maps `pitch === null` → `"rest"` (which noteToFreq already treats
+  as silence). This `null`-for-rest convention is a small extension of the
+  buildplan's `{ pitch, duration }` VoiceTracks shape, documented in
+  stage-6-voice.js.
+- **Bass-pattern signature gained an optional trailing `params`.** The spec's
+  `(chord, mode, tonic, meter, barCount)` has nowhere to put pedal's
+  `params.degree` or walking's next-chord target, so each pattern takes a 6th
+  optional `params` ({ octave, degree, nextChord }). The five documented
+  positional args are unchanged.
+- **resolveRoman derives quality from the realized pitches, not the numeral's
+  case.** This makes it correct in every mode for free — "II" in
+  phrygian-dominant comes back major because degree 2 of that mode is a major
+  third + minor third, regardless of how the numeral was capitalised. Modal
+  spellings (the famous bII) fall out of the mode's own degrees. The stub's
+  scope is deliberately diatonic; leading accidentals throw with a pointer to
+  Session 5.
+- **Stage 6 drives the bass one bar per call** (`barCount = 1`), so each bar
+  resolves its own chord and walking gets the *next* bar as `params.nextChord`.
+  The patterns still loop `barCount` internally, so they remain correct if a
+  later caller asks for several bars at once.
+- **`cadential_5_1` ignores the bar's chord** and plays V→i of the section
+  tonic (per spec — "regardless of input"). Driven per-bar, every call is "the
+  last bar," which is exactly where the TexturePlan assigns it.
+- **Chromatic-anomaly spelling** nudges the diatonic note's accidental by ±1
+  toward the neighbour; only if that would demand a triple accidental does it
+  fall back to a clean MIDI respelling. Audibly identical either way (the
+  synth boundary collapses spelling), but it keeps the Pitch theoretically
+  sane for a future score export.
+- **Test cases carry an explicit `macroParams.sections` `[{label, bars}]`** so
+  they are self-contained and don't depend on forms.json label naming; when
+  absent, `computeSectionPlan` falls back to the form + `distributeBars`. Bar
+  indices in phrasePlan/texturePlan are 1-indexed and section-relative.
+
+**HUMAN CHECKPOINT — pending.** Steven opens
+`/js/jingle/debug/pipeline-inspector.html` (served over HTTP:
+`python3 -m http.server 8000`, or `wrangler pages dev .`), runs each of the
+three cases, and listens. Session is complete only once Steven confirms the
+output sounds *composed* rather than random. The bar to clear is "audio works
+and sounds structured," not "perfect musicality" — cadences (S5), full
+textures (S6) and voice leading (S7) are still to come. Any specific
+wrong-sounding thing should be captured here as a finding for those sessions.

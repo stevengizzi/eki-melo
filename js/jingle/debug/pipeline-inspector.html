@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pipeline Inspector — eki-melo composition engine (Session 4)</title>
+<!--
+  Standalone debug harness for the back half of the composition pipeline
+  (buildplan Session 4): Stage 6 voice realization → Stage 7/8 (identity
+  stubs) → synth-string render → FinalJingle.
+
+  Pick a hand-written test case, Run the pipeline, inspect each stage's
+  output (the Stage-6 VoiceTracks in theoretical spelling, then the rendered
+  FinalJingle the synth consumes), and Play it through the existing LiveSynth.
+  The piano roll is the app's own render.js renderer. This is the session's
+  "we hear chiptune" milestone — the human checkpoint listens here.
+
+  MUST BE SERVED OVER HTTP (the modules use ES imports, which file:// blocks).
+  From the repo root:  python3 -m http.server 8000
+  then open  /js/jingle/debug/pipeline-inspector.html
+-->
+<style>
+  :root {
+    --bg-deep: #0d0221;
+    --bg-card: #1a0f3a;
+    --text: #fffefb;
+    --text-dim: #b8b3d4;
+    --accent-red: #ff3864;
+    --accent-blue: #29adff;
+    --accent-yellow: #fee761;
+    --accent-green: #00e436;
+    --accent-pink: #ff77a8;
+    --accent-purple: #c77dff;
+    --border: #4a3a8a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px;
+    background: var(--bg-deep);
+    color: var(--text);
+    font-family: 'Courier New', monospace;
+    line-height: 1.5;
+  }
+  h1 { color: var(--accent-yellow); font-size: 20px; letter-spacing: 1px; margin: 0 0 4px; }
+  .subtitle { color: var(--text-dim); margin: 0 0 20px; font-size: 14px; }
+  .subtitle code { color: var(--accent-pink); }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-end;
+    background: var(--bg-card);
+    border: 2px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { color: var(--accent-blue); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+  select {
+    background: #18093a; border: 2px solid var(--border); color: var(--text);
+    font-family: inherit; font-size: 14px; padding: 6px 8px; border-radius: 4px; min-width: 240px;
+  }
+  select:focus { outline: none; border-color: var(--accent-pink); }
+  button {
+    background: #2a1959; border: 2px solid var(--border); color: var(--text);
+    font-family: inherit; font-size: 14px; padding: 8px 16px; border-radius: 4px;
+    cursor: pointer; text-transform: uppercase; letter-spacing: 1px;
+  }
+  button:hover { border-color: var(--accent-pink); color: var(--accent-pink); }
+  button.primary { border-color: var(--accent-green); color: var(--accent-green); }
+  button.play { border-color: var(--accent-yellow); color: var(--accent-yellow); }
+  .meta { color: var(--text-dim); font-size: 13px; margin: 0 0 12px; }
+  .meta b { color: var(--text); }
+  #error { color: var(--accent-red); min-height: 20px; margin-bottom: 12px; font-size: 14px; }
+  .stage {
+    background: var(--bg-card); border: 2px solid var(--border); border-radius: 6px;
+    padding: 14px 16px; margin-bottom: 16px;
+  }
+  .stage h2 { font-size: 13px; color: var(--accent-green); margin: 0 0 8px; letter-spacing: 1px; text-transform: uppercase; }
+  .stage.identity h2 { color: var(--text-dim); }
+  .stage .note { color: var(--text-dim); font-size: 12px; margin: 0 0 8px; }
+  pre {
+    background: #18093a; border: 1px solid var(--border); border-radius: 4px;
+    padding: 10px; font-size: 12px; color: var(--text-dim);
+    overflow: auto; max-height: 260px; margin: 0; white-space: pre;
+  }
+  /* Piano-roll styles mirrored from the app's styles.css so render.js output
+     renders here without pulling in the whole stylesheet. */
+  .guest-card { background: transparent; }
+  .piano-roll { background: #000; border: 2px solid var(--border); height: 96px; position: relative; overflow: hidden; }
+  .note-block { position: absolute; border: 1px solid rgba(0,0,0,0.5); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.15); }
+  .note-block.lead { background: var(--accent-green); }
+  .note-block.harmony { background: var(--accent-blue); }
+  .note-block.bass { background: var(--accent-yellow); }
+  .section-marker { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255,119,168,0.25); pointer-events: none; }
+  .section-label { position: absolute; top: 2px; font-size: 9px; color: rgba(255,119,168,0.75); letter-spacing: 1px; pointer-events: none; padding-left: 3px; }
+  .piano-roll-legend { position: absolute; bottom: 4px; right: 6px; font-size: 12px; color: var(--text-dim); display: flex; gap: 10px; pointer-events: none; }
+  .piano-roll-legend span::before { content: '■ '; display: inline; }
+  .piano-roll-legend .lead-l { color: var(--accent-green); }
+  .piano-roll-legend .harm-l { color: var(--accent-blue); }
+  .piano-roll-legend .bass-l { color: var(--accent-yellow); }
+  .playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent-red); box-shadow: 0 0 6px var(--accent-red); pointer-events: none; left: 0; display: none; }
+  .playhead.active { display: block; }
+</style>
+</head>
+<body>
+  <h1>♪ Pipeline Inspector</h1>
+  <p class="subtitle">
+    Session 4 — voice realization through to audio.
+    <code>stage-6-voice.js</code> → <code>stage-7/8</code> (identity stubs) →
+    <code>toSynthString</code> → <code>LiveSynth</code>.
+  </p>
+
+  <div class="controls">
+    <div class="field">
+      <label for="case-select">Test case</label>
+      <select id="case-select"></select>
+    </div>
+    <button id="run-btn" class="primary">Run Pipeline</button>
+    <button id="play-btn" class="play">▶ Play</button>
+    <button id="stop-btn">■ Stop</button>
+  </div>
+
+  <p class="meta" id="case-meta"></p>
+  <div id="error"></div>
+
+  <div class="stage">
+    <h2>Piano roll — FinalJingle</h2>
+    <div class="guest-card" data-id="inspector">
+      <div id="piano-roll-host"></div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <h2>Stage 6 — VoiceTracks (theoretical spelling)</h2>
+    <p class="note">Pitch objects rendered via <code>toScoreString</code>. <code>null</code> → rest. This is the inter-stage currency; no synth strings yet.</p>
+    <pre id="voicetracks-out"></pre>
+  </div>
+
+  <div class="stage identity">
+    <h2>Stage 7 — Voice-leading pass · Stage 8 — Cadence enforcement</h2>
+    <p class="note">Identity stubs this session (Session 7 / Session 5 respectively). VoiceTracks pass through unchanged.</p>
+  </div>
+
+  <div class="stage">
+    <h2>Render — FinalJingle (synth strings)</h2>
+    <p class="note">After <code>toSynthString</code> at the synth boundary — the <code>[pitch, duration]</code> tuples <code>scheduleJingle</code> consumes.</p>
+    <pre id="finaljingle-out"></pre>
+  </div>
+
+  <div class="stage">
+    <h2>Input plan</h2>
+    <pre id="input-out"></pre>
+  </div>
+
+<script type="module">
+  import { runPipeline } from '../pipeline/pipeline-runner.js';
+  import { realizeVoices } from '../pipeline/stage-6-voice.js';
+  import { toScoreString } from '../theory/pitch.js';
+  import { renderPianoRoll } from '../render.js';
+  import { synth } from '../synth.js';
+  import { CASES } from './pipeline-inspector-cases.js';
+
+  const caseSelect = document.getElementById('case-select');
+  const errorBox = document.getElementById('error');
+  const caseMeta = document.getElementById('case-meta');
+  const pianoHost = document.getElementById('piano-roll-host');
+
+  CASES.forEach((c, i) => caseSelect.add(new Option(`${c.title} — ${c.macroParams.tonic} ${c.macroParams.mode}`, String(i))));
+
+  // Render VoiceTracks Pitch objects in their theoretical spelling, one voice
+  // per block, as [note, duration] tuples (null → "rest").
+  function readableVoiceTracks(tracks) {
+    const voice = (track) => track.map((ev) => [ev.pitch === null ? 'rest' : toScoreString(ev.pitch), ev.duration]);
+    return { lead: voice(tracks.lead), harmony: voice(tracks.harmony), bass: voice(tracks.bass) };
+  }
+
+  let currentJingle = null;
+
+  function run() {
+    errorBox.textContent = '';
+    const testCase = CASES[Number(caseSelect.value)];
+    try {
+      const voiceTracks = realizeVoices(testCase);
+      currentJingle = runPipeline(testCase);
+
+      document.getElementById('voicetracks-out').textContent = JSON.stringify(readableVoiceTracks(voiceTracks), null, 1);
+      document.getElementById('finaljingle-out').textContent = JSON.stringify(
+        { title: currentJingle.title, tempo: currentJingle.tempo, key: currentJingle.key, mood: currentJingle.mood, form: currentJingle.form, sections: currentJingle.sections, lead: currentJingle.lead, harmony: currentJingle.harmony, bass: currentJingle.bass },
+        null, 1
+      );
+      document.getElementById('input-out').textContent = JSON.stringify(testCase, null, 1);
+      pianoHost.innerHTML = renderPianoRoll(currentJingle);
+
+      const beats = (t) => t.reduce((s, e) => s + e[1], 0);
+      caseMeta.innerHTML =
+        `<b>${currentJingle.title}</b> · key <b>${currentJingle.key}</b> · ` +
+        `tempo <b>${currentJingle.tempo}</b> · form <b>${currentJingle.form}</b> · ` +
+        `lead <b>${currentJingle.lead.length}</b> ev / <b>${beats(currentJingle.lead)}</b> beats`;
+    } catch (error) {
+      errorBox.textContent = error.message;
+      currentJingle = null;
+      pianoHost.innerHTML = '';
+      console.error(error);
+    }
+  }
+
+  document.getElementById('run-btn').addEventListener('click', run);
+  document.getElementById('play-btn').addEventListener('click', () => {
+    if (!currentJingle) run();
+    if (currentJingle) synth.play(currentJingle, 'inspector');
+  });
+  document.getElementById('stop-btn').addEventListener('click', () => synth.stop());
+  caseSelect.addEventListener('change', () => { synth.stop(); run(); });
+
+  run();
+</script>
+</body>
+</html>
