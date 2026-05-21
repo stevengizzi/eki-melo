@@ -1,68 +1,57 @@
 /* =================================================================
-   MODE ENGINE — resolves any scale name to its pitch set in any key
+   MODE ENGINE — resolves any scale name to its pitch set in any key.
 
    The deterministic music-theory layer for the composition pipeline
-   (buildplan Session 1). Reads the verified scale library in
-   scales.json and answers: what pitches does scale X rooted on Y
-   contain, and which concrete pitch is degree D of that scale?
+   (buildplan Session 1, amended). Reads the verified scale library in
+   scales.json and answers: what pitches does scale X rooted on Y contain,
+   and which concrete pitch is degree D of that scale?
 
-   PITCH SPELLING. Output pitch strings (e.g. "Eb5", "F#3") are spelled
-   by pitch class with a single sharp-or-flat preference derived from
-   the tonic — never by diatonic letter-stepping. This is deliberate:
-   the existing synth's noteToFreq (js/jingle/synth.js) only understands
-   the 17 names in NOTE_MAP and a single accidental, so spellings like
-   "Cb", "E#", or "F##" would parse to NaN and play silence. Enharmonic
-   equivalents are frequency-identical, so choosing by pitch class costs
-   nothing audible and keeps every output parseable.
+   PITCH IDENTITY, NOT RENDERING. Every result is a structured Pitch object
+   ({ letter, accidental, octave }) carrying its full music-theoretic
+   spelling — see pitch.js. Spelling is derived from each scale's `spelling`
+   array (a `letter_step` + `accidental` per degree) combined with the
+   tonic, so the output is theoretically correct: Gb major spells its 4th as
+   Cb (not B), F# major's 7th as E# (not F). Letters are assigned by the
+   scale formula and the accidental — including a double accidental where the
+   theory demands one — falls out of the arithmetic. The synth's
+   single-accidental needs are served separately by synth-rendering.js's
+   toSynthString, applied at the synth boundary.
 
-   DEGREE NUMBERING. degreeToPitch uses the interval-number convention:
-   a degree's magnitude is the interval size from the tonic (1 = unison/
-   tonic, 2 = a second, 3 = a third, 8 = the octave) and its sign is the
-   direction. So +8 is the tonic an octave up, -8 the tonic an octave
-   down, and -3 the third below the tonic. This is the model implied by
-   the motif schema in the buildplan (degrees 1-7 with +8/-8 markers and
-   negative degrees for notes below the tonic).
+   PORTABILITY. This module imports only from pitch.js and scales.json,
+   nothing synth-specific. It is portable to other composition projects
+   (including score-notation ones) as-is.
+
+   DEGREE NUMBERING. degreeToPitch uses the interval-number convention: a
+   degree's magnitude is the interval size from the tonic (1 = unison/tonic,
+   2 = a second, 8 = the octave) and its sign is the direction. So +8 is the
+   tonic an octave up, -8 the tonic an octave down, and -3 the third below
+   the tonic. This is the model implied by the motif schema in the buildplan.
    ================================================================= */
 import scales from './scales.json' with { type: 'json' };
+import { pitchFromLetterAndAccidental, toMidi, parseScoreString } from './pitch.js';
 
-// Pitch class of each note name the tonic may be given as. Mirrors the
-// subset of synth.js NOTE_MAP used for roots; both sharp and flat
-// spellings resolve to the same class.
-const NOTE_TO_PC = {
-  C: 0, 'C#': 1, Db: 1, D: 2, 'D#': 3, Eb: 3, E: 4, F: 5,
-  'F#': 6, Gb: 6, G: 7, 'G#': 8, Ab: 8, A: 9, 'A#': 10, Bb: 10, B: 11
-};
+const LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+const LETTER_PITCH_CLASS = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+const LETTER_INDEX = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6 };
 
-// Per-class names guaranteed to live in synth.js NOTE_MAP. No "Cb",
-// "E#", or double accidentals ever appear here, so every emitted name
-// is parseable by noteToFreq.
-const SHARP_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-const FLAT_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
-
-// Tonics on the sharp side of the circle of fifths spell black keys as
-// sharps; everything else (C, F, and any flat tonic) spells them flat.
-const SHARP_SIDE_TONICS = new Set(['G', 'D', 'A', 'E', 'B']);
-
-function pitchClassOf(tonic) {
-  if (typeof tonic !== 'string' || !(tonic in NOTE_TO_PC)) {
-    throw new Error(`Unknown tonic "${tonic}". Expected a note name like "C", "F#", or "Bb".`);
-  }
-  return NOTE_TO_PC[tonic];
+// A diatonic "letter ordinal": octave * 7 + the letter's index from C, so
+// that advancing by N letters and inverting the result both wrap the octave
+// at the C boundary (B4 + 1 letter = C5), matching scientific pitch notation.
+function letterOrdinal(letter, octave) {
+  return octave * 7 + LETTER_INDEX[letter];
 }
 
-function accidentalPreferenceFor(tonic) {
-  if (tonic.includes('#')) return 'sharp';
-  if (tonic.includes('b')) return 'flat';
-  return SHARP_SIDE_TONICS.has(tonic) ? 'sharp' : 'flat';
+function letterFromOrdinal(ordinal) {
+  return LETTERS[((ordinal % 7) + 7) % 7];
 }
 
-function nameForPitchClass(pitchClass, preference) {
-  return (preference === 'sharp' ? SHARP_NAMES : FLAT_NAMES)[pitchClass];
+function octaveFromOrdinal(ordinal) {
+  return Math.floor(ordinal / 7);
 }
 
-// Semitone offset of each scale degree from the tonic, within one
-// octave. [0, i0, i0+i1, ...] with one entry per note (the trailing
-// octave step is not included).
+// Semitone offset of each scale degree from the tonic, within one octave:
+// [0, i0, i0+i1, ...] with one entry per note (the trailing octave step is
+// not included).
 function cumulativeOffsets(intervals) {
   const offsets = [0];
   for (let i = 0; i < intervals.length - 1; i++) {
@@ -78,46 +67,74 @@ function rawScale(name) {
   return scales[name];
 }
 
+// Normalise a tonic argument to a Pitch. Accepts a Pitch object (used as-is,
+// its own octave honoured), a score string with an octave ("Gb4"), or a bare
+// note name ("D", "F#", "Bb") that takes the supplied default octave.
+function resolveTonic(tonic, octave) {
+  if (tonic && typeof tonic === 'object') {
+    return pitchFromLetterAndAccidental(tonic.letter, tonic.accidental, tonic.octave);
+  }
+  if (typeof tonic === 'string') {
+    const hasOctave = /-?\d+$/.test(tonic);
+    return parseScoreString(hasOctave ? tonic : `${tonic}${octave}`);
+  }
+  throw new Error(`tonic must be a note name (e.g. "D", "Gb") or a Pitch object, got ${typeof tonic}.`);
+}
+
+// Build the Pitch for one scale degree given the tonic, the degree's
+// letter_step (diatonic letters to advance from the tonic) and its semitone
+// offset from the tonic. The accidental is whatever lands the assigned
+// letter on the target sounding pitch — so double accidentals appear exactly
+// when the theory requires them.
+function spellDegree(tonicOrdinal, tonicMidi, letterStep, semitoneOffset) {
+  const ordinal = tonicOrdinal + letterStep;
+  const letter = letterFromOrdinal(ordinal);
+  const letterOctave = octaveFromOrdinal(ordinal);
+  const targetMidi = tonicMidi + semitoneOffset;
+  const naturalMidi = (letterOctave + 1) * 12 + LETTER_PITCH_CLASS[letter];
+  return pitchFromLetterAndAccidental(letter, targetMidi - naturalMidi, letterOctave);
+}
+
 /**
- * The full scale data object for `name`, returned as a fresh copy so
- * callers cannot mutate the shared library.
+ * The full scale data object for `name`, returned as a fresh copy so callers
+ * cannot mutate the shared library.
  */
 export function getScale(name) {
   return structuredClone(rawScale(name));
 }
 
 /**
- * Pitch class names of `name` rooted on `tonic`, in ascending order,
- * one per scale degree. e.g. pitchSetForScale("dorian", "D") →
- * ["D", "E", "F", "G", "A", "B", "C"].
+ * Pitch objects of `name` rooted on `tonic`, in ascending order, one per
+ * scale degree. `tonic` is a note name or Pitch; `octave` (default 4) is the
+ * tonic's octave when given without one. e.g. pitchSetForScale("dorian", "D")
+ * yields the spellings D E F G A B C (each as a Pitch object).
  */
-export function pitchSetForScale(name, tonic) {
+export function pitchSetForScale(name, tonic, octave = 4) {
   const scale = rawScale(name);
-  const tonicPc = pitchClassOf(tonic);
-  const preference = accidentalPreferenceFor(tonic);
-  return cumulativeOffsets(scale.intervals)
-    .map((offset) => nameForPitchClass((tonicPc + offset) % 12, preference));
+  const tonicPitch = resolveTonic(tonic, octave);
+  const tonicOrdinal = letterOrdinal(tonicPitch.letter, tonicPitch.octave);
+  const tonicMidi = toMidi(tonicPitch);
+  const offsets = cumulativeOffsets(scale.intervals);
+  return scale.spelling.map((degree, i) =>
+    spellDegree(tonicOrdinal, tonicMidi, degree.letter_step, offsets[i])
+  );
 }
 
 /**
- * The concrete pitch of scale degree `degree` of `name` rooted on
- * `tonic`, where `octave` is the scientific-notation octave of the
- * tonic. Returns a pitch string like "D5" parseable by synth.js
- * noteToFreq.
+ * The Pitch of scale degree `degree` of `name` rooted on `tonic`, where
+ * `octave` is the scientific-notation octave of the tonic.
  *
- * `degree` uses interval numbering: 1 = tonic, 2 = the second, 8 = the
- * octave above, with negative values mirroring below the tonic
- * (-3 = the third below). Values beyond ±8 wrap with octave bookkeeping
- * (9 = the second an octave up, and so on).
+ * `degree` uses interval numbering: 1 = tonic, 2 = the second, 8 = the octave
+ * above, with negative values mirroring below the tonic (-3 = the third
+ * below). Values beyond ±8 wrap with octave bookkeeping (9 = the second an
+ * octave up, and so on).
  */
 export function degreeToPitch(name, tonic, degree, octave = 4) {
   if (!Number.isInteger(degree) || degree === 0) {
     throw new Error(`degree must be a non-zero integer, got ${degree}.`);
   }
-  if (!Number.isInteger(octave)) {
-    throw new Error(`octave must be an integer, got ${octave}.`);
-  }
   const scale = rawScale(name);
+  const tonicPitch = resolveTonic(tonic, octave);
   const offsets = cumulativeOffsets(scale.intervals);
   const noteCount = offsets.length;
 
@@ -125,12 +142,14 @@ export function degreeToPitch(name, tonic, degree, octave = 4) {
   const octaveShift = Math.floor(stepsFromTonic / noteCount);
   const scaleIndex = ((stepsFromTonic % noteCount) + noteCount) % noteCount;
 
-  const tonicSemitone = (octave - 4) * 12 + pitchClassOf(tonic);
-  const noteSemitone = tonicSemitone + octaveShift * 12 + offsets[scaleIndex];
-
-  const finalPitchClass = ((noteSemitone % 12) + 12) % 12;
-  const finalOctave = 4 + Math.floor(noteSemitone / 12);
-  return nameForPitchClass(finalPitchClass, accidentalPreferenceFor(tonic)) + finalOctave;
+  const tonicOrdinal = letterOrdinal(tonicPitch.letter, tonicPitch.octave) + octaveShift * 7;
+  const tonicMidi = toMidi(tonicPitch) + octaveShift * 12;
+  return spellDegree(
+    tonicOrdinal,
+    tonicMidi,
+    scale.spelling[scaleIndex].letter_step,
+    offsets[scaleIndex]
+  );
 }
 
 /**

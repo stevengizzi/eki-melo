@@ -99,3 +99,77 @@
 - `getScale` returns a `structuredClone` so callers can't mutate the shared
   library; the hot paths (`pitchSetForScale`, `degreeToPitch`) read the raw
   reference internally to stay cheap.
+
+### Addendum (2026-05-21) — Pitch identity vs. rendering
+
+**Amendment, not a new session.** Session 1 spelled pitches by pitch class
+with a single sharp/flat preference, because the synth's `noteToFreq` can't
+parse `Cb`, `Fb`, `E#`, `B#`, or double accidentals. That's still correct for
+*playback*, but it threw away the theoretical spelling — and the theory layer
+may eventually be ported to score-notation projects (LilyPond / MusicXML /
+VexFlow) where a Cb is a Cb, the #4 of lydian is F#, and double accidentals are
+meaningful. This amendment separates pitch **identity** from pitch
+**rendering** so both are served from one canonical representation.
+
+**What changed.**
+- **New `js/jingle/theory/pitch.js`** — the `Pitch` type
+  `{ letter, accidental, octave }` and its theoretical operations: `toMidi`,
+  `pitchClassOf`, `pitchFromLetterAndAccidental`, `toScoreString`,
+  `parseScoreString`, `pitchEquals`. Zero dependencies; portable as-is.
+- **`mode-engine.js` rewritten** — `pitchSetForScale` and `degreeToPitch` now
+  return **Pitch objects** (previously pitch-class strings). Spelling is
+  derived from each scale's new `spelling` array (`letter_step` + `accidental`
+  per degree) combined with the tonic, so output is theoretically correct
+  including legitimate double accidentals (e.g. A# harmonic minor's leading
+  tone is `Gx`). Imports only `pitch.js` + `scales.json`.
+- **New `js/jingle/theory/synth-rendering.js`** — `toSynthString(pitch,
+  preference)`, the *only* file aware of the synth's single-accidental
+  constraint. Uses the MIDI number as source of truth: `Cb4` (MIDI 59) →
+  `"B3"`, `E#3` (MIDI 53) → `"F3"`. No import from `synth.js` — the contract
+  ("emit strings `noteToFreq` accepts") is enforced by the test, not a code
+  dependency, keeping theory/ portable.
+- **`scales.json`** — every one of the 47 scales gained a `spelling` array,
+  one entry per degree, in `intervals` order.
+- All three theory/ files have **zero imports outside theory/** (portability
+  requirement). No existing files (synth.js, render.js, api.js, composition.js,
+  index.html) were touched.
+
+**File-reorg rationale.** The split is along the portability seam: identity +
+score rendering live in `pitch.js`/`mode-engine.js` (no synth knowledge);
+synth rendering is quarantined in `synth-rendering.js`. A score-notation
+project can take the first two and ignore the third.
+
+**Symmetric-scale compromise.** Whole-tone, both octatonics, and augmented
+divide the octave evenly and have no canonical letter spelling. Shipped a
+"least double accidentals" compromise (every letter used ≤ twice, no double
+accidentals) and documented it in `scales-sources.md`:
+`whole_tone` → C D E F# G# A#; `wh_diminished` → C D Eb F F# G# A B;
+`hw_diminished` → C Db Eb E F# G A Bb; `augmented` → C Eb E G Ab B
+(`1 b3 3 5 b6 7`, which avoids the double sharps the buildplan's first-pass
+suggestion produced). Score export of music in these scales may want composer
+review — acknowledged limit, not a bug.
+
+**Verification (`js/jingle/theory/verify-spelling.mjs`, committed).** For all
+47 scales: (1) each spelled degree's pitch class agrees with the
+cumulative-sum of intervals; (2) across 14 representative tonics, every
+`toScoreString` round-trips through `parseScoreString` to the same Pitch;
+(3) every degree's `toSynthString` (both preferences) parses through the real
+`synth.js` `noteToFreq` to a finite positive frequency and preserves pitch
+class; (4) spot-checks pass — **Gb major = Gb Ab Bb Cb Db Eb F** (not …B…),
+**F# major = F# G# A# B C# D# E#**, **D dorian = D E F G A B C**, **A harmonic
+minor = A B C D E F G#**, **hungarian minor on C = C D Eb F# G Ab B**. Result:
+`PASSED`, exit 0. Run it with a throwaway module-scope `package.json` (the repo
+has none by design): `printf '{"type":"module"}' > js/jingle/package.json &&
+node js/jingle/theory/verify-spelling.mjs; rm js/jingle/package.json` — do not
+commit that package.json.
+
+**Buildplan updated.** §3 now states Pitch objects are the inter-stage currency
+and that the `[pitch, duration]` strings in the schemas are the synth-facing
+`toSynthString` rendering applied at the Stage 6 → synth boundary; the schemas
+themselves are unchanged.
+
+**Note for Session 4 (Stage 6).** `degreeToPitch` / `pitchSetForScale` now hand
+back Pitch objects. Stage 6 should keep them as Pitch through realization and
+call `toSynthString(pitch, preference)` only when emitting the final
+`[pitch, duration]` events for the synth. Pick `preference` from the tonic
+(sharp side vs. flat side of the circle of fifths) as before.

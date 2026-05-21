@@ -132,6 +132,18 @@ These are the **stable interfaces** between stages. Any session that
 produces or consumes one of these must conform exactly. If a session
 needs to evolve a schema, that's a journal entry, not an ambush.
 
+**Pitch representation (Session 1 amendment).** Inside the pipeline, a pitch
+is a structured **Pitch object** carrying its full music-theoretic identity —
+`{ letter, accidental, octave }` (see `js/jingle/theory/pitch.js`). This is
+the inter-stage currency wherever a concrete pitch is passed (Stage 6's voice
+realization and everything it feeds). Rendering to a string happens only at
+output boundaries: `toScoreString(pitch)` for theoretical notation (a Cb stays
+a Cb), and `toSynthString(pitch, preference)` for the synth's
+single-accidental alphabet. The pitch *strings* shown in the schemas below
+(`"D5"`, `"C5"`, `[pitch, duration]` pairs) are the **synth-facing
+rendering** — what `toSynthString` emits at the Stage 6 → synth boundary, and
+what the existing `synth.js` consumes — not the internal representation.
+
 ### GuestInput
 ```json
 {
@@ -255,7 +267,12 @@ LLM declares explicitly.
 
 All have the same shape as the current jingle JSON (lead/harmony/bass as
 arrays of `[pitch, duration]` pairs, plus title/tempo/key/mood/form/sections
-metadata). The existing `synth.js` consumes this unchanged.
+metadata). The existing `synth.js` consumes this unchanged. The `pitch`
+strings here are produced by `toSynthString(pitch, preference)` (Session 1
+amendment): Stage 6 works in Pitch objects throughout and renders to these
+synth-safe strings only at this final boundary. A future score-export path
+would render the same Pitch objects via `toScoreString` instead, with no
+change upstream.
 
 ### PipelineConfig (freedom knobs)
 

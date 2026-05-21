@@ -1,6 +1,15 @@
 {
   "major": {
     "intervals": [2, 2, 1, 2, 2, 2, 1],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 0 },
+      { "letter_step": 2, "accidental": 0 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": 0 },
+      { "letter_step": 6, "accidental": 0 }
+    ],
     "family": "diatonic",
     "tags": ["bright", "stable", "triumphant", "warm", "consonant"],
     "characteristic_intervals": ["maj3_1_to_3", "leading_tone_7_to_1"],
@@ -8,6 +17,15 @@
   },
   "dorian": {
     "intervals": [2, 1, 2, 2, 2, 1, 2],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 0 },
+      { "letter_step": 2, "accidental": -1 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": 0 },
+      { "letter_step": 6, "accidental": -1 }
+    ],
     "family": "diatonic",
     "tags": ["minor", "warm", "jaunty", "folk", "ambiguous", "hopeful"],
     "characteristic_intervals": ["min3_1_to_b3", "maj6_1_to_6"],
@@ -15,6 +33,15 @@
   },
   "phrygian": {
     "intervals": [1, 2, 2, 2, 1, 2, 2],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": -1 },
+      { "letter_step": 2, "accidental": -1 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": -1 },
+      { "letter_step": 6, "accidental": -1 }
+    ],
     "family": "diatonic",
     "tags": ["minor", "dark", "exotic", "tense", "spanish", "ominous"],
     "characteristic_intervals": ["min2_1_to_b2", "min3_1_to_b3"],
@@ -22,6 +49,15 @@
   },
   "lydian": {
     "intervals": [2, 2, 2, 1, 2, 2, 1],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 0 },
+      { "letter_step": 2, "accidental": 0 },
+      { "letter_step": 3, "accidental": 1 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": 0 },
+      { "letter_step": 6, "accidental": 0 }
+    ],
     "family": "diatonic",
     "tags": ["bright", "dreamy", "ethereal", "floating", "wondrous"],
     "characteristic_intervals": ["aug4_1_to_sharp4", "maj3_1_to_3"],
@@ -29,6 +65,15 @@
   },
   "mixolydian": {
     "intervals": [2, 2, 1, 2, 2, 1, 2],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 0 },
+      { "letter_step": 2, "accidental": 0 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": 0 },
+      { "letter_step": 6, "accidental": -1 }
+    ],
     "family": "diatonic",
     "tags": ["bright", "bluesy", "rustic", "playful", "no_leading_tone"],
     "characteristic_intervals": ["maj3_1_to_3", "min7_1_to_b7"],
@@ -36,6 +81,15 @@
   },
   "aeolian": {
     "intervals": [2, 1, 2, 2, 1, 2, 2],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 0 },
+      { "letter_step": 2, "accidental": -1 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": -1 },
+      { "letter_step": 6, "accidental": -1 }
+    ],
     "family": "diatonic",
     "tags": ["minor", "dark", "melancholic", "natural_minor", "somber"],
     "characteristic_intervals": ["min3_1_to_b3", "min6_1_to_b6", "no_leading_tone"],
@@ -43,6 +97,15 @@
   },
   "locrian": {
     "intervals": [1, 2, 2, 1, 2, 2, 2],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": -1 },
+      { "letter_step": 2, "accidental": -1 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": -1 },
+      { "letter_step": 5, "accidental": -1 },
+      { "letter_step": 6, "accidental": -1 }
+    ],
     "family": "diatonic",
     "tags": ["unstable", "dark", "tense", "diminished_tonic", "eerie"],
     "characteristic_intervals": ["min2_1_to_b2", "tritone_1_to_b5"],
@@ -51,6 +114,15 @@
 
   "harmonic_minor": {
     "intervals": [2, 1, 2, 2, 1, 3, 1],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 0 },
+      { "letter_step": 2, "accidental": -1 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": -1 },
+      { "letter_step": 6, "accidental": 0 }
+    ],
     "family": "harmonic_minor",
     "tags": ["minor", "dramatic", "exotic", "tense", "regal", "augmented_second"],
     "characteristic_intervals": ["aug2_b6_to_7", "leading_tone_7_to_1", "min3_1_to_b3"],
@@ -58,6 +130,15 @@
   },
   "locrian_n6": {
     "intervals": [1, 2, 2, 1, 3, 1, 2],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": -1 },
+      { "letter_step": 2, "accidental": -1 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": -1 },
+      { "letter_step": 5, "accidental": 0 },
+      { "letter_step": 6, "accidental": -1 }
+    ],
     "family": "harmonic_minor",
     "tags": ["unstable", "dark", "exotic", "augmented_second", "diminished_tonic"],
     "characteristic_intervals": ["min2_1_to_b2", "tritone_1_to_b5", "aug2_b5_to_6"],
@@ -65,6 +146,15 @@
   },
   "ionian_sharp5": {
     "intervals": [2, 2, 1, 3, 1, 2, 1],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 0 },
+      { "letter_step": 2, "accidental": 0 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": 1 },
+      { "letter_step": 5, "accidental": 0 },
+      { "letter_step": 6, "accidental": 0 }
+    ],
     "family": "harmonic_minor",
     "tags": ["bright", "augmented", "uneasy", "exotic", "augmented_second"],
     "characteristic_intervals": ["aug5_1_to_sharp5", "aug2_sharp5_to_6", "maj3_1_to_3"],
@@ -72,6 +162,15 @@
   },
   "dorian_sharp4": {
     "intervals": [2, 1, 3, 1, 2, 1, 2],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 0 },
+      { "letter_step": 2, "accidental": -1 },
+      { "letter_step": 3, "accidental": 1 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": 0 },
+      { "letter_step": 6, "accidental": -1 }
+    ],
     "family": "harmonic_minor",
     "tags": ["minor", "exotic", "ukrainian", "folk", "augmented_second", "yearning"],
     "characteristic_intervals": ["aug2_b3_to_sharp4", "maj6_1_to_6", "min7_1_to_b7"],
@@ -79,6 +178,15 @@
   },
   "phrygian_dominant": {
     "intervals": [1, 3, 1, 2, 1, 2, 2],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": -1 },
+      { "letter_step": 2, "accidental": 0 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": -1 },
+      { "letter_step": 6, "accidental": -1 }
+    ],
     "family": "harmonic_minor",
     "tags": ["exotic", "spanish", "klezmer", "tense", "dominant_function", "augmented_second", "fiery"],
     "characteristic_intervals": ["min2_1_to_b2", "aug2_b2_to_3", "maj3_1_to_3"],
@@ -86,6 +194,15 @@
   },
   "lydian_sharp2": {
     "intervals": [3, 1, 2, 1, 2, 2, 1],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 1 },
+      { "letter_step": 2, "accidental": 0 },
+      { "letter_step": 3, "accidental": 1 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": 0 },
+      { "letter_step": 6, "accidental": 0 }
+    ],
     "family": "harmonic_minor",
     "tags": ["bright", "exotic", "augmented_second", "wondrous", "angular"],
     "characteristic_intervals": ["aug2_1_to_sharp2", "aug4_1_to_sharp4", "leading_tone_7_to_1"],
@@ -93,6 +210,15 @@
   },
   "altered_dim": {
     "intervals": [1, 2, 1, 2, 2, 1, 3],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": -1 },
+      { "letter_step": 2, "accidental": -1 },
+      { "letter_step": 3, "accidental": -1 },
+      { "letter_step": 4, "accidental": -1 },
+      { "letter_step": 5, "accidental": -1 },
+      { "letter_step": 6, "accidental": -2 }
+    ],
     "family": "harmonic_minor",
     "tags": ["unstable", "dark", "tense", "diminished_tonic", "augmented_second", "ultralocrian"],
     "characteristic_intervals": ["min2_1_to_b2", "tritone_1_to_b5", "aug2_bb7_to_1"],
@@ -101,6 +227,15 @@
 
   "melodic_minor": {
     "intervals": [2, 1, 2, 2, 2, 2, 1],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 0 },
+      { "letter_step": 2, "accidental": -1 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": 0 },
+      { "letter_step": 6, "accidental": 0 }
+    ],
     "family": "melodic_minor",
     "tags": ["minor", "sophisticated", "jazz", "warm", "ambiguous", "leading_tone"],
     "characteristic_intervals": ["min3_1_to_b3", "maj6_1_to_6", "leading_tone_7_to_1"],
@@ -108,6 +243,15 @@
   },
   "dorian_b2": {
     "intervals": [1, 2, 2, 2, 2, 1, 2],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": -1 },
+      { "letter_step": 2, "accidental": -1 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": 0 },
+      { "letter_step": 6, "accidental": -1 }
+    ],
     "family": "melodic_minor",
     "tags": ["minor", "dark", "exotic", "phrygian_natural6", "brooding"],
     "characteristic_intervals": ["min2_1_to_b2", "maj6_1_to_6", "min3_1_to_b3"],
@@ -115,6 +259,15 @@
   },
   "lydian_augmented": {
     "intervals": [2, 2, 2, 2, 1, 2, 1],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 0 },
+      { "letter_step": 2, "accidental": 0 },
+      { "letter_step": 3, "accidental": 1 },
+      { "letter_step": 4, "accidental": 1 },
+      { "letter_step": 5, "accidental": 0 },
+      { "letter_step": 6, "accidental": 0 }
+    ],
     "family": "melodic_minor",
     "tags": ["bright", "augmented", "ethereal", "floating", "expansive"],
     "characteristic_intervals": ["aug4_1_to_sharp4", "aug5_1_to_sharp5", "leading_tone_7_to_1"],
@@ -122,6 +275,15 @@
   },
   "lydian_dominant": {
     "intervals": [2, 2, 2, 1, 2, 1, 2],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 0 },
+      { "letter_step": 2, "accidental": 0 },
+      { "letter_step": 3, "accidental": 1 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": 0 },
+      { "letter_step": 6, "accidental": -1 }
+    ],
     "family": "melodic_minor",
     "tags": ["bright", "bluesy", "jazz", "acoustic", "overtone", "playful"],
     "characteristic_intervals": ["aug4_1_to_sharp4", "maj3_1_to_3", "min7_1_to_b7"],
@@ -129,6 +291,15 @@
   },
   "mixolydian_b6": {
     "intervals": [2, 2, 1, 2, 1, 2, 2],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 0 },
+      { "letter_step": 2, "accidental": 0 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": -1 },
+      { "letter_step": 6, "accidental": -1 }
+    ],
     "family": "melodic_minor",
     "tags": ["bittersweet", "warm", "hindu", "aeolian_dominant", "wistful"],
     "characteristic_intervals": ["maj3_1_to_3", "min6_1_to_b6", "min7_1_to_b7"],
@@ -136,6 +307,15 @@
   },
   "locrian_n2": {
     "intervals": [2, 1, 2, 1, 2, 2, 2],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 0 },
+      { "letter_step": 2, "accidental": -1 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": -1 },
+      { "letter_step": 5, "accidental": -1 },
+      { "letter_step": 6, "accidental": -1 }
+    ],
     "family": "melodic_minor",
     "tags": ["unstable", "dark", "half_diminished", "jazz", "tense", "diminished_tonic"],
     "characteristic_intervals": ["maj2_1_to_2", "min3_1_to_b3", "tritone_1_to_b5"],
@@ -143,6 +323,15 @@
   },
   "altered": {
     "intervals": [1, 2, 1, 2, 2, 2, 2],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": -1 },
+      { "letter_step": 2, "accidental": -1 },
+      { "letter_step": 3, "accidental": -1 },
+      { "letter_step": 4, "accidental": -1 },
+      { "letter_step": 5, "accidental": -1 },
+      { "letter_step": 6, "accidental": -1 }
+    ],
     "family": "melodic_minor",
     "tags": ["tense", "dark", "jazz", "dominant_function", "superlocrian", "angular"],
     "characteristic_intervals": ["min2_1_to_b2", "tritone_1_to_b5", "alt_tensions_b9_sharp9_sharp11_b13"],
@@ -151,6 +340,15 @@
 
   "harmonic_major": {
     "intervals": [2, 2, 1, 2, 1, 3, 1],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 0 },
+      { "letter_step": 2, "accidental": 0 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": -1 },
+      { "letter_step": 6, "accidental": 0 }
+    ],
     "family": "harmonic_major",
     "tags": ["bright", "bittersweet", "exotic", "augmented_second", "regal"],
     "characteristic_intervals": ["maj3_1_to_3", "min6_1_to_b6", "aug2_b6_to_7", "leading_tone_7_to_1"],
@@ -158,6 +356,15 @@
   },
   "dorian_b5": {
     "intervals": [2, 1, 2, 1, 3, 1, 2],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 0 },
+      { "letter_step": 2, "accidental": -1 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": -1 },
+      { "letter_step": 5, "accidental": 0 },
+      { "letter_step": 6, "accidental": -1 }
+    ],
     "family": "harmonic_major",
     "tags": ["minor", "dark", "exotic", "augmented_second", "diminished_fifth"],
     "characteristic_intervals": ["min3_1_to_b3", "tritone_1_to_b5", "aug2_b5_to_6"],
@@ -165,6 +372,15 @@
   },
   "lydian_diminished": {
     "intervals": [2, 1, 3, 1, 2, 2, 1],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 0 },
+      { "letter_step": 2, "accidental": -1 },
+      { "letter_step": 3, "accidental": 1 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": 0 },
+      { "letter_step": 6, "accidental": 0 }
+    ],
     "family": "harmonic_major",
     "tags": ["exotic", "angular", "augmented_second", "wondrous", "lydian_b3"],
     "characteristic_intervals": ["min3_1_to_b3", "aug2_b3_to_sharp4", "leading_tone_7_to_1"],
@@ -172,6 +388,15 @@
   },
   "mixolydian_b2": {
     "intervals": [1, 3, 1, 2, 2, 1, 2],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": -1 },
+      { "letter_step": 2, "accidental": 0 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": 0 },
+      { "letter_step": 6, "accidental": -1 }
+    ],
     "family": "harmonic_major",
     "tags": ["exotic", "tense", "augmented_second", "dominant_function", "spanish"],
     "characteristic_intervals": ["min2_1_to_b2", "aug2_b2_to_3", "maj3_1_to_3"],
@@ -180,6 +405,15 @@
 
   "double_harmonic": {
     "intervals": [1, 3, 1, 2, 1, 3, 1],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": -1 },
+      { "letter_step": 2, "accidental": 0 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": -1 },
+      { "letter_step": 6, "accidental": 0 }
+    ],
     "family": "double_harmonic",
     "tags": ["exotic", "byzantine", "arabic", "tense", "regal", "augmented_second", "dramatic"],
     "characteristic_intervals": ["min2_1_to_b2", "aug2_b2_to_3", "aug2_b6_to_7", "leading_tone_7_to_1"],
@@ -187,6 +421,15 @@
   },
   "hungarian_minor": {
     "intervals": [2, 1, 3, 1, 1, 3, 1],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 0 },
+      { "letter_step": 2, "accidental": -1 },
+      { "letter_step": 3, "accidental": 1 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": -1 },
+      { "letter_step": 6, "accidental": 0 }
+    ],
     "family": "double_harmonic",
     "tags": ["exotic", "gypsy", "dramatic", "tense", "augmented_second", "fiery", "hungarian"],
     "characteristic_intervals": ["min3_1_to_b3", "aug2_b3_to_sharp4", "aug2_b6_to_7", "leading_tone_7_to_1"],
@@ -194,6 +437,15 @@
   },
   "oriental": {
     "intervals": [1, 3, 1, 1, 3, 1, 2],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": -1 },
+      { "letter_step": 2, "accidental": 0 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": -1 },
+      { "letter_step": 5, "accidental": 0 },
+      { "letter_step": 6, "accidental": -1 }
+    ],
     "family": "double_harmonic",
     "tags": ["exotic", "arabic", "tense", "augmented_second", "mysterious", "snake_charmer"],
     "characteristic_intervals": ["min2_1_to_b2", "aug2_b2_to_3", "tritone_1_to_b5", "aug2_b5_to_6"],
@@ -202,6 +454,15 @@
 
   "neapolitan_major": {
     "intervals": [1, 2, 2, 2, 2, 2, 1],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": -1 },
+      { "letter_step": 2, "accidental": -1 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": 0 },
+      { "letter_step": 6, "accidental": 0 }
+    ],
     "family": "neapolitan",
     "tags": ["exotic", "bittersweet", "italian", "leading_tone", "wistful"],
     "characteristic_intervals": ["min2_1_to_b2", "maj6_1_to_6", "leading_tone_7_to_1"],
@@ -209,6 +470,15 @@
   },
   "neapolitan_minor": {
     "intervals": [1, 2, 2, 2, 1, 3, 1],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": -1 },
+      { "letter_step": 2, "accidental": -1 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": -1 },
+      { "letter_step": 6, "accidental": 0 }
+    ],
     "family": "neapolitan",
     "tags": ["minor", "exotic", "dark", "italian", "augmented_second", "tense"],
     "characteristic_intervals": ["min2_1_to_b2", "aug2_b6_to_7", "leading_tone_7_to_1"],
@@ -217,6 +487,15 @@
 
   "hungarian_major": {
     "intervals": [3, 1, 2, 1, 2, 1, 2],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 1 },
+      { "letter_step": 2, "accidental": 0 },
+      { "letter_step": 3, "accidental": 1 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": 0 },
+      { "letter_step": 6, "accidental": -1 }
+    ],
     "family": "hungarian",
     "tags": ["exotic", "bright", "gypsy", "fiery", "augmented_second", "angular"],
     "characteristic_intervals": ["aug2_1_to_sharp2", "maj3_1_to_3", "aug4_1_to_sharp4", "min7_1_to_b7"],
@@ -225,6 +504,15 @@
 
   "romanian_minor": {
     "intervals": [2, 1, 3, 1, 2, 1, 2],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 0 },
+      { "letter_step": 2, "accidental": -1 },
+      { "letter_step": 3, "accidental": 1 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": 0 },
+      { "letter_step": 6, "accidental": -1 }
+    ],
     "family": "romanian",
     "tags": ["minor", "exotic", "folk", "yearning", "augmented_second", "ukrainian_dorian"],
     "characteristic_intervals": ["min3_1_to_b3", "aug2_b3_to_sharp4", "maj6_1_to_6", "min7_1_to_b7"],
@@ -233,6 +521,13 @@
 
   "major_pentatonic": {
     "intervals": [2, 2, 3, 2, 3],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 0 },
+      { "letter_step": 2, "accidental": 0 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": 0 }
+    ],
     "family": "pentatonic",
     "tags": ["bright", "open", "folk", "consonant", "pentatonic", "innocent", "no_semitones"],
     "characteristic_intervals": ["min3_3_to_5", "min3_6_to_1", "no_semitones"],
@@ -240,6 +535,13 @@
   },
   "minor_pentatonic": {
     "intervals": [3, 2, 2, 3, 2],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 2, "accidental": -1 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 6, "accidental": -1 }
+    ],
     "family": "pentatonic",
     "tags": ["minor", "bluesy", "folk", "pentatonic", "rock", "no_semitones", "earthy"],
     "characteristic_intervals": ["min3_1_to_b3", "min3_5_to_b7", "no_semitones"],
@@ -247,6 +549,13 @@
   },
   "hirajoshi": {
     "intervals": [2, 1, 4, 1, 4],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 0 },
+      { "letter_step": 2, "accidental": -1 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": -1 }
+    ],
     "family": "pentatonic",
     "tags": ["minor", "exotic", "japanese", "pentatonic", "serene", "contemplative", "half_step_rich"],
     "characteristic_intervals": ["min2_2_to_b3", "min2_5_to_b6", "maj3_b3_to_5"],
@@ -254,6 +563,13 @@
   },
   "in_sen": {
     "intervals": [1, 4, 2, 3, 2],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": -1 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 6, "accidental": -1 }
+    ],
     "family": "pentatonic",
     "tags": ["minor", "exotic", "japanese", "pentatonic", "stark", "shadowy"],
     "characteristic_intervals": ["min2_1_to_b2", "maj3_b2_to_4"],
@@ -261,6 +577,13 @@
   },
   "yo_scale": {
     "intervals": [2, 3, 2, 2, 3],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 0 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": 0 }
+    ],
     "family": "pentatonic",
     "tags": ["bright", "japanese", "pentatonic", "open", "folk", "no_semitones", "pastoral"],
     "characteristic_intervals": ["min3_2_to_4", "min3_6_to_1", "no_semitones"],
@@ -268,6 +591,13 @@
   },
   "iwato": {
     "intervals": [1, 4, 1, 4, 2],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": -1 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": -1 },
+      { "letter_step": 6, "accidental": -1 }
+    ],
     "family": "pentatonic",
     "tags": ["exotic", "japanese", "pentatonic", "tense", "eerie", "half_step_rich"],
     "characteristic_intervals": ["min2_1_to_b2", "min2_4_to_b5", "tritone_1_to_b5"],
@@ -276,6 +606,14 @@
 
   "blues_major": {
     "intervals": [2, 1, 1, 3, 2, 3],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 0 },
+      { "letter_step": 2, "accidental": -1 },
+      { "letter_step": 2, "accidental": 0 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": 0 }
+    ],
     "family": "blues",
     "tags": ["bright", "bluesy", "playful", "hexatonic", "earthy", "blue_note"],
     "characteristic_intervals": ["min2_2_to_b3", "min2_b3_to_3", "blue_third"],
@@ -283,6 +621,14 @@
   },
   "blues_minor": {
     "intervals": [3, 2, 1, 1, 3, 2],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 2, "accidental": -1 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": -1 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 6, "accidental": -1 }
+    ],
     "family": "blues",
     "tags": ["minor", "bluesy", "dark", "hexatonic", "earthy", "blue_note", "gritty"],
     "characteristic_intervals": ["min3_1_to_b3", "min2_4_to_b5", "min2_b5_to_5", "blue_fifth"],
@@ -291,6 +637,14 @@
 
   "whole_tone": {
     "intervals": [2, 2, 2, 2, 2, 2],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 0 },
+      { "letter_step": 2, "accidental": 0 },
+      { "letter_step": 3, "accidental": 1 },
+      { "letter_step": 4, "accidental": 1 },
+      { "letter_step": 5, "accidental": 1 }
+    ],
     "family": "symmetric",
     "tags": ["dreamy", "ethereal", "ambiguous", "hexatonic", "symmetric", "floating", "impressionist"],
     "characteristic_intervals": ["all_whole_steps", "aug4_1_to_sharp4", "no_perfect_fifth"],
@@ -298,6 +652,16 @@
   },
   "wh_diminished": {
     "intervals": [2, 1, 2, 1, 2, 1, 2, 1],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 0 },
+      { "letter_step": 2, "accidental": -1 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 3, "accidental": 1 },
+      { "letter_step": 4, "accidental": 1 },
+      { "letter_step": 5, "accidental": 0 },
+      { "letter_step": 6, "accidental": 0 }
+    ],
     "family": "symmetric",
     "tags": ["tense", "dark", "octatonic", "symmetric", "diminished", "mysterious", "angular"],
     "characteristic_intervals": ["alternating_whole_half", "tritone_1_to_b5", "two_diminished_sevenths"],
@@ -305,6 +669,16 @@
   },
   "hw_diminished": {
     "intervals": [1, 2, 1, 2, 1, 2, 1, 2],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": -1 },
+      { "letter_step": 2, "accidental": -1 },
+      { "letter_step": 2, "accidental": 0 },
+      { "letter_step": 3, "accidental": 1 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": 0 },
+      { "letter_step": 6, "accidental": -1 }
+    ],
     "family": "symmetric",
     "tags": ["tense", "octatonic", "symmetric", "dominant_function", "jazz", "angular", "dramatic"],
     "characteristic_intervals": ["alternating_half_whole", "min2_1_to_b2", "tritone_1_to_b5", "dom7b9_with_sharp9_sharp11_13"],
@@ -312,6 +686,14 @@
   },
   "augmented": {
     "intervals": [3, 1, 3, 1, 3, 1],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 2, "accidental": -1 },
+      { "letter_step": 2, "accidental": 0 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": -1 },
+      { "letter_step": 6, "accidental": 0 }
+    ],
     "family": "symmetric",
     "tags": ["ethereal", "ambiguous", "hexatonic", "symmetric", "augmented", "mysterious", "shimmering"],
     "characteristic_intervals": ["alternating_min3_half", "aug5_1_to_sharp5", "two_augmented_triads"],
@@ -320,6 +702,16 @@
 
   "bebop_dominant": {
     "intervals": [2, 2, 1, 2, 2, 1, 1, 1],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 0 },
+      { "letter_step": 2, "accidental": 0 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": 0 },
+      { "letter_step": 6, "accidental": -1 },
+      { "letter_step": 6, "accidental": 0 }
+    ],
     "family": "bebop",
     "tags": ["bright", "jazz", "bluesy", "octatonic", "dominant_function", "chromatic_passing", "swinging"],
     "characteristic_intervals": ["maj3_1_to_3", "min7_1_to_b7", "chromatic_passing_b7_to_7"],
@@ -327,6 +719,16 @@
   },
   "bebop_major": {
     "intervals": [2, 2, 1, 2, 1, 1, 2, 1],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 0 },
+      { "letter_step": 2, "accidental": 0 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 4, "accidental": 1 },
+      { "letter_step": 5, "accidental": 0 },
+      { "letter_step": 6, "accidental": 0 }
+    ],
     "family": "bebop",
     "tags": ["bright", "jazz", "octatonic", "chromatic_passing", "swinging", "elegant"],
     "characteristic_intervals": ["maj3_1_to_3", "leading_tone_7_to_1", "chromatic_passing_5_to_6"],
@@ -334,6 +736,16 @@
   },
   "bebop_dorian": {
     "intervals": [2, 1, 1, 1, 2, 2, 1, 2],
+    "spelling": [
+      { "letter_step": 0, "accidental": 0 },
+      { "letter_step": 1, "accidental": 0 },
+      { "letter_step": 2, "accidental": -1 },
+      { "letter_step": 2, "accidental": 0 },
+      { "letter_step": 3, "accidental": 0 },
+      { "letter_step": 4, "accidental": 0 },
+      { "letter_step": 5, "accidental": 0 },
+      { "letter_step": 6, "accidental": -1 }
+    ],
     "family": "bebop",
     "tags": ["minor", "jazz", "octatonic", "chromatic_passing", "swinging", "smooth"],
     "characteristic_intervals": ["min3_1_to_b3", "chromatic_passing_b3_to_3", "maj6_1_to_6", "min7_1_to_b7"],

@@ -87,6 +87,44 @@ Ref: Wikipedia "Whole tone scale", "Octatonic scale", "Augmented scale".
 - hw_diminished `[1,2,1,2,1,2,1,2]` (half-whole octatonic, 8 notes).
 - augmented `[3,1,3,1,3,1]` (hexatonic, 6 notes).
 
+## Spelling arrays (Session 1 amendment)
+Every scale now carries a `spelling` array — one `{letter_step, accidental}`
+per degree, in `intervals` order — that fixes the theoretical (diatonic
+letter) spelling of each degree, independent of how a pitch is later rendered
+for the synth. `letter_step` is the number of letters to advance from the
+tonic's letter (0 = tonic letter); `accidental` (−2..+2) lands that letter on
+the right pitch class. See `pitch.js` / `mode-engine.js` for how this drives
+`toScoreString` vs. `toSynthString`, and `verify-spelling.mjs` for the check
+that every spelling agrees with its intervals on pitch classes.
+
+For the 7-note diatonic-family scales (all diatonic, harmonic-minor,
+melodic-minor, harmonic-major, double-harmonic, neapolitan, hungarian-major,
+romanian-minor modes), `letter_step` is always `[0,1,2,3,4,5,6]` — each
+letter used once — and the accidentals are the well-known scale-formula
+alterations (e.g. `altered_dim` carries the genuine `bb7`, a double flat).
+Pentatonic and hexatonic-blues scales skip / repeat letters per their formula
+(e.g. `blues_major` repeats E for the b3→3 blue note); bebop scales repeat the
+letter of their chromatic passing tone.
+
+### Symmetric-scale spellings are a documented compromise
+The whole-tone, octatonic (both diminished), and augmented scales have **no
+canonical letter spelling** — they divide the octave evenly, so any rotation
+of a spelling is equally defensible and no choice uses all seven letters
+cleanly. We ship a "least double accidentals" compromise (every letter used at
+most twice, no double accidentals) and accept that **score export of music in
+these scales may need composer review**. This is a known limit, not a bug.
+The chosen spellings (rooted on C):
+- whole_tone → `C D E F# G# A#` (`letter_step [0,1,2,3,4,5]`, alts
+  `[0,0,0,+1,+1,+1]`). Could equally be spelled all-flats from a flat tonic.
+- wh_diminished → `C D Eb F F# G# A B` (`letter_step [0,1,2,3,3,4,5,6]`, alts
+  `[0,0,-1,0,+1,+1,0,0]`). Repeats F.
+- hw_diminished → `C Db Eb E F# G A Bb` (`letter_step [0,1,2,2,3,4,5,6]`, alts
+  `[0,-1,-1,0,+1,0,0,-1]`). Repeats E.
+- augmented → `C Eb E G Ab B` (`letter_step [0,2,2,4,5,6]`, alts
+  `[0,-1,0,0,-1,0]`), i.e. `1 b3 3 5 b6 7`. Repeats E; skips D and F. The
+  buildplan's first-pass suggestion produced two double sharps (`Fx`, `Ax`),
+  which this avoids.
+
 ## Bebop (3)
 Ref: Mark Levine, *The Jazz Theory Book* ("Bebop Scales"); Wikipedia
 "Bebop scale". Each adds one chromatic passing tone to a parent mode, so
