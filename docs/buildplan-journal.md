@@ -1618,7 +1618,8 @@ creative.**
   -stage7, all exit 0).
 - [x] This journal entry (prompt design, validation strategy, prompt-engineering
   notes below).
-- [ ] **Human checkpoint** — substantial; PENDING Steven's listening pass.
+- [x] **Human checkpoint** — substantial (first LLM stage); CLEARED (see the
+  checkpoint block at the end of this entry).
 
 **Verification anchors that passed (`verify-stage5b.mjs`, committed, OFFLINE):**
 - `validateTexturePlan` on a valid wrapped plan → `{ ok:true, errors:[] }`; each
@@ -1776,9 +1777,50 @@ placement):**
   transform patterns) per the buildplan — those are post-LLM rejections, not just
   prompt asks.
 
-**Verdict: Session 8 implementation complete; `verify-stage5b` and all seven
-prior verifiers pass offline. The first LLM stage is wired end-to-end with strict
-schema validation, a one-shot retry, a deterministic offline fallback, and the
-freedom-knob plumbing. The session is NOT closed until Steven completes the
-listening pass (run a generated case, A/B it against the hand-supplied twin,
-try tame/adventurous/wild) and his findings are recorded here.**
+**HUMAN CHECKPOINT — CLEARED (2026-05-21, substantial — first LLM stage).** Steven
+ran the generated cases through the inspector (live LLM via `wrangler pages dev`),
+A/B'd them against the hand-supplied twins, and tried the adventurousness knob.
+Verdict, verbatim:
+
+> Ok yes...I'm liking this. Each session is adding just a little bit more to the
+> pot. I appreciate the kind of texture variation that's happening. Again, the
+> melodies are still too simplistic, and the forms feel too "by the books"...the
+> bass lines and melodies aren't creative enough yet, still, but the counterpoint
+> harmony is getting there.
+
+That clears Session 8's specific bar: **the LLM texture stage works end-to-end and
+reads as compositional rather than random.** The texture variation is the part
+Steven called out as landing ("I appreciate the kind of texture variation"; "the
+counterpoint harmony is getting there") — which is exactly Stage 5b's deliverable.
+No concrete defect surfaced: no validation failures or ill-formed plans, and no
+wrong-sounding texture choice was reported — the model's per-section picks read as
+intentional.
+
+The three axes Steven still finds wanting are each the explicit remit of a
+not-yet-built stage, not a Stage-5b defect:
+- **Melodies too simplistic** — the lead is the hand-written motifs + transforms in
+  `pipeline-inspector-cases.js`. Motif *shape* generation is Stage 4 (Session 10);
+  phrase/development placement is Stage 5a (Session 9). Melodic soul lives there,
+  wielded through the freedom knobs, the anomaly slots, and the 47-scale palette —
+  the standing aesthetic bar carried since Session 6.
+- **Bass lines not creative enough** — bass is the deterministic pattern vocabulary
+  (root_fifth / walking / pedal / arpeggio / cadential_5_1). Stage 5b now *chooses*
+  among them per section, but the patterns themselves are fixed, and they walk a
+  hand-written progression (Stage 3 harmony is Session 11). A richer bass-pattern
+  vocabulary is a candidate deferred enhancement once the generative stages land.
+- **Forms too by-the-books** — `macroParams.form` is hand-supplied this session;
+  form selection is Stage 2 (Session 12) and phrase-structure choice within a form
+  is Stage 5a (Session 9).
+
+Carrying forward: the contrapuntal/textural axis is now landing (Sessions 6 + 8);
+melodic, bass, and formal creativity is the job of the remaining LLM stages
+(S9–S12). Aesthetic surprises in the texture choices, if any, are future
+prompt-tuning findings, not blockers — none were reported this pass.
+
+**Verdict: Session 8 complete and confirmed by ear.** The first LLM stage is wired
+end-to-end with strict schema validation, a one-shot retry, a deterministic offline
+fallback, and the freedom-knob plumbing; `verify-stage5b` and all seven prior
+verifiers pass offline. Texture choreography reads as compositional, the texture
+variation and counterpoint are audibly landing, and the human gate is cleared.
+Cleared to proceed to Session 9 (Stage 5a — phrase structure + motif placement)
+when Steven kicks it off. Do NOT start Session 9 automatically.
