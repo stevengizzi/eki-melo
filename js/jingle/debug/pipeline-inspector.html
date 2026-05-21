@@ -113,17 +113,26 @@
 <body>
   <h1>♪ Pipeline Inspector</h1>
   <p class="subtitle">
-    Session 8 — Stage 5b (texture choreography) is the first LLM stage.
-    <code>stage-5b-texture.js</code> (generated cases only) →
+    Session 9 — Stage 5a (phrase structure + motif placement) is the second LLM stage.
+    <code>stage-5a-phrase.js</code> → <code>stage-5b-texture.js</code> (generated cases only) →
     <code>stage-6-voice.js</code> → <code>stage-7-leading.js</code> →
     <code>stage-8-cadence.js</code> → <code>toSynthString</code> → <code>LiveSynth</code>.
-    Hand-supplied cases skip 5b; <b>generated</b> cases hit the live LLM.
+    Hand-supplied cases skip 5a/5b; <b>generated</b> cases hit the live LLM for the
+    plans they omit (texture only, or the <b>fully generated</b> case — both phrase + texture).
   </p>
 
   <div class="controls">
     <div class="field">
       <label for="case-select">Test case</label>
       <select id="case-select"></select>
+    </div>
+    <div class="field">
+      <label for="phrase-adventurousness-select">Phrase adventurousness (fully generated)</label>
+      <select id="phrase-adventurousness-select">
+        <option value="tame">tame</option>
+        <option value="adventurous" selected>adventurous</option>
+        <option value="wild">wild</option>
+      </select>
     </div>
     <div class="field">
       <label for="adventurousness-select">Texture adventurousness (generated only)</label>
@@ -153,6 +162,22 @@
     <div class="guest-card" data-id="inspector">
       <div id="piano-roll-host"></div>
     </div>
+  </div>
+
+  <div class="stage" id="stage5a">
+    <h2>Stage 5a — Phrase structure + motif placement (LLM)</h2>
+    <p class="note">Second LLM stage (Session 9). For the <b>fully generated</b> case this calls <code>generatePhrasePlan</code> (live model) and the generated PhrasePlan flows into Stage 5b + Stage 6. For cases that supply a phrasePlan it shows n/a. The prompt is built by <code>buildPhrasePlanPrompt</code>; the raw response is parsed + validated against the strict schema + the development rules (B-section development, reprise reuses its source motif, no adjacent identicals, no overlaps, cadenced final bar = cadential_gesture), retried once on a validation error.</p>
+    <p class="repairs-summary" id="stage5a-status"></p>
+    <details>
+      <summary style="cursor:pointer;color:var(--accent-blue);font-size:12px;">prompt (system + user)</summary>
+      <pre id="stage5a-prompt"></pre>
+    </details>
+    <details>
+      <summary style="cursor:pointer;color:var(--accent-blue);font-size:12px;">raw model response(s)</summary>
+      <pre id="stage5a-raw"></pre>
+    </details>
+    <p class="note">Generated PhrasePlan (the flat plan Stage 5b + Stage 6 consume):</p>
+    <pre id="stage5a-plan"></pre>
   </div>
 
   <div class="stage" id="stage5b">
@@ -206,6 +231,7 @@
   import { runPipeline } from '../pipeline/pipeline-runner.js';
   import { realizeVoices } from '../pipeline/stage-6-voice.js';
   import { enforceCadences } from '../pipeline/stage-8-cadence.js';
+  import { generatePhrasePlan, buildPhrasePlanPrompt } from '../pipeline/stage-5a-phrase.js';
   import { generateTexturePlan, buildTexturePlanPrompt } from '../pipeline/stage-5b-texture.js';
   import { voiceLeadingReport, summarizeRepairs } from '../theory/voice-leading-rules.js';
   import { toScoreString } from '../theory/pitch.js';
@@ -217,6 +243,7 @@
   const caseSelect = document.getElementById('case-select');
   const presetSelect = document.getElementById('preset-select');
   const adventurousnessSelect = document.getElementById('adventurousness-select');
+  const phraseAdventurousnessSelect = document.getElementById('phrase-adventurousness-select');
   const errorBox = document.getElementById('error');
   const caseMeta = document.getElementById('case-meta');
   const pianoHost = document.getElementById('piano-roll-host');
@@ -244,6 +271,24 @@
 
   let currentJingle = null;
 
+  // Render the Stage-5a panel. For cases that supply a phrasePlan it reads n/a;
+  // for the fully-generated case it shows the built prompt, the raw model
+  // response(s), and the validated PhrasePlan that flowed into Stage 5b/6.
+  function showStage5a({ generated, prompt, traces, plan, status, statusClean }) {
+    const statusEl = document.getElementById('stage5a-status');
+    statusEl.textContent = status;
+    statusEl.classList.toggle('clean', !!statusClean);
+    document.getElementById('stage5a-prompt').textContent = prompt
+      ? `SYSTEM:\n${prompt.system}\n\nUSER:\n${prompt.user}`
+      : (generated ? '' : 'n/a — phrasePlan supplied with the case');
+    document.getElementById('stage5a-raw').textContent = traces && traces.length
+      ? traces.map((t) => `# attempt ${t.attempt} — ${t.ok ? 'valid' : 'INVALID: ' + t.errors.join('; ')}\n${t.raw}`).join('\n\n')
+      : (generated ? '' : 'n/a — phrasePlan supplied with the case');
+    document.getElementById('stage5a-plan').textContent = plan
+      ? JSON.stringify(plan, null, 1)
+      : (generated ? '' : 'n/a — phrasePlan supplied with the case');
+  }
+
   // Render the Stage-5b panel. For hand-supplied cases it reads n/a; for
   // generated cases it shows the built prompt, the raw model response(s), and
   // the validated TexturePlan that flowed into Stage 6.
@@ -267,29 +312,59 @@
     const testCase = ALL_CASES[Number(caseSelect.value)];
     const preset = presetSelect.value;
     const adventurousness = adventurousnessSelect.value;
+    const phraseAdventurousness = phraseAdventurousnessSelect.value;
     // The pipeline config — DEFAULT_CONFIG with the chosen voice-leading preset
     // (Stage 7 reads knobs.voice_leading_strictness) and, for generated cases,
-    // the chosen texture adventurousness (Stage 5b reads it).
+    // the chosen phrase + texture adventurousness (Stage 5a / 5b read them).
     const config = {
       ...DEFAULT_CONFIG,
-      knobs: { ...DEFAULT_CONFIG.knobs, voice_leading_strictness: preset, texture_adventurousness: adventurousness },
+      knobs: {
+        ...DEFAULT_CONFIG.knobs,
+        voice_leading_strictness: preset,
+        texture_adventurousness: adventurousness,
+        phrase_adventurousness: phraseAdventurousness,
+      },
     };
     try {
-      // Generated cases call Stage 5b (live LLM) to get a texturePlan; hand-
-      // supplied cases use their own. `effectiveCase` carries the texturePlan
-      // either way, so the synchronous display path below is identical.
+      // `effectiveCase` accumulates whatever the case omits: Stage 5a fills an
+      // absent phrasePlan, then Stage 5b fills an absent texturePlan (built over
+      // the now-resolved phrasePlan), so the synchronous display path below sees
+      // a complete plan whether it was hand-supplied or LLM-generated.
       let effectiveCase = testCase;
-      if (testCase.generated) {
-        const prompt = buildTexturePlanPrompt({ ...testCase, config });
+
+      // Stage 5a — generate the phrasePlan if the case omits it (fully-generated).
+      if (!effectiveCase.phrasePlan) {
+        const prompt = buildPhrasePlanPrompt({ ...effectiveCase, config });
+        showStage5a({ generated: true, prompt, traces: [], plan: null, status: `Calling Stage 5a LLM (${phraseAdventurousness})…` });
+        caseMeta.innerHTML = `<b>${testCase.title}</b> · calling Stage 5a LLM (${phraseAdventurousness})…`;
+        const traces = [];
+        const phrasePlan = await generatePhrasePlan({
+          ...effectiveCase,
+          config,
+          onTrace: (t) => traces.push(t),
+        });
+        effectiveCase = { ...effectiveCase, phrasePlan };
+        showStage5a({
+          generated: true, prompt, traces, plan: phrasePlan,
+          status: `Stage 5a OK (${phraseAdventurousness}) — ${traces.length} model round-trip(s).`, statusClean: true,
+        });
+      } else {
+        showStage5a({ generated: false, prompt: null, traces: null, plan: null, status: '' });
+      }
+
+      // Stage 5b — generate the texturePlan if the case omits it (generated cases).
+      // Built over effectiveCase so the (possibly just-generated) phrasePlan informs it.
+      if (!effectiveCase.texturePlan) {
+        const prompt = buildTexturePlanPrompt({ ...effectiveCase, config });
         showStage5b({ generated: true, prompt, traces: [], plan: null, status: `Calling Stage 5b LLM (${adventurousness})…` });
         caseMeta.innerHTML = `<b>${testCase.title}</b> · calling Stage 5b LLM (${adventurousness})…`;
         const traces = [];
         const texturePlan = await generateTexturePlan({
-          ...testCase,
+          ...effectiveCase,
           config,
           onTrace: (t) => traces.push(t),
         });
-        effectiveCase = { ...testCase, texturePlan };
+        effectiveCase = { ...effectiveCase, texturePlan };
         showStage5b({
           generated: true, prompt, traces, plan: texturePlan,
           status: `Stage 5b OK (${adventurousness}) — ${traces.length} model round-trip(s).`, statusClean: true,
@@ -351,6 +426,7 @@
   caseSelect.addEventListener('change', () => { synth.stop(); run(); });
   presetSelect.addEventListener('change', () => { synth.stop(); run(); });
   adventurousnessSelect.addEventListener('change', () => { synth.stop(); run(); });
+  phraseAdventurousnessSelect.addEventListener('change', () => { synth.stop(); run(); });
 
   run();
 </script>

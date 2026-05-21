@@ -355,6 +355,19 @@ function withoutTexturePlan(base, overrides) {
   return { ...rest, generated: true, ...overrides };
 }
 
+// ---------------------------------------------------------------- Session 9
+// Fully-generated case: the same upstream context as the matching hand-supplied
+// case, but with BOTH `phrasePlan` AND `texturePlan` OMITTED. The inspector calls
+// Stage 5a (generatePhrasePlan) to shape the motifs, then Stage 5b
+// (generateTexturePlan) to choreograph textures over that phrasePlan — both via
+// the live LLM. This is the case the Session-9 human checkpoint A/Bs against the
+// hand-supplied and Stage-5b-only-generated twins. `generated: true` still routes
+// the texture path; the absent phrasePlan triggers the Stage-5a path.
+function withoutPhraseAndTexturePlan(base, overrides) {
+  const { phrasePlan, texturePlan, ...rest } = base;
+  return { ...rest, generated: true, ...overrides };
+}
+
 export const GENERATED_CASES = [
   withoutTexturePlan(CASES[0], {
     id: 'sunrise-generated',
@@ -363,5 +376,9 @@ export const GENERATED_CASES = [
   withoutTexturePlan(CASES[1], {
     id: 'wanderer-generated',
     title: "Wanderer's Path — generated",
+  }),
+  withoutPhraseAndTexturePlan(CASES[1], {
+    id: 'wanderer-fully-generated',
+    title: "Wanderer's Path — fully generated",
   }),
 ];
