@@ -9,6 +9,11 @@
    range violations, pitch substitution for parallel perfects (cpp_strict),
    snap-to-mode for out-of-mode accidentals unless anomaly-flagged. For now it
    returns its input unchanged so the runner can thread all stages end-to-end.
+
+   As of Session 5 the VoiceTracks it passes through are beat-stamped
+   { pitch, beat, duration } events (the runner sequences after Stage 8) — an
+   identity pass is agnostic to that, but the future implementation will read
+   the beat positions.
    ================================================================= */
 
 /**

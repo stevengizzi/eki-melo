@@ -140,8 +140,14 @@
   </div>
 
   <div class="stage identity">
-    <h2>Stage 7 — Voice-leading pass · Stage 8 — Cadence enforcement</h2>
-    <p class="note">Identity stubs this session (Session 7 / Session 5 respectively). VoiceTracks pass through unchanged.</p>
+    <h2>Stage 7 — Voice-leading pass</h2>
+    <p class="note">Identity stub this session (Session 7). VoiceTracks pass through unchanged.</p>
+  </div>
+
+  <div class="stage">
+    <h2>Stage 8 — Cadence enforcement</h2>
+    <p class="note">Active (Session 5). Each section's closing beats are overwritten with its declared cadence — shown below as the post-cadence VoiceTracks (compare against the Stage-6 output above).</p>
+    <pre id="cadence-out"></pre>
   </div>
 
   <div class="stage">
@@ -158,6 +164,8 @@
 <script type="module">
   import { runPipeline } from '../pipeline/pipeline-runner.js';
   import { realizeVoices } from '../pipeline/stage-6-voice.js';
+  import { applyVoiceLeading } from '../pipeline/stage-7-leading.js';
+  import { enforceCadences } from '../pipeline/stage-8-cadence.js';
   import { toScoreString } from '../theory/pitch.js';
   import { renderPianoRoll } from '../render.js';
   import { synth } from '../synth.js';
@@ -184,9 +192,16 @@
     const testCase = CASES[Number(caseSelect.value)];
     try {
       const voiceTracks = realizeVoices(testCase);
+      const afterCadence = enforceCadences(
+        applyVoiceLeading(voiceTracks, testCase.config),
+        testCase.harmonicPlan,
+        testCase.macroParams,
+        testCase.config
+      );
       currentJingle = runPipeline(testCase);
 
       document.getElementById('voicetracks-out').textContent = JSON.stringify(readableVoiceTracks(voiceTracks), null, 1);
+      document.getElementById('cadence-out').textContent = JSON.stringify(readableVoiceTracks(afterCadence), null, 1);
       document.getElementById('finaljingle-out').textContent = JSON.stringify(
         { title: currentJingle.title, tempo: currentJingle.tempo, key: currentJingle.key, mood: currentJingle.mood, form: currentJingle.form, sections: currentJingle.sections, lead: currentJingle.lead, harmony: currentJingle.harmony, bass: currentJingle.bass },
         null, 1

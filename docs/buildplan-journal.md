@@ -786,3 +786,198 @@ forward as the baseline to beat once S5–S7 land.
 **Verdict: Session 4 complete. End-to-end audio working and confirmed
 composed. Cleared to proceed to Session 5 (Roman resolver + cadence
 enforcement) when Steven kicks it off.**
+
+**Claude.ai-side verification (Steven + Claude Opus 4.7):**
+- All four verify scripts re-run independently — PASSED:
+  verify-spelling, verify-forms, verify-motif, verify-stage6 (all exit 0).
+- Independent end-to-end pipeline runs across all 3 cases:
+  Sunrise Fanfare (64 beats), Wanderer's Path (48 beats), Desert
+  Caravan (48 beats). Every voice in every case has 0 bad pitches
+  through the real noteToFreq. All three voices in each case
+  beat-aligned to identical totals.
+- Roman-numeral stub spot-checked independently:
+  `II` in E phrygian-dominant → F major triad (the bII colour);
+  `V` in D dorian → A-C-E minor (modal v, no leading tone).
+  Modal chord qualities fall out for free via the stack-the-mode's-
+  own-thirds approach.
+- Bass patterns sanity-checked across 4/4, 3/4, 6/8:
+  root_fifth, walking (4/4-only with nextChord look-ahead), pedal,
+  arpeggio, cadential_5_1 all produce structurally correct events.
+- Chromatic_neighbor anomaly realization confirmed via bendHalfStep
+  (Desert Caravan's chromatic passing tone is genuinely out-of-scale).
+- Two non-blocking observations:
+  (a) 6/8 root_fifth produces 4 equal dotted-eighth notes per bar
+  rather than the more idiomatic "boom-pa-pa boom-pa-pa" pattern.
+  Defensible as a pattern but not the most genre-typical. The
+  listening cases are all 4/4 so this didn't surface in Steven's
+  ear; flag for audition when a 6/8 piece arrives.
+  (b) Arpeggio in 6/8 creates a hemiola against the 3+3 grouping.
+  Musically defensible, worth noting when 6/8 pieces enter the
+  listening rotation.
+- Steven's "amateur but intentional" verdict reads correctly to me:
+  the simplicity matches the not-yet-built stages, no Stage 6
+  defects detected.
+
+**Verdict: Session 4 complete and verified. End-to-end audio
+working at the expected baseline. Cleared to proceed to Session 5.**
+
+## Session 5 — 2026-05-21 — Roman-numeral resolver + cadence formulas + Stage 8
+
+**What landed (commits):**
+- feat(jingle): add full Roman-numeral resolver + cadence formulas
+  - `js/jingle/theory/roman-numeral.js` — the full resolver (drop-in for the
+    Session-4 stub): diatonic modal stacking + chromatic alterations + seventh/
+    sixth chords + `isValidInMode` / `listAvailableChords`
+  - `js/jingle/theory/cadence-formulas.js` — the 7 cadence functions + registry
+- feat(jingle): enforce cadences in Stage 8 + beat-stamp the voice tracks
+  - `js/jingle/pipeline/stage-8-cadence.js` — real `enforceCadences` (splice)
+  - `js/jingle/pipeline/stage-6-voice.js` — returns beat-stamped events now;
+    swaps to the full resolver; exports `toSequence` + `pieceTotalBeats`
+  - `js/jingle/pipeline/pipeline-runner.js` — sequences after Stage 8
+  - `js/jingle/pipeline/stage-7-leading.js` — doc-only (beat-stamped note)
+  - `js/jingle/theory/roman-numeral-stub.js` — marked DEPRECATED (kept for
+    verify-stage6's stub-specific assertions)
+  - `js/jingle/debug/pipeline-inspector-cases.js` + `pipeline-inspector.html`
+    — cadence coverage across all 7 types + a post-cadence VoiceTracks panel
+  - `js/jingle/theory/verify-stage8.mjs` — committed Session-5 regression check
+  - `docs/buildplan-journal.md` — this entry
+
+**Exit criteria status:**
+- [x] `roman-numeral.js` exports `resolveRoman` / `isValidInMode` /
+  `listAvailableChords` with the documented behaviour (signature unchanged from
+  the stub: `resolveRoman(romanString, mode, tonic, octave = 4)`).
+- [x] `cadence-formulas.js` exports all 7 cadence functions (PAC, IAC, half,
+  deceptive, plagal, modal_iv_i, phrygian_ii_i) + a `CADENCE_FORMULAS` registry.
+- [x] `stage-8-cadence.js` overwrites cadences for all 3 listening cases (and
+  the inspector now spreads all 7 cadence types across them).
+- [x] Inspector exercises each cadence type; the phrygian_ii_i cadence in Desert
+  Caravan lands the half-step descent (verified: bass F3→E3 under lead F5→E5 in
+  both A and A'; Sunrise A3 PAC lands lead on C5 with bass G3→C3).
+- [x] All prior verify scripts pass (verify-spelling / -forms / -motif / -stage6,
+  all exit 0) + new `verify-stage8.mjs` passes.
+- [x] This journal entry.
+
+**Verification anchors that passed (`verify-stage8.mjs`, committed):**
+- resolver, diatonic (stub-compatible): C major I = C3-E3-G3; V = G4-B4-D5; "II"
+  in E phrygian-dominant = F-A-C (the bII colour, modal spelling); "v" there is
+  diminished; "VII" in D dorian = C-E-G.
+- resolver, chromatic: bII in C = Db-F-Ab (Neapolitan, correctly spelled); bII
+  in E phrygian-dominant = F-A-C (== the diatonic II — same F, the cadence's
+  half step); bVI in C = Ab-C-Eb; bVII in C = Bb-D-F; #iv defaults minor.
+- resolver, extensions: V7 = G-B-D-F (dominant7); Imaj7 (major7); ii7 (minor7);
+  viiø7 (halfdim7); vii°7 in A harmonic minor (dim7); I6 (major6).
+- listing: `listAvailableChords("dorian")` = [i, ii, III, IV, v, vi°, VII]
+  (matches the buildplan example exactly); major = [I, ii, iii, IV, V, vi, vii°].
+- validity: V/vii° valid in major; vi° NOT (the ° contradicts the diatonic
+  minor); bVI invalid without the flag, valid with `allowModalInterchange`; V
+  valid in aeolian with the flag; garbage → false.
+- all 7 cadence formulas verified pitch-for-pitch in C major plus the two
+  mode-specific cases (phrygian_ii_i in E phrygian-dominant, modal_iv_i in D
+  dorian).
+- Stage 8 splice: voices stay sorted and non-overlapping after the splice; the
+  PAC lands the final lead on the tonic in the section's final bar; the input
+  Stage-6 tracks are not mutated; an unknown cadence type throws.
+- end-to-end over all 3 cases: every event has positive duration and (when not a
+  rest) a synth string parsing through the **real** synth.js noteToFreq to a
+  finite positive frequency; all three voices stay beat-aligned. Sessions 1–4
+  verifiers still PASS.
+
+**Deferred:**
+- **`allow_modal_interchange` plumbing.** `isValidInMode` honours the flag (3rd
+  arg, default off), but no stage threads `config.knobs.allow_modal_interchange`
+  into it yet — that wiring is the LLM harmonic stage (Session 11). The borrowed-
+  chord vocabularies (`BORROWED_MAJORISH` / `BORROWED_MINORISH`) are a starting
+  set; later sessions can widen them.
+- **`allow_secondary_dominants`.** The resolver can build any chord by explicit
+  marker (e.g. forcing a major V in a minor mode via a leading accidental), but
+  there is no applied-dominant grammar (`V/V` etc.) — out of scope this session.
+- **Voice-leading between the cadence and the bar before it.** Stage 8 overwrites
+  cleanly but does not smooth the join into the cadence (a motif may leap into
+  the approach note). Smoothing is Stage 7's job (Session 7).
+- **Cadence octave register.** The cadence always voices lead at the register
+  centre, harmony an octave below, bass at octave 3 — a fixed registral arrival.
+  If a section's melody sat far from the centre, the cadence will jump to it.
+  Acceptable for a deterministic close; revisit if it sounds abrupt by ear.
+
+**Notes for next session (Session 6 — texture vocabulary + audition):**
+- The VoiceTracks contract changed: Stage 6/7/8 now pass **beat-stamped**
+  `{ pitch, beat, duration }` events (sorted by beat); the single `toSequence`
+  collapse to the synth's contiguous `{ pitch, duration }` shape runs in the
+  runner AFTER Stage 8 (buildplan recommended option (b)). Session 6's texture
+  functions feed Stage 6's harmony builder, which still works in beat-stamped
+  events — no change to that seam, but the textures must emit beat-stamped
+  events too (not pre-sequenced).
+- `toSequence` and `pieceTotalBeats` are exported from `stage-6-voice.js` for the
+  runner; reuse them rather than re-deriving.
+- The Roman resolver is the real one now; `resolveRoman(roman, mode, tonic,
+  octave)` returns Pitch-bearing `{ root, quality, members }`. Textures that need
+  the current chord (chord_tones_pulse, drones) call it directly.
+- `roman-numeral-stub.js` is deprecated but still present (verify-stage6 asserts
+  its narrow scope). A follow-up cleanup commit should delete it and point
+  verify-stage6's stub-specific unit checks at the full resolver — left for when
+  someone is touching verify-stage6 anyway, to avoid a churny no-op commit now.
+
+**Surprises / decisions made:**
+- **Two realization strategies, split on whether the numeral is altered.**
+  Diatonic numerals stack thirds in the ACTIVE MODE (quality derived from the
+  pitches — this is exactly the stub's "modal spellings fall out for free", so
+  the resolver is a true drop-in). Chromatic numerals (leading b/#) take the
+  MAJOR-scale degree of the tonic, shift it a semitone, and build a major-or-
+  minor triad in the altered root's own key (thirds stacked in MAJOR relative to
+  the new root). The major-relative base is what makes bII land on the same pitch
+  regardless of mode: bII in C = Db, bII in E = F — and in E phrygian-dominant
+  that F equals the diatonic degree-2, which is precisely why the phrygian
+  cadence works whether you spell it `II` or `bII`.
+- **Quality is still derived (not dictated by case) for diatonic chords.** Per
+  the stub's design, case is informational for plain diatonic numerals; the modal
+  triad's quality wins. An explicit `°`/`+` marker that *contradicts* the modal
+  quality re-spells the triad (a chromatic alteration); a matching marker keeps
+  the modal spelling verbatim. Case sets the default quality only on the
+  chromatic path, where there is no mode to derive from.
+- **`^7→^1` only ascends across an octave boundary.** Within one octave the scale
+  degrees run 1 < 2 < … < 7 < 8(=octave), so degree 7 sits a major seventh ABOVE
+  degree 1. The first cut of the deceptive cadence used lead `^7→^1` and produced
+  a descending major-seventh leap (B5→C5) instead of the leading-tone resolution.
+  Fixed: the deceptive lead steps up `^2→^3` (lands on the submediant's fifth) and
+  the ascending leading tone `^7→^8` lives in the harmony voice (B4→C5). The
+  authentic cadences resolve DOWNWARD (`^2→^1`), which needs no octave care.
+- **Cadences are voiced as chords, not bare melody.** Every approach/resolution
+  beat is voiced from chord tones (root in the bass, a third/fifth inside, the
+  cadence's required scale degree on top), so each beat spells a recognisable
+  triad — PAC's approach is a full G-B-D, its resolution C+E, etc. Lead/harmony/
+  bass at octaves 5/4/3 so the three voices never cross.
+- **Full-bar vs. last-two-beats overwrite.** PAC/IAC/plagal/modal_iv_i/
+  phrygian_ii_i overwrite the whole final bar (approach for the first half, the
+  resolution for the second — the buildplan's bass instruction, voiced across all
+  three voices so they move together at the bar midpoint). half/deceptive
+  overwrite only the final two beats (only the closing gesture matters; the rest
+  of the bar keeps the upstream material). Documented in each formula's docstring.
+- **Option-(b) refactor adopted.** Stage 6 used to flatten to a back-to-back
+  sequence (rests for gaps) before returning; that made Stage 8's "find and
+  overwrite the final beats" awkward. Now Stage 6/7/8 pass beat-stamped events and
+  the single `toSequence` collapse happens once, in the runner, after Stage 8. ~A
+  10-line move; it makes the splice logic (drop events inside the window, truncate
+  one straddler, insert + re-sort) genuinely simple. verify-stage6 still passes
+  because it reads `.pitch`/`.duration` (still present) and the e2e path goes
+  through the runner (still sequenced).
+- **Cadence coverage spread across the 3 cases.** To exercise all 7 types in the
+  inspector: Sunrise A1=IAC / A2=deceptive / B=half / A3=PAC; Wanderer A=modal_iv_i
+  / B=plagal / A'=modal_iv_i; Desert A=phrygian_ii_i / B=half / A'=phrygian_ii_i.
+  The human-checkpoint requirements (Sunrise A3 PAC, Desert A/A' phrygian) are
+  preserved. Stage 8 overwrites the final bar regardless of each section's written
+  progression, so changing the `cadence` field needed no progression changes.
+- **No DEC/CHANGELOG entry this session.** Consistent with Sessions 1–4 and the
+  buildplan: the new pipeline is built alongside the deployed app and is not
+  user-visible until Session 12, which is where the buildplan schedules the DEC
+  entry, CHANGELOG line, and architecture.md update. The beat-stamped-VoiceTracks
+  refactor is internal to the in-progress pipeline and is recorded here.
+
+**HUMAN CHECKPOINT — PENDING.** Steven to listen to all 3 inspector cases and
+confirm each section now resolves to a clean cadence (rather than stopping on the
+last fragment). Specific listening checks: Sunrise Fanfare A3 → strong PAC (lead
+lands on C, bass V→I); Desert Caravan A and A' → phrygian half-step descent (bass
+F→E under lead F→E). Both are confirmed correct in the rendered output and the
+regression check; the open item is Steven's ear.
+
+**Verdict: Session 5 implementation complete; all six verifiers pass. Awaiting
+the human listening checkpoint before clearing to Session 6.**

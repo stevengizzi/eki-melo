@@ -1,7 +1,14 @@
 /* =================================================================
    ROMAN NUMERAL — STUB (buildplan Session 4).
 
-   *** PLACEHOLDER. Replaced in Session 5 by theory/roman-numeral.js. ***
+   *** DEPRECATED as of Session 5. Superseded by theory/roman-numeral.js,
+   which is a drop-in replacement (same signature, same diatonic behaviour,
+   plus chromatic alterations and seventh chords). Stage 6 now imports the full
+   resolver. This file is kept only so the Session-4 regression check
+   (verify-stage6.mjs) — which asserts this stub's narrow scope, including that
+   it THROWS on a leading accidental — keeps passing. Remove it (and switch
+   verify-stage6's stub-specific unit checks to the full resolver) in a
+   follow-up cleanup commit. Do NOT import this from new code. ***
 
    resolveRoman(romanString, mode, tonic, octave?) →
      { root: Pitch, quality, members: [Pitch, ...] }

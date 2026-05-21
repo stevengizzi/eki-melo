@@ -5,12 +5,19 @@
                    texturePlan, config }) → VoiceTracks
 
    where VoiceTracks = { lead, harmony, bass }, each an array of
-   { pitch, duration } events in playback order. `pitch` is a Pitch object
-   ({ letter, accidental, octave }) for a sounding note, or `null` for a rest
-   (a gap between placed motifs, or a bar with no texture assigned). Durations
-   are in the meter's beat-unit (buildplan §7.3). NO synth strings are produced
-   here — the Stage 6 → synth conversion (toSynthString) happens once, in
-   pipeline-runner.js.
+   { pitch, beat, duration } events SORTED BY BEAT (buildplan Session 5
+   refactor). `pitch` is a Pitch object ({ letter, accidental, octave }); `beat`
+   is the event's absolute start beat from the start of the piece; `duration` is
+   in the meter's beat-unit (buildplan §7.3).
+
+   BEAT-STAMPED, NOT YET SEQUENCED. Stage 6 used to flatten its events into a
+   back-to-back { pitch, duration } sequence (with `null` rests for gaps) before
+   returning. That flattening now happens ONCE in pipeline-runner.js, AFTER
+   Stage 8 — because Stage 8 (cadence enforcement) needs the beat positions to
+   know which events to overwrite. So Stages 6/7/8 all pass beat-stamped events;
+   the runner calls `toSequence` (exported here) at the very end. NO synth
+   strings are produced here — the Pitch → string conversion (toSynthString)
+   happens once, in the runner, after sequencing.
 
    This is the deterministic heart of the pipeline: it takes mode-agnostic
    plans (motifs in scale degrees, a Roman-numeral progression, phrase/texture
@@ -40,7 +47,7 @@ import { toMidi, pitchFromLetterAndAccidental } from '../theory/pitch.js';
 import { renderMotifToDegreeEvents } from '../theory/motif.js';
 import * as Transforms from '../theory/transformations.js';
 import { getForm, distributeBars } from '../theory/form-engine.js';
-import { resolveRoman } from '../theory/roman-numeral-stub.js';
+import { resolveRoman } from '../theory/roman-numeral.js';
 import { BASS_PATTERNS } from '../theory/bass-patterns.js';
 
 const DEFAULT_LEAD_OCTAVE = 5;
@@ -330,10 +337,15 @@ function buildBass(macroParams, harmonicPlan, texturePlan, sections, mode, tonic
 
 // --- sequencing ------------------------------------------------------------
 
-// Flatten beat-stamped events into a back-to-back { pitch, duration } sequence
-// (the shape the synth consumes after string conversion), inserting rests for
-// gaps and padding to `totalBeats`. Assumes authored events do not overlap.
-function toSequence(events, totalBeats) {
+/**
+ * Flatten beat-stamped events into a back-to-back { pitch, duration } sequence
+ * (the shape the synth consumes after string conversion), inserting `null`
+ * rests for gaps and padding to `totalBeats`. Assumes events do not overlap.
+ * Exported because pipeline-runner.js calls it AFTER Stage 8 (see the module
+ * header) — Stages 6/7/8 work in beat-stamped events; this is the single
+ * collapse to a contiguous sequence.
+ */
+export function toSequence(events, totalBeats) {
   const sorted = [...events].sort((a, b) => a.beat - b.beat);
   const sequence = [];
   let cursor = 0;
@@ -351,27 +363,46 @@ function toSequence(events, totalBeats) {
 }
 
 /**
- * Realize hand-written (Session 4) or upstream plans into VoiceTracks. See the
- * module header for the algorithm and the VoiceTracks shape.
+ * Total length of the piece in beats — `total_bars` (or the summed section
+ * bars) times the meter's beats-per-bar. Exported so the runner can pad each
+ * voice to the full length when it sequences, after Stage 8.
+ */
+export function pieceTotalBeats(macroParams) {
+  const beatsPerBar = beatsPerBarOf(macroParams.meter);
+  const totalBars =
+    macroParams.total_bars ?? computeSectionPlan(macroParams).reduce((sum, s) => sum + s.bars, 0);
+  return totalBars * beatsPerBar;
+}
+
+// Strip a voice's events down to the { pitch, beat, duration } VoiceTracks
+// shape (lead events also carry degree/octave_offset internally, for harmony)
+// and sort by beat.
+function asTrack(events) {
+  return events
+    .map(({ pitch, beat, duration }) => ({ pitch, beat, duration }))
+    .sort((a, b) => a.beat - b.beat);
+}
+
+/**
+ * Realize hand-written (Session 4) or upstream plans into VoiceTracks of
+ * beat-stamped { pitch, beat, duration } events (sorted by beat). The runner
+ * sequences these to the synth's contiguous shape after Stage 8 — see the
+ * module header and `toSequence`.
  */
 export function realizeVoices({ macroParams, motifs, harmonicPlan, phrasePlan, texturePlan }) {
   const mode = macroParams.mode;
   const tonic = macroParams.tonic;
   const leadOctave = leadOctaveOf(macroParams);
-  const beatsPerBar = beatsPerBarOf(macroParams.meter);
 
   const sections = computeSectionPlan(macroParams);
-  const totalBars =
-    macroParams.total_bars ?? sections.reduce((sum, s) => sum + s.bars, 0);
-  const totalBeats = totalBars * beatsPerBar;
 
   const leadEvents = buildLead(macroParams, motifs, phrasePlan, sections, mode, tonic, leadOctave);
   const harmonyEvents = buildHarmony(macroParams, texturePlan, sections, leadEvents, mode, tonic, leadOctave);
   const bassEvents = buildBass(macroParams, harmonicPlan, texturePlan, sections, mode, tonic);
 
   return {
-    lead: toSequence(leadEvents, totalBeats),
-    harmony: toSequence(harmonyEvents, totalBeats),
-    bass: toSequence(bassEvents, totalBeats),
+    lead: asTrack(leadEvents),
+    harmony: asTrack(harmonyEvents),
+    bass: asTrack(bassEvents),
   };
 }

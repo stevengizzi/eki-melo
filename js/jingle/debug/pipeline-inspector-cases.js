@@ -14,6 +14,14 @@
    these listening fixtures. Between them the cases exercise all five bass
    patterns and the parallel_thirds_below harmony texture.
 
+   CADENCE COVERAGE (Session 5). The three cases between them declare all seven
+   cadence types so Stage 8 is audibly exercised end-to-end:
+     Sunrise Fanfare — A1 IAC, A2 deceptive, B half, A3 PAC
+     Wanderer's Path — A modal_iv_i, B plagal, A' modal_iv_i
+     Desert Caravan  — A phrygian_ii_i, B half, A' phrygian_ii_i
+   Sunrise A3 should land a strong PAC (lead on C, bass V→I); Desert A/A' should
+   end on the phrygian half-step descent (bass F→E under a lead F→E).
+
    Bar indices in phrasePlan/texturePlan are 1-indexed and SECTION-RELATIVE
    (bar 1 is the first bar of the section). Transforms are given as the
    "name@k=v" string form or the { name, params } object form interchangeably.
@@ -59,8 +67,8 @@ export const CASES = [
     },
     harmonicPlan: {
       sections: [
-        { label: 'A1', progression: ['I', 'V', 'vi', 'IV'], cadence: 'half', anomaly: null },
-        { label: 'A2', progression: ['I', 'V', 'vi', 'IV'], cadence: 'half', anomaly: null },
+        { label: 'A1', progression: ['I', 'V', 'vi', 'IV'], cadence: 'IAC', anomaly: null },
+        { label: 'A2', progression: ['I', 'V', 'vi', 'IV'], cadence: 'deceptive', anomaly: null },
         { label: 'B', progression: ['IV', 'I', 'ii', 'V'], cadence: 'half', anomaly: null },
         { label: 'A3', progression: ['I', 'IV', 'V', 'I'], cadence: 'PAC', anomaly: null },
       ],
@@ -171,7 +179,7 @@ export const CASES = [
     harmonicPlan: {
       sections: [
         { label: 'A', progression: ['i', 'VII', 'IV', 'i'], cadence: 'modal_iv_i', anomaly: null },
-        { label: 'B', progression: ['v', 'IV', 'VII', 'i'], cadence: 'half', anomaly: null },
+        { label: 'B', progression: ['v', 'IV', 'VII', 'IV'], cadence: 'plagal', anomaly: null },
         { label: "A'", progression: ['i', 'IV', 'VII', 'i'], cadence: 'modal_iv_i', anomaly: null },
       ],
     },
