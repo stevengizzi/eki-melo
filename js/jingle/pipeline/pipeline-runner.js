@@ -11,6 +11,17 @@
    The upstream LLM/rule stages (1–5b) that will eventually produce this are
    built in later sessions; here they are pre-supplied.
 
+   TWO ENTRY POINTS (Session 8). `runPipeline` is SYNCHRONOUS and requires
+   `input.texturePlan` — the Session 4–7 hand-supplied path, bit-for-bit
+   unchanged (every existing verifier + the inspector's hand-supplied cases call
+   it synchronously). `runPipelineGenerating` is its ASYNC sibling: if
+   `input.texturePlan` is absent it calls Stage 5b (`generateTexturePlan`) to
+   choreograph one via the LLM, then delegates to the synchronous core. This is
+   the pattern the remaining LLM stages (1, 2, 3, 4, 5a) will follow as they land
+   — present-supplied input wins; otherwise call the LLM stage. Keeping the core
+   synchronous means adding an LLM stage never changes the calling convention of
+   the deterministic back-half.
+
    Flow:
      1. Stage 6  — realizeVoices → VoiceTracks of beat-stamped { pitch, beat,
                    duration } events (Pitch objects throughout).
@@ -35,6 +46,7 @@ import { toSynthString } from '../theory/synth-rendering.js';
 import { realizeVoices, computeSectionPlan, toSequence, pieceTotalBeats } from './stage-6-voice.js';
 import { applyVoiceLeading } from './stage-7-leading.js';
 import { enforceCadences } from './stage-8-cadence.js';
+import { generateTexturePlan } from './stage-5b-texture.js';
 import { DEFAULT_CONFIG } from './pipeline-config.js';
 
 // Sharp-side vs flat-side of the circle of fifths, from the tonic. Flat for an
@@ -93,6 +105,13 @@ function sectionMarkers(macroParams) {
 export function runPipeline(input, config = DEFAULT_CONFIG) {
   const { macroParams } = input;
 
+  if (!input.texturePlan) {
+    throw new Error(
+      'runPipeline requires input.texturePlan. To generate one via the Stage 5b LLM call, '
+        + 'use runPipelineGenerating (async) instead.'
+    );
+  }
+
   let voiceTracks = realizeVoices({ ...input, config });
   voiceTracks = applyVoiceLeading(voiceTracks, config, macroParams);
   voiceTracks = enforceCadences(voiceTracks, input.harmonicPlan, macroParams, config);
@@ -119,4 +138,30 @@ export function runPipeline(input, config = DEFAULT_CONFIG) {
     harmony: renderTrack(sequenced.harmony, preference),
     bass: renderTrack(sequenced.bass, preference),
   };
+}
+
+/**
+ * Async sibling of `runPipeline` (Session 8). If `input.texturePlan` is present
+ * it is trusted and the pipeline runs synchronously (the hand-supplied path,
+ * identical output to `runPipeline`). Otherwise Stage 5b generates a TexturePlan
+ * via the LLM — honoring `config.knobs.texture_adventurousness` — and the result
+ * is threaded into the synchronous core. `input.__mockResponse` (a JSON string),
+ * when present, routes Stage 5b through its offline deterministic-fallback path
+ * instead of the network — the only way to exercise generation without an API
+ * call. `onTrace` is forwarded to Stage 5b for inspector/debug display.
+ */
+export async function runPipelineGenerating(input, config = DEFAULT_CONFIG) {
+  let texturePlan = input.texturePlan;
+  if (!texturePlan) {
+    texturePlan = await generateTexturePlan({
+      macroParams: input.macroParams,
+      motifs: input.motifs,
+      harmonicPlan: input.harmonicPlan,
+      phrasePlan: input.phrasePlan,
+      config,
+      __mockResponse: input.__mockResponse,
+      onTrace: input.onTrace,
+    });
+  }
+  return runPipeline({ ...input, texturePlan }, config);
 }

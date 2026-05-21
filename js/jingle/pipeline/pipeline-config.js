@@ -13,6 +13,12 @@
    that DO read it (Stage 7 voice leading reads voice_leading_strictness, the
    LLM stages read the cadence/interchange/anomaly knobs) have a stable shape to
    target. Presets bundle a set of knobs; individual knobs override the preset.
+
+   SESSION 8 ADDITION. `texture_adventurousness` ({ tame | adventurous | wild })
+   is the freedom knob the first LLM stage (Stage 5b texture choreography) reads.
+   It is distinct from `texture_change_rate` (a hint reserved for the
+   deterministic side); 5b honors texture_adventurousness directly in its prompt.
+   Additive — no existing stage reads it.
    ================================================================= */
 
 // Preset knob bundles. `balanced` is the default; the others widen or narrow
@@ -25,6 +31,7 @@ export const PRESETS = {
     allow_modal_interchange: false,
     allow_secondary_dominants: false,
     texture_change_rate: 'low',
+    texture_adventurousness: 'tame',
     voice_leading_strictness: 'cpp_strict',
     anomaly_budget_per_motif: 0,
     anomaly_budget_per_section: 0,
@@ -36,6 +43,7 @@ export const PRESETS = {
     allow_modal_interchange: false,
     allow_secondary_dominants: false,
     texture_change_rate: 'medium',
+    texture_adventurousness: 'adventurous',
     voice_leading_strictness: 'chiptune_idiomatic',
     anomaly_budget_per_motif: 1,
     anomaly_budget_per_section: 1,
@@ -47,6 +55,7 @@ export const PRESETS = {
     allow_modal_interchange: true,
     allow_secondary_dominants: true,
     texture_change_rate: 'high',
+    texture_adventurousness: 'adventurous',
     voice_leading_strictness: 'chiptune_idiomatic',
     anomaly_budget_per_motif: 1,
     anomaly_budget_per_section: 2,
@@ -58,6 +67,7 @@ export const PRESETS = {
     allow_modal_interchange: true,
     allow_secondary_dominants: true,
     texture_change_rate: 'high',
+    texture_adventurousness: 'wild',
     voice_leading_strictness: 'chiptune_idiomatic',
     anomaly_budget_per_motif: 2,
     anomaly_budget_per_section: 3,
