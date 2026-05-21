@@ -28,10 +28,12 @@
      at the assignment's bar, and resolves each degree to a Pitch via
      mode-engine. A chromatic_neighbor anomaly bends its flagged note a half
      step toward the adjacent note.
-   - HARMONY walks the TexturePlan. Session 4 implements only
-     `parallel_thirds_below` (a placeholder); every other texture name throws,
-     so a PhrasePlan that reaches for an unbuilt texture is caught loudly. The
-     full vocabulary arrives in Session 6.
+   - HARMONY walks the TexturePlan. For each assignment it gathers the lead
+     events in the bar range plus a chord-per-bar map (from the HarmonicPlan via
+     the Roman-numeral resolver) and dispatches the assignment's `mode` string
+     against textures.js's TEXTURE_REGISTRY — the full Session-6 vocabulary
+     (parallel/contrary/oblique/drone/imitation/heterophony/…). An unknown
+     texture name throws loudly.
    - BASS walks the TexturePlan's bass assignments, resolves each bar's chord
      from the HarmonicPlan via the Session-4 Roman-numeral stub, and calls the
      named bass pattern.
@@ -49,12 +51,11 @@ import * as Transforms from '../theory/transformations.js';
 import { getForm, distributeBars } from '../theory/form-engine.js';
 import { resolveRoman } from '../theory/roman-numeral.js';
 import { BASS_PATTERNS } from '../theory/bass-patterns.js';
+import { TEXTURE_REGISTRY } from '../theory/textures.js';
 
 const DEFAULT_LEAD_OCTAVE = 5;
 const BASS_BASE_OCTAVE = 3;
-const HARMONY_LOW_MIDI = 60; // C4
-const HARMONY_HIGH_MIDI = 83; // B5
-const DEGREES_PER_OCTAVE = 7;
+const HARMONY_CHORD_OCTAVE = 4; // chords handed to textures sit near the harmony register
 const EPSILON = 1e-9;
 
 // Sharp-spelling table for the rare chromatic-anomaly fallback (see bendHalfStep).
@@ -164,20 +165,6 @@ function bendHalfStep(pitch, direction) {
   return midiToPitch(toMidi(pitch) + direction);
 }
 
-// Octave-displace a pitch until it sits within [lowMidi, highMidi]. The window
-// is two octaves wide, so any pitch class fits and the loop terminates.
-function clampToRange(pitch, lowMidi, highMidi) {
-  let result = pitch;
-  let guard = 0;
-  while (toMidi(result) < lowMidi && guard++ < 12) {
-    result = { ...result, octave: result.octave + 1 };
-  }
-  while (toMidi(result) > highMidi && guard++ < 12) {
-    result = { ...result, octave: result.octave - 1 };
-  }
-  return result;
-}
-
 // --- lead ------------------------------------------------------------------
 
 // Realize a single placed motif into lead events carrying both the Pitch and
@@ -236,42 +223,67 @@ function buildLead(macroParams, motifs, phrasePlan, sections, mode, tonic, leadO
 
 // --- harmony ---------------------------------------------------------------
 
-// The scale degree a third (two scale steps) below `leadEvent`, realized as a
-// Pitch and clamped into the harmony register. Works in linear degree space so
-// octave bookkeeping stays consistent with mode-engine.
-function thirdBelow(leadEvent, mode, tonic, leadOctave) {
-  const leadLinear = (leadEvent.degree - 1) + leadEvent.octave_offset * DEGREES_PER_OCTAVE;
-  const harmonyLinear = leadLinear - 2;
-  const octaveShift = Math.floor(harmonyLinear / DEGREES_PER_OCTAVE);
-  const index = ((harmonyLinear % DEGREES_PER_OCTAVE) + DEGREES_PER_OCTAVE) % DEGREES_PER_OCTAVE;
-  const pitch = degreeToPitch(mode, tonic, index + 1, leadOctave + octaveShift);
-  return clampToRange(pitch, HARMONY_LOW_MIDI, HARMONY_HIGH_MIDI);
+// The chord-per-bar map a texture reads, keyed by ABSOLUTE bar index over the
+// assignment's bar range. One chord per bar, cycling the section's progression
+// (romanForBar). An empty progression yields an empty map — chord-needing
+// textures (drones, oblique, pulse, imitation) then return [] gracefully, while
+// the parallel/contrary textures ignore it.
+function chordsForBarRange(progression, mode, tonic, sectionStartBar, absStartBar, absEndBar) {
+  const chords = new Map();
+  for (let bar = absStartBar; bar <= absEndBar; bar++) {
+    const roman = romanForBar(progression, bar - sectionStartBar + 1);
+    if (roman == null) continue;
+    chords.set(bar, resolveRoman(roman, mode, tonic, HARMONY_CHORD_OCTAVE));
+  }
+  return chords;
 }
 
-function buildHarmony(macroParams, texturePlan, sections, leadEvents, mode, tonic, leadOctave) {
+// Walk the TexturePlan's harmony assignments and dispatch each `mode` string to
+// the matching texture in TEXTURE_REGISTRY, gathering the lead events and a
+// chord-per-bar map for the assignment's bar range. An unknown texture name
+// throws loudly. Texture-specific knobs ride in `params` (assignment.params,
+// plus a bare `degree` shorthand for drones/oblique).
+function buildHarmony(macroParams, harmonicPlan, texturePlan, sections, leadEvents, mode, tonic, leadOctave) {
   const beatsPerBar = beatsPerBarOf(macroParams.meter);
+  const meter = macroParams.meter ?? { numerator: 4, denominator: 4 };
+  const sectionProgressions = new Map(
+    (harmonicPlan.sections ?? []).map((s) => [s.label, s.progression])
+  );
   const events = [];
+
   for (const section of sections) {
     const plan = texturePlan[section.label];
     if (!plan || !Array.isArray(plan.harmony)) continue;
+    const progression = sectionProgressions.get(section.label) ?? [];
+
     for (const assignment of plan.harmony) {
-      if (assignment.mode !== 'parallel_thirds_below') {
+      const texture = TEXTURE_REGISTRY[assignment.mode];
+      if (typeof texture !== 'function') {
         throw new Error(
-          `Texture mode "${assignment.mode}" not implemented in Session 4; ` +
-            `full vocabulary in Session 6.`
+          `Unknown harmony texture "${assignment.mode}". ` +
+            `See theory/textures.js TEXTURE_REGISTRY for the available textures.`
         );
       }
       const [startRel, endRel] = assignment.bars;
-      const beatStart = (section.startBar + (startRel - 1)) * beatsPerBar;
-      const beatEnd = (section.startBar + endRel) * beatsPerBar; // exclusive
-      for (const leadEvent of leadEvents) {
-        if (leadEvent.beat < beatStart - EPSILON || leadEvent.beat >= beatEnd - EPSILON) continue;
-        events.push({
-          pitch: thirdBelow(leadEvent, mode, tonic, leadOctave),
-          beat: leadEvent.beat,
-          duration: leadEvent.duration,
-        });
-      }
+      const absStartBar = section.startBar + (startRel - 1);
+      const absEndBar = section.startBar + (endRel - 1);
+      const beatStart = absStartBar * beatsPerBar;
+      const beatEnd = (absEndBar + 1) * beatsPerBar; // exclusive
+
+      const leadEventsInRange = leadEvents.filter(
+        (e) => e.beat >= beatStart - EPSILON && e.beat < beatEnd - EPSILON
+      );
+      const chordsByAbsBar = chordsForBarRange(
+        progression, mode, tonic, section.startBar, absStartBar, absEndBar
+      );
+      const params = {
+        ...(assignment.params ?? {}),
+        ...(assignment.degree !== undefined ? { degree: assignment.degree } : {}),
+      };
+
+      events.push(
+        ...texture(leadEventsInRange, chordsByAbsBar, mode, tonic, leadOctave, meter, params)
+      );
     }
   }
   return events;
@@ -397,7 +409,7 @@ export function realizeVoices({ macroParams, motifs, harmonicPlan, phrasePlan, t
   const sections = computeSectionPlan(macroParams);
 
   const leadEvents = buildLead(macroParams, motifs, phrasePlan, sections, mode, tonic, leadOctave);
-  const harmonyEvents = buildHarmony(macroParams, texturePlan, sections, leadEvents, mode, tonic, leadOctave);
+  const harmonyEvents = buildHarmony(macroParams, harmonicPlan, texturePlan, sections, leadEvents, mode, tonic, leadOctave);
   const bassEvents = buildBass(macroParams, harmonicPlan, texturePlan, sections, mode, tonic);
 
   return {
