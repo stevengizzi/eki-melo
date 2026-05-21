@@ -424,3 +424,162 @@ shipped.
 
 **Verdict: Session 2 amendment complete. Bar plans are now symmetric where the
 proportions are. Cleared to proceed to Session 3.**
+
+**Claude.ai-side verification of the amendment (Steven + Claude Opus 4.7):**
+- Independent symmetry sweep ran 534 cases (12 forms × all variants × 15
+  totals from 4 to 48 bars): zero of:-relationship violations, zero
+  equal-proportion symmetry violations.
+- AABA equal-proportion default verified across every multiple of 4
+  from 8 to 48: all produce clean uniform allocations [n, n, n, n].
+  The headline case AABA 20 is now [5, 5, 5, 5] (was [4, 4, 6, 6]).
+- Hamilton's method implementation is textbook-correct. Tiebreak order
+  (remainder desc → share desc → index asc) is sensible.
+- Session 1's verify-spelling.mjs re-run: still PASSED. No regression.
+- Forms.json and phrase-structures.json untouched, per amendment scope.
+- Minor non-blocking note: when proportions are exactly equal at a total
+  not divisible by section count, the deficit goes to low-index sections
+  (off-by-1 in the lowest-index direction). Arch's alt[0] equal-proportion
+  variant at non-multiples-of-5 gives A1 one more bar than A2, slightly
+  breaking the palindrome. Within the ±1 tolerance, so not a test
+  violation; arch's default proportions are naturally palindromic so
+  this only matters if a future caller uses arch's equal-proportion
+  alt at a non-multiple-of-5 total. Filed as a potential future polish.
+
+**Verdict: Session 2 amendment complete and rigorously verified.
+Cleared to proceed to Session 3.**
+
+## Session 3 — 2026-05-21 — motif representation + transformation library
+
+**What landed (commits):**
+- feat(jingle): add motif model + transformation library
+  - `js/jingle/theory/motif.js` — motif representation, validation,
+    degree-event renderer, contour classifier, degree<->linear bridge
+  - `js/jingle/theory/transformations.js` — the 14-function development
+    algebra (pure, degree-space)
+  - `js/jingle/debug/motif-playground.html` — standalone visual verifier
+    (no audio; Session 4 adds pitch realization)
+  - `js/jingle/theory/verify-motif.mjs` — committed exit-criterion check
+  - `docs/buildplan-journal.md` — this entry
+
+**Exit criteria status:**
+- [x] `motif.js` exports `renderMotifToDegreeEvents(motif, startBeat)` →
+  `[{degree, octave_offset, beat, duration}, ...]` (degree normalized to
+  1–7, octave_offset carrying all displacement), plus `validateMotif`,
+  `motifTotalBeats`, `motifContour`. (Also exports the `degreeToLinear` /
+  `linearToDegree` / `contourOfDegrees` helpers that transformations.js
+  reuses — single source of truth for the interval-number math.)
+- [x] `transformations.js` exports all 14 transforms as pure
+  `(motif, params) → motif`: `literal`, `transpose_step`, `transpose_third`,
+  `sequence_up_step`, `sequence_down_step`, `invert`, `retrograde`,
+  `augment_2x`, `diminute_2x`, `fragment_head`, `fragment_tail`,
+  `ornament_upper_neighbor`, `ornament_lower_neighbor`,
+  `ornament_chromatic_passing` (flags the anomaly).
+- [x] `motif-playground.html` — pick a motif from a 4-motif library, pick a
+  transform with params, see original vs. transformed on a degree grid
+  (horizontal = beat, vertical = degree 1–7, octave displacement shown as
+  ▲n/▼n badges, anomaly notes dashed-red). No audio.
+- [x] `verify-motif.mjs` PASSED, exit 0 (decomposition, contour, total beats,
+  degree<->linear round-trip, validateMotif accept/reject classes, and per-
+  transform purity + structure-invariant + value checks). Session 1's
+  verify-spelling.mjs and Session 2's verify-forms.mjs still PASSED — no
+  regression.
+- [x] This journal entry.
+
+**Coverage / verification anchors that passed:**
+- Octave decomposition (`renderMotifToDegreeEvents`): `+8` → {degree 1,
+  oct +1}, `-8` → {degree 1, oct −1}, `-3` → {degree 6, oct −1}, `+9` →
+  {degree 2, oct +1}. Matches the Session-1 mode-engine octave convention.
+- Transpose octave bookkeeping: degree 7 + 1 step = degree 8 (not a wrapped
+  degree 1); degree 1 − 1 step = degree −2 (the second below the tonic).
+- Inversion involution: invert∘invert around a fixed pivot is the identity.
+- Retrograde / fragment / ornaments correctly remap (or drop) a declared
+  anomaly's `at_position`.
+
+**Deferred:**
+- **Chromatic pitch realization.** `ornament_chromatic_passing` inserts a
+  note carrying the departure degree as a placeholder and flags the anomaly
+  `{type:"chromatic_neighbor", at_position}`; the actual chromatic pitch (and
+  its up/down direction, inferable from the flanking notes) is realized by
+  Stage 6 (Session 4+). Degree space has no integer for a chromatic note, so
+  this is the right seam.
+- **Anomaly budget enforcement** (buildplan §7.1) is untouched here — these
+  functions don't count anomalies. `ornament_chromatic_passing` sets the
+  single anomaly slot, replacing any prior anomaly; chaining two ornaments
+  that each declare an anomaly is a budget question for the LLM stages, not
+  the transform.
+- **Compound-meter beat semantics** (buildplan §7.3) — rhythm values are
+  unitless beats here; what a "beat" means in 6/8 is a Stage-6 concern.
+
+**Notes for next session (Session 4 — Stage 6 voice realization):**
+- The Stage-6 seam is: `renderMotifToDegreeEvents(motif, startBeat)` →
+  for each event call `degreeToPitch(scaleName, tonic, event.degree,
+  baseOctave + event.octave_offset)`. The renderer deliberately normalizes
+  every motif degree to an in-octave 1–7 plus an `octave_offset`, so Stage 6
+  passes a clean 1–7 degree and folds the displacement into the octave
+  argument — `+8` always lands an octave up regardless of the realizing
+  scale's note count.
+- Apply the transform (PhrasePlan names it) *before* rendering to events.
+  Transforms are pure and recompute contour, so the realized motif's contour
+  field is trustworthy.
+- `ornament_chromatic_passing` hands Stage 6 a placeholder degree + an
+  anomaly. Stage 6 must read the anomaly to bend that note chromatically;
+  rendering the placeholder degree verbatim would just repeat the departure
+  note.
+- Same theory-layer conventions as Sessions 1–2: zero imports outside
+  `theory/` (motif.js imports nothing; transformations.js imports only
+  motif.js), `structuredClone` on anything handed back that a caller might
+  mutate, `verify-motif.mjs` run with the throwaway `package.json` dance.
+- The playground must be **served over HTTP** (ES module imports); it is not
+  a `file://` page. `python3 -m http.server 8000`, then open
+  `/js/jingle/debug/motif-playground.html`.
+
+**Surprises / decisions made:**
+- **Inversion is computed in linear pitch-height space, not on raw degree
+  values.** The buildplan gives the formula `degree' = 2*pivot - degree`, but
+  applied to interval-number degree values that formula misbehaves around the
+  tonic (it produces the redundant degree −1, and mirrors are wrong by a
+  step). Reflecting the *linear height* (`degreeToLinear`) and converting back
+  is the true melodic mirror — e.g. invert([1,3,5,4]) around the default
+  pivot (the first degree) = [1,−3,−5,−4], a clean downward mirror. This is
+  the "reflects each degree around pivot" intent; the literal arithmetic was
+  the loose part.
+- **Transformations recompute the output's `contour`; `literal` does not.**
+  After invert/retrograde/fragment the stored label would otherwise be stale,
+  so every transform that changes the degrees re-derives the contour from the
+  result. `literal` is the exact identity and returns the motif verbatim
+  (including a hand-authored contour). The four library motifs in the
+  playground are stored with their derived contours, so `literal` reads as a
+  true no-op there.
+- **`motifContour` reads degrees literally — writing `1` vs `8` changes the
+  contour.** Degree 1 is the *low* tonic (height 0); the octave is degree 8
+  (height 7). The buildplan's §3 example motif `b` `[5,6,7,1,7,5]` is labeled
+  `peak_descend`, but read literally that drop to the low tonic makes it
+  `wandering`; written as `[5,6,7,8,7,5]` (the octave) it classifies as
+  `peak_descend` as intended. So authors should use `8` for "up to the
+  octave." The classifier itself is principled: count monotonic runs (≥3 →
+  wandering, 1 → rising/falling arc) and, for a single interior turning point,
+  let the end-vs-start relationship decide rising_arc vs peak_descend (and
+  falling_arc vs valley_ascend) — which is why `[1,3,5,4]` is `rising_arc`
+  (rose then dipped, still ends high) while `[1,3,5,3,1]` is `peak_descend`.
+- **`contour` and `register` are closed vocabularies, validated.** `CONTOURS`
+  (the six labels) and `REGISTERS` (`low`/`mid`/`high`) are exported and
+  `validateMotif` rejects anything outside them, per the project's
+  "make bad states unrepresentable at the boundary" stance.
+- **Degrees are validated as non-zero integers with no magnitude cap.** The
+  conventional range is roughly −8..+9, but transforms can legitimately push
+  past an octave (sequencing a high motif up), so capping magnitude would
+  reject valid output. `0` is rejected (no degree 0); `−1` is accepted but is
+  a redundant spelling of the tonic and `linearToDegree` never emits it.
+- **Ornaments insert one note and split the ornamented note's rhythm in
+  half** (original note then neighbor, each half the duration), matching the
+  buildplan's "splitting that note's rhythm in half." Neighbor default
+  position is the last note; chromatic-passing default is the second-to-last
+  (it needs a following note to pass into, and throws if asked to pass after
+  the final note). The chromatic anomaly's `at_position` points at the
+  *inserted* note in the returned motif (most useful for Stage 6), which I
+  chose over a literal echo of the param and have documented in the function.
+- **Added `verify-motif.mjs` (not in the literal Session-3 file list).**
+  Sessions 1–2 established the committed-verifier convention and the
+  Claude.ai-side review re-runs them; the transform algebra (octave
+  bookkeeping, inversion, anomaly remapping) is exactly the kind of tricky
+  cross-session contract worth a regression check.

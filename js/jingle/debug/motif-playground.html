@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Motif Playground — eki-melo composition engine (Session 3)</title>
+<!--
+  Standalone visual verifier for the motif representation (motif.js) and the
+  transformation library (transformations.js), buildplan Session 3.
+
+  Pick a hand-written motif and a transformation, tweak its params, and see
+  the resulting degree sequence on a grid (horizontal = beat, vertical =
+  degree 1-7, with octave-displacement markers for notes that fall outside
+  the tonic octave). The original and transformed motifs are drawn side by
+  side for comparison. NO AUDIO — pitch realization is Session 4; this page
+  is for eyeballing the degree-space math only.
+
+  MUST BE SERVED OVER HTTP (the modules use ES imports, which file:// blocks).
+  From the repo root:  python3 -m http.server 8000
+  then open  /js/jingle/debug/motif-playground.html
+-->
+<style>
+  :root {
+    --bg-deep: #0d0221;
+    --bg-card: #1a0f3a;
+    --bg-card-light: #2a1959;
+    --text: #fffefb;
+    --text-dim: #b8b3d4;
+    --accent-red: #ff3864;
+    --accent-blue: #29adff;
+    --accent-yellow: #fee761;
+    --accent-green: #00e436;
+    --accent-pink: #ff77a8;
+    --accent-purple: #c77dff;
+    --border: #4a3a8a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px;
+    background: var(--bg-deep);
+    color: var(--text);
+    font-family: 'Courier New', monospace;
+    line-height: 1.5;
+  }
+  h1 {
+    color: var(--accent-yellow);
+    font-size: 20px;
+    letter-spacing: 1px;
+    margin: 0 0 4px;
+  }
+  .subtitle { color: var(--text-dim); margin: 0 0 20px; font-size: 14px; }
+  .subtitle code { color: var(--accent-pink); }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-end;
+    background: var(--bg-card);
+    border: 2px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { color: var(--accent-blue); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+  select, input {
+    background: #18093a;
+    border: 2px solid var(--border);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 14px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    min-width: 180px;
+  }
+  input[type="number"] { min-width: 120px; }
+  select:focus, input:focus { outline: none; border-color: var(--accent-pink); }
+  #params { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
+  #params:empty::after { content: "(no parameters)"; color: var(--text-dim); font-size: 13px; }
+  #error {
+    color: var(--accent-red);
+    min-height: 20px;
+    margin-bottom: 12px;
+    font-size: 14px;
+  }
+  .grids { display: flex; flex-wrap: wrap; gap: 24px; }
+  .panel {
+    background: var(--bg-card);
+    border: 2px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    flex: 1 1 420px;
+  }
+  .panel h2 { font-size: 14px; color: var(--accent-green); margin: 0 0 4px; letter-spacing: 1px; }
+  .panel.transformed h2 { color: var(--accent-yellow); }
+  .meta { color: var(--text-dim); font-size: 13px; margin: 0 0 12px; }
+  .meta b { color: var(--text); }
+  canvas { display: block; max-width: 100%; image-rendering: pixelated; }
+  pre {
+    background: #18093a;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px;
+    font-size: 12px;
+    color: var(--text-dim);
+    overflow-x: auto;
+    margin: 12px 0 0;
+  }
+  pre b { color: var(--accent-blue); }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 12px 0 0; font-size: 12px; color: var(--text-dim); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 14px; height: 14px; border-radius: 3px; display: inline-block; border: 1px solid rgba(255,255,255,0.2); }
+</style>
+</head>
+<body>
+  <h1>♪ Motif Playground</h1>
+  <p class="subtitle">
+    Session 3 visual check — <code>motif.js</code> + <code>transformations.js</code>.
+    Degree space only; no audio yet (that's Session 4).
+  </p>
+
+  <div class="controls">
+    <div class="field">
+      <label for="motif-select">Motif</label>
+      <select id="motif-select"></select>
+    </div>
+    <div class="field">
+      <label for="transform-select">Transformation</label>
+      <select id="transform-select"></select>
+    </div>
+    <div id="params"></div>
+  </div>
+
+  <div id="error"></div>
+
+  <div class="grids">
+    <div class="panel">
+      <h2>Original</h2>
+      <p class="meta" id="meta-original"></p>
+      <canvas id="canvas-original"></canvas>
+      <pre id="json-original"></pre>
+    </div>
+    <div class="panel transformed">
+      <h2 id="transformed-title">Transformed</h2>
+      <p class="meta" id="meta-transformed"></p>
+      <canvas id="canvas-transformed"></canvas>
+      <pre id="json-transformed"></pre>
+    </div>
+  </div>
+
+  <div class="legend" id="legend"></div>
+
+<script type="module">
+  import {
+    renderMotifToDegreeEvents,
+    motifTotalBeats,
+    motifContour,
+  } from '../theory/motif.js';
+  import * as T from '../theory/transformations.js';
+
+  // --- Hand-written motif library. Mode-agnostic degree sequences chosen to
+  // exercise the renderer: in-octave degrees, a +8 octave leap, and a
+  // negative degree (a third below the tonic). Stored contours match what
+  // motifContour derives, so `literal` reads as a true identity.
+  const MOTIFS = {
+    'a — rising arpeggio': {
+      degrees: [1, 3, 5, 4],
+      rhythm: [0.5, 0.5, 1, 0.5],
+      contour: 'rising_arc',
+      register: 'mid',
+      anomaly: null,
+    },
+    'b — octave-leap call': {
+      degrees: [1, 5, 8, 5],
+      rhythm: [0.5, 0.5, 1, 1],
+      contour: 'rising_arc',
+      register: 'high',
+      anomaly: null,
+    },
+    'c — descending sigh': {
+      degrees: [7, 6, 5, 3, 1],
+      rhythm: [0.5, 0.5, 0.5, 0.5, 1],
+      contour: 'falling_arc',
+      register: 'mid',
+      anomaly: null,
+    },
+    'd — neighbor turn, low tail': {
+      degrees: [5, 6, 5, 1, -3],
+      rhythm: [0.5, 0.5, 0.5, 0.5, 1],
+      contour: 'peak_descend',
+      register: 'mid',
+      anomaly: null,
+    },
+  };
+
+  // --- Transformation registry: function + the params each one accepts.
+  // Optional params (left blank) fall through to the transform's own default.
+  const TRANSFORMS = {
+    literal: { fn: T.literal, params: [] },
+    transpose_step: { fn: T.transpose_step, params: [{ name: 'steps', kind: 'int', default: 1 }] },
+    transpose_third: {
+      fn: T.transpose_third,
+      params: [{ name: 'direction', kind: 'select', options: ['up', 'down'], default: 'up' }],
+    },
+    sequence_up_step: { fn: T.sequence_up_step, params: [] },
+    sequence_down_step: { fn: T.sequence_down_step, params: [] },
+    invert: { fn: T.invert, params: [{ name: 'pivot', kind: 'int', optional: true, hint: 'default: first degree' }] },
+    retrograde: { fn: T.retrograde, params: [] },
+    augment_2x: { fn: T.augment_2x, params: [] },
+    diminute_2x: { fn: T.diminute_2x, params: [] },
+    fragment_head: { fn: T.fragment_head, params: [{ name: 'count', kind: 'int', optional: true, hint: 'default: half' }] },
+    fragment_tail: { fn: T.fragment_tail, params: [{ name: 'count', kind: 'int', optional: true, hint: 'default: half' }] },
+    ornament_upper_neighbor: {
+      fn: T.ornament_upper_neighbor,
+      params: [{ name: 'at_position', kind: 'int', optional: true, hint: 'default: last note' }],
+    },
+    ornament_lower_neighbor: {
+      fn: T.ornament_lower_neighbor,
+      params: [{ name: 'at_position', kind: 'int', optional: true, hint: 'default: last note' }],
+    },
+    ornament_chromatic_passing: {
+      fn: T.ornament_chromatic_passing,
+      params: [{ name: 'at_position', kind: 'int', optional: true, hint: 'default: 2nd-to-last' }],
+    },
+  };
+
+  // Colour each note by its net octave so displacement reads at a glance.
+  const OCTAVE_COLOR = {
+    '0': '#29adff',
+    '1': '#00e436',
+    '-1': '#c77dff',
+    '2': '#fee761',
+    '-2': '#ff77a8',
+  };
+  const octaveColor = (offset) => OCTAVE_COLOR[String(offset)] || '#9b8bd0';
+
+  const motifSelect = document.getElementById('motif-select');
+  const transformSelect = document.getElementById('transform-select');
+  const paramsBox = document.getElementById('params');
+  const errorBox = document.getElementById('error');
+
+  Object.keys(MOTIFS).forEach((name) => motifSelect.add(new Option(name, name)));
+  Object.keys(TRANSFORMS).forEach((name) => transformSelect.add(new Option(name, name)));
+
+  // Build the param inputs for the selected transformation.
+  function renderParamInputs() {
+    paramsBox.replaceChildren();
+    const { params } = TRANSFORMS[transformSelect.value];
+    for (const param of params) {
+      const field = document.createElement('div');
+      field.className = 'field';
+      const label = document.createElement('label');
+      label.textContent = param.name;
+      field.appendChild(label);
+
+      let input;
+      if (param.kind === 'select') {
+        input = document.createElement('select');
+        param.options.forEach((opt) => input.add(new Option(opt, opt)));
+        input.value = param.default;
+      } else {
+        input = document.createElement('input');
+        input.type = 'number';
+        input.step = '1';
+        if (param.optional) input.placeholder = param.hint || '';
+        else input.value = String(param.default);
+      }
+      input.dataset.param = param.name;
+      input.addEventListener('input', update);
+      input.addEventListener('change', update);
+      field.appendChild(input);
+      paramsBox.appendChild(field);
+    }
+  }
+
+  // Collect the param values into an object, skipping blank optional fields.
+  function collectParams() {
+    const result = {};
+    for (const input of paramsBox.querySelectorAll('[data-param]')) {
+      const raw = input.value.trim();
+      if (raw === '') continue;
+      result[input.dataset.param] = input.type === 'number' ? parseInt(raw, 10) : raw;
+    }
+    return result;
+  }
+
+  // --- Grid drawing. Vertical axis is degree 1-7 (lane per degree); octave
+  // displacement is shown as a badge on the note, not as a separate lane.
+  const LANE_H = 30;
+  const BEAT_W = 56;
+  const LEFT = 44;
+  const TOP = 10;
+  const BOTTOM = 26;
+  const DEGREES = [7, 6, 5, 4, 3, 2, 1]; // top to bottom
+
+  function drawGrid(canvas, events, totalBeats) {
+    const beats = Math.max(totalBeats, 1);
+    const width = LEFT + beats * BEAT_W + 12;
+    const height = TOP + DEGREES.length * LANE_H + BOTTOM;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, width, height);
+    ctx.font = '12px "Courier New", monospace';
+    ctx.textBaseline = 'middle';
+
+    const laneY = (degree) => TOP + DEGREES.indexOf(degree) * LANE_H;
+
+    // Degree lanes + labels.
+    DEGREES.forEach((degree) => {
+      const y = laneY(degree);
+      ctx.fillStyle = DEGREES.indexOf(degree) % 2 === 0 ? '#1f1147' : '#180d3a';
+      ctx.fillRect(LEFT, y, beats * BEAT_W, LANE_H);
+      ctx.fillStyle = '#b8b3d4';
+      ctx.textAlign = 'right';
+      ctx.fillText(String(degree), LEFT - 8, y + LANE_H / 2);
+    });
+
+    // Beat gridlines + numbers.
+    ctx.strokeStyle = '#4a3a8a';
+    ctx.fillStyle = '#7d76a8';
+    ctx.textAlign = 'center';
+    for (let b = 0; b <= beats; b++) {
+      const x = LEFT + b * BEAT_W;
+      ctx.beginPath();
+      ctx.moveTo(x, TOP);
+      ctx.lineTo(x, TOP + DEGREES.length * LANE_H);
+      ctx.stroke();
+      ctx.fillText(String(b), x, TOP + DEGREES.length * LANE_H + 12);
+    }
+
+    // Notes.
+    events.forEach((event) => {
+      const x = LEFT + event.beat * BEAT_W;
+      const w = Math.max(event.duration * BEAT_W - 3, 6);
+      const y = laneY(event.degree) + 3;
+      const h = LANE_H - 6;
+      const isAnomaly = !!event.anomaly;
+
+      ctx.fillStyle = octaveColor(event.octave_offset);
+      ctx.fillRect(x + 1, y, w, h);
+
+      if (isAnomaly) {
+        ctx.strokeStyle = '#ff3864';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 2]);
+        ctx.strokeRect(x + 1, y, w, h);
+        ctx.setLineDash([]);
+        ctx.lineWidth = 1;
+      }
+
+      // Degree number on the block.
+      ctx.fillStyle = '#0d0221';
+      ctx.textAlign = 'left';
+      ctx.fillText(String(event.degree), x + 5, y + h / 2);
+
+      // Octave badge for displaced notes: ▲n / ▼n octaves from the tonic
+      // octave (so an input degree of +8 reads as ▲1, -8 as ▼1).
+      if (event.octave_offset !== 0) {
+        const badge = (event.octave_offset > 0 ? '▲' : '▼') + Math.abs(event.octave_offset);
+        ctx.fillStyle = '#0d0221';
+        ctx.textAlign = 'right';
+        ctx.font = '10px "Courier New", monospace';
+        ctx.fillText(badge, x + w - 2, y + h / 2);
+        ctx.font = '12px "Courier New", monospace';
+      }
+    });
+  }
+
+  // Attach the motif's anomaly to the matching rendered event so the grid can
+  // flag it (the anomaly's at_position indexes the motif's note list).
+  function eventsWithAnomaly(motif) {
+    const events = renderMotifToDegreeEvents(motif, 0);
+    if (motif.anomaly && Number.isInteger(motif.anomaly.at_position) && events[motif.anomaly.at_position]) {
+      events[motif.anomaly.at_position].anomaly = motif.anomaly;
+    }
+    return events;
+  }
+
+  function describe(motif) {
+    return (
+      `contour <b>${motifContour(motif)}</b> · ` +
+      `register <b>${motif.register}</b> · ` +
+      `<b>${motif.degrees.length}</b> notes · ` +
+      `<b>${motifTotalBeats(motif)}</b> beats` +
+      (motif.anomaly ? ` · anomaly <b>${motif.anomaly.type}@${motif.anomaly.at_position}</b>` : '')
+    );
+  }
+
+  function update() {
+    errorBox.textContent = '';
+    const motif = MOTIFS[motifSelect.value];
+    const transformName = transformSelect.value;
+    const { fn } = TRANSFORMS[transformName];
+
+    let transformed;
+    try {
+      transformed = fn(motif, collectParams());
+    } catch (error) {
+      errorBox.textContent = `${transformName}: ${error.message}`;
+      return;
+    }
+
+    const originalEvents = eventsWithAnomaly(motif);
+    const transformedEvents = eventsWithAnomaly(transformed);
+    const span = Math.max(motifTotalBeats(motif), motifTotalBeats(transformed));
+
+    drawGrid(document.getElementById('canvas-original'), originalEvents, span);
+    drawGrid(document.getElementById('canvas-transformed'), transformedEvents, span);
+
+    document.getElementById('meta-original').innerHTML = describe(motif);
+    document.getElementById('meta-transformed').innerHTML = describe(transformed);
+    document.getElementById('transformed-title').textContent = `Transformed — ${transformName}`;
+
+    document.getElementById('json-original').innerHTML =
+      `<b>motif</b>  ${JSON.stringify(motif)}`;
+    document.getElementById('json-transformed').innerHTML =
+      `<b>motif</b>  ${JSON.stringify(transformed)}\n<b>events</b> ${JSON.stringify(transformedEvents.map((e) => ({ degree: e.degree, oct: e.octave_offset, beat: e.beat, dur: e.duration })))}`;
+  }
+
+  function renderLegend() {
+    const legend = document.getElementById('legend');
+    const entries = [
+      ['octave 0', octaveColor(0)],
+      ['+1 (up an octave)', octaveColor(1)],
+      ['-1 (down an octave)', octaveColor(-1)],
+      ['+2 / -2', octaveColor(2)],
+    ];
+    legend.replaceChildren();
+    for (const [label, color] of entries) {
+      const span = document.createElement('span');
+      const swatch = document.createElement('span');
+      swatch.className = 'swatch';
+      swatch.style.background = color;
+      span.append(swatch, document.createTextNode(label));
+      legend.appendChild(span);
+    }
+    const anomaly = document.createElement('span');
+    anomaly.innerHTML = '<span class="swatch" style="background:transparent;border:2px dashed #ff3864"></span> anomaly (chromatic)';
+    legend.appendChild(anomaly);
+  }
+
+  motifSelect.addEventListener('change', update);
+  transformSelect.addEventListener('change', () => {
+    renderParamInputs();
+    update();
+  });
+
+  renderParamInputs();
+  renderLegend();
+  update();
+</script>
+</body>
+</html>
