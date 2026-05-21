@@ -1039,3 +1039,163 @@ audition harness) when Steven kicks it off.**
 by both ear (Steven) and pitch (regression). Cleared to proceed to
 Session 6 — the texture-vocabulary audition session that's the one
 explicit human-listening gate in the build.**
+
+## Session 6 — 2026-05-21 — texture vocabulary + audition harness 🎧
+
+> Implementation entry. This is the texture-audition session: the
+> human-checkpoint record (Steven's per-texture listening notes) is added to
+> this entry AFTER his audition pass — it is not here yet.
+
+**What landed (commits):**
+- docs(jingle): record Session 5 Claude.ai-side verification (the pending S5
+  review block, committed on its own so history is honest)
+- feat(jingle): add texture vocabulary + Stage 6 registry dispatch
+  - `js/jingle/theory/textures.js` — 13 textures + `TEXTURE_REGISTRY`
+  - `js/jingle/pipeline/stage-6-voice.js` — `buildHarmony` dispatches via the
+    registry; the Session-4 inline `parallel_thirds_below` placeholder and its
+    "not implemented in Session 4" throw are removed
+  - `js/jingle/theory/verify-textures.mjs` — committed regression check
+- feat(jingle): add texture audition harness + exercise textures e2e
+  - `js/jingle/debug/texture-demo.html` — the audition harness
+  - `js/jingle/debug/pipeline-inspector-cases.js` — Wanderer B → `oblique_held`,
+    Desert A' → `imitation_one_beat_delay`
+- docs(jingle): record Session 6 texture implementation (this entry)
+
+**The 13 textures (all pure, beat-stamped Pitch events, register MIDI 60–83):**
+parallel_thirds_below, parallel_thirds_above, parallel_sixths_below,
+parallel_sixths_above, contrary_motion, oblique_held, drone_on_1, drone_on_5,
+imitation_one_beat_delay, voice_exchange, dropout, chord_tones_pulse,
+heterophony. The buildplan asked for 8–10; shipped 13 (the full list it
+enumerated).
+
+**Exit criteria status:**
+- [x] `textures.js` exports all 13 texture functions + `TEXTURE_REGISTRY`.
+- [x] `stage-6-voice.js` dispatches via `TEXTURE_REGISTRY` (no inline
+  placeholder, no throw). Unknown texture name throws a clear error naming it.
+- [x] `texture-demo.html` auditions each texture against each of 5 motifs, with
+  a "Play all textures" button for back-to-back comparison and a notes
+  scratchpad.
+- [x] `pipeline-inspector-cases.js` exercises two non-default textures
+  end-to-end (`oblique_held`, `imitation_one_beat_delay`) alongside the
+  parallel-thirds default; all 3 cases still run clean.
+- [x] `verify-textures.mjs` PASSED (exit 0); all prior verifiers
+  (verify-spelling / -forms / -motif / -stage6 / -stage8) still PASS — no
+  regression.
+- [x] This implementation journal entry.
+- [ ] **Human checkpoint — Steven's per-texture audition notes** (pending; the
+  session is complete only after the listening pass).
+
+**Verification anchors that passed (`verify-textures.mjs`, committed):**
+- Every texture, run against representative two-bar leads in four modes (C major,
+  D dorian, A harmonic-minor, E phrygian-dominant): returns an array; every
+  event has a valid Pitch and a positive duration; every Pitch is in MIDI 60–83;
+  and no harmony event sits above the lead note sounding at its onset — except
+  `imitation_one_beat_delay`, which logged 3 documented crossings across the
+  probes (the delayed echo dipping below the lead) and is the accepted exception.
+- Registry completeness: all 13 names are callable functions.
+- End-to-end: `runPipeline` over all 3 inspector cases (now including
+  `oblique_held` and `imitation_one_beat_delay`) yields a FinalJingle whose
+  every event has a positive duration and parses through the real `synth.js`
+  `noteToFreq` to a finite, positive frequency, with the three voices
+  beat-aligned.
+- Belt-and-braces: a throwaway check ran all 5 demo motifs × 13 textures (65
+  combos) through the demo's exact build path (render → texture → `toSequence` →
+  `toSynthString` → `noteToFreq`); 0 bad pitches, 0 overlapping events, 0 throws.
+
+**Range / voicing model (the shared discipline every texture obeys):**
+- `clampToRange` octave-displaces any pitch into the MIDI 60–83 (C4–B5) window.
+- `placeAtOrBelow(pitch, leadMidi)` clamps to range, then drops octaves until the
+  harmony sits at or below the lead — the no-voice-crossing rule — without
+  falling through the window floor. Parallel/contrary/oblique/drone/pulse all
+  route through it. Held textures place below the *lowest* lead note in the
+  passage, so the held tone never crosses anywhere in the passage.
+
+**Surprises / decisions made:**
+- **The chord context is a `chordsByAbsBar` Map keyed by absolute bar index, and
+  its keys ARE the passage's bar range.** Stage 6 builds it from the section's
+  HarmonicPlan progression (one chord per bar, cycling, resolved near the harmony
+  register at octave 4) and hands it to the texture. Bar-by-bar textures (drones,
+  oblique, chord_tones_pulse, imitation) read `[...keys].sort()` to know their
+  span without a separate bar-range argument — this is why the signature needs no
+  explicit start/end bar.
+- **Textures reason in degree space via the lead's `degree`/`octave_offset`, not
+  by re-deriving from the Pitch.** The lead events Stage 6 hands over carry both
+  the realized Pitch and the originating degree, so "a third below" is a clean
+  `leadLinear − 2` in scale steps, staying in mode through `degreeToPitch`. (A
+  chromatic-anomaly bend on the lead is ignored by the parallel/heterophony math,
+  same as the Session-4 placeholder did — the harmony tracks the diatonic degree.)
+- **`imitation_one_beat_delay` — the "rest where it overlaps a still-sounding
+  lead note" clause is read as rest-on-coincident-attack.** Taken literally, the
+  lead sounds continuously, so "rest wherever the harmony overlaps a sounding
+  lead note" would silence the whole voice — degenerate. The implemented reading
+  suppresses an echo note only when its onset coincides with a lead onset (the
+  strongest overlap, a simultaneous attack), which yields an audible
+  call-and-echo with gaps. The transposition is a semitone shift landing the
+  first echo note on the chord tone nearest the lead's first pitch (smallest
+  shift, ties downward). The one-beat tail that would spill past the passage is
+  clipped, so imitation never bleeds into the next texture or the cadence.
+  **This is an interpretation, flagged for Steven's ear** — if the gappy echo
+  sounds wrong, that's a finding to revisit.
+- **`heterophony` doubles the lead an OCTAVE BELOW, not at strict unison.** The
+  prompt says "same pitch as lead by default," but the ornament (a scale step
+  toward the next pitch) rises above the lead on any ascending step — a voice
+  crossing the global rule forbids. Voicing the whole shadow an octave below
+  keeps the same pitch *classes* while guaranteeing the rising ornament still
+  sits under the lead, so the no-crossing invariant holds cleanly and the
+  ornament stays a smooth step (rather than getting octave-dropped on every
+  ascent). Documented as a deliberate departure from the literal unison reading.
+- **`voice_exchange` is the documented Session-6 placeholder.** It plays the
+  lead an octave below (one event per lead note, same beat/duration). True voice
+  exchange — the lead taking a held tone while the harmony carries the melody —
+  needs Stage 6 to rewrite the lead too, which is out of scope here; the
+  octave-below double is the audible stand-in. Flagged in the docstring and below.
+- **`oblique_held` takes its single held pitch from the passage's FIRST chord**
+  (root by default, fifth on `params.degree === 5`), since the held tone does not
+  move with the progression. `drone_on_1` / `drone_on_5` instead lock to the
+  section's *tonic* scale degree (1 or 5), NOT the chord root, per spec.
+- **Inspector e2e coverage widened to three textures.** Wanderer's B section now
+  auditions `oblique_held` (a held drone over the pedal bass) and Desert
+  Caravan's A' recap auditions `imitation_one_beat_delay` (the delayed canon over
+  the chromatic-ornamented recap), proving the held-drone and delayed-imitation
+  paths survive Stage 6 → Stage 8 → cadence enforcement. The cadence still
+  overwrites each section's final bar, so imitation's tail-clip lands just short
+  of the cadence window with no conflict.
+- **No DEC/CHANGELOG entry** — consistent with Sessions 1–5 and the buildplan:
+  the new pipeline is built alongside the deployed app and is not user-visible
+  until Session 12, which is where the DEC/CHANGELOG/architecture updates are
+  scheduled.
+
+**Deferred:**
+- **True voice exchange** (lead ↔ harmony role swap with a generated lead
+  counter-line) — placeholder this session; revisit when a session is touching
+  the lead realization (Stage 6's update in S9–S11, or a dedicated polish pass).
+- **Imitation interval = semitone, delay = one beat-unit.** The transposition is
+  chromatic (a literal semitone shift to the nearest chord tone), so the echo can
+  carry a brief out-of-mode pitch; a tonal-answer variant (transpose by scale
+  steps, staying in mode) is a possible refinement if the chromatic echo grates.
+  The one-beat delay is one meter beat-unit; compound-meter (6/8) delay semantics
+  are untested by ear (all demo/inspector cases are 4/4) — buildplan §7.3.
+- **Texture transition smoothing** (buildplan §7.2) — when a section changes
+  texture mid-stream the harmony voice may jump; no smoothing this session, by
+  design. Revisit if it sounds bad once the LLM texture stage (S8) drives changes.
+- **Voice-leading repair** is still Session 7 — textures self-police range and
+  crossing, but there is no parallel-perfect repair or smoothing pass yet.
+
+**Notes for the human checkpoint (how to audition):**
+- Serve over HTTP (ES modules): from the repo root `python3 -m http.server 8000`,
+  then open `/js/jingle/debug/texture-demo.html`. Pick a motif, pick a texture,
+  Play. "Play all textures" cycles every texture against the selected motif with
+  the name shown above the piano roll and a 0.5s gap between each. The notes box
+  is a scratchpad (not saved) — transcribe the keepers back here afterward.
+- Also re-open `/js/jingle/debug/pipeline-inspector.html` and confirm all 3
+  full-pipeline cases still hold together with the new textures (Wanderer's
+  oblique drone, Desert's delayed canon, parallel thirds elsewhere).
+- Listen for concrete defects (out-of-mode notes, voice crossings, broken
+  rhythms) — those get fixed in this session or logged as deferred for a specific
+  later session. Subjective "sounds boring" notes are recorded, not chased.
+- The two interpretation calls most worth Steven's ear: the gappy
+  `imitation_one_beat_delay` echo and the octave-below `heterophony` shadow.
+
+**Verdict: Session 6 implementation complete; all verifiers pass and the
+audition harness is ready. The session is NOT closed until Steven completes the
+listening pass and his per-texture notes are recorded here.**
