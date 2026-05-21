@@ -1527,3 +1527,45 @@ chiptune_idiomatic is a measured no-op on the existing cases (zero repairs);
 cpp_strict produces the expected crossing/parallel/tritone repairs. Cleared to
 proceed to Session 8 (Stage 5b — texture choreography, the first LLM stage) when
 Steven kicks it off. Do NOT start Session 8 automatically.**
+
+**Claude.ai-side verification (Steven + Claude Opus 4.7):**
+- All seven verify scripts re-run independently — PASSED:
+  verify-spelling, verify-forms, verify-motif, verify-stage6,
+  verify-stage8, verify-textures, verify-stage7 (all exit 0).
+- Zero-repair gate confirmed across all three Session-6 cases under
+  chiptune_idiomatic (0/0/0). cpp_strict repair counts measured:
+  Sunrise 6 (5 parallel_breaks + 1 tritone), Wanderer's 0 (modal
+  counterpoint already clean), Desert 9 (2 snap_to_mode + 6 uncross
+  + 1 tritone). cpp repairs land at expected locations.
+- Both deviations from the Session-7 prompt are measurement-driven
+  and correct:
+  (a) Ranges widened (lead C4..C7, bass C2..C5) because Session 6
+      audio legitimately reaches F6 / G4; clamping to prompt's
+      first-pass numbers would regress approved audio.
+  (b) chiptune_idiomatic out_of_mode scoped to LEAD only because
+      imitation_one_beat_delay emits chromatic echoes (texture-
+      internal, not anomaly-flagged); snapping them would regress
+      approved Desert Caravan audio.
+  Both deviations honor the rule "Session 6 approved audio is the
+  floor for chiptune_idiomatic."
+- Anomaly tagging confirmed end-to-end: Desert's chromatic_neighbor
+  produces an F#5 lead event at beat 36.75 with `anomalous: true`;
+  preserved under chiptune_idiomatic, snapped to F5 under cpp_strict.
+  Constructed test (C#5 anomalous in C major) confirms the exemption
+  flips correctly with the preset.
+- Range clamp confirmed: D8 → D6 (two octave displacements into
+  [C4..C7]).
+- PRESETS architecture is data-driven; new presets add as data
+  entries rather than code. Acknowledging the documented limitation
+  that cpp_strict's parallel_perfects fix approximates "step toward
+  nearest chord tone" because Stage 7's signature doesn't include
+  the HarmonicPlan — if cpp_strict ever becomes a default path,
+  threading harmonicPlan in would close that gap. (Not blocking;
+  cpp_strict is a curiosity preset.)
+
+**Verdict: Session 7 complete and verified. chiptune_idiomatic is
+audibly unchanged from pre-Session-7 (the gate); cpp_strict is a
+working alternative preset off the default path. Cleared to proceed
+to Session 8 — the first LLM-driven stage (Stage 5b texture
+choreography), a real architectural shift from deterministic to
+creative.**
