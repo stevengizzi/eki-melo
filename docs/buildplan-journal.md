@@ -100,6 +100,30 @@
   library; the hot paths (`pitchSetForScale`, `degreeToPitch`) read the raw
   reference internally to stay cheap.
 
+**Claude.ai-side verification (Steven + Claude Opus 4.7):**
+- All 47 interval patterns mathematically verified; rotational
+  relationships within diatonic / harmonic-minor / melodic-minor /
+  harmonic-major / double-harmonic families confirmed correct by
+  independent rotation check.
+- Mode engine smoke-tested in Node over a representative sweep of
+  scales × tonics × degrees (−9 to +15); every output parses in
+  synth.js noteToFreq with finite positive frequency. No failures.
+- Two design decisions accepted as-is for downstream sessions:
+  (1) pitch-class-based spelling (enharmonic but synth-safe; means
+  some scales print with odd-looking spellings like C lydian's
+  Gb instead of F# — audibly identical, no downstream impact unless
+  we later add a note-name display);
+  (2) keeping `dorian_sharp4` and `romanian_minor` as separate names
+  for the same interval set, on aesthetic-association grounds.
+- Open question deferred to Session 12: verify JSON import-attribute
+  syntax (`with { type: 'json' }`) loads correctly in the Claude.ai
+  artifact runtime in addition to the deployed browser. Modern
+  browsers and Node 22 work; the artifact runtime is the one
+  context I can't predict. Fallback if needed: inline the scale
+  data into a `.js` module.
+
+**Verdict: Session 1 complete. Cleared to proceed to Session 2.**
+
 ### Addendum (2026-05-21) — Pitch identity vs. rendering
 
 **Amendment, not a new session.** Session 1 spelled pitches by pitch class
@@ -173,3 +197,32 @@ back Pitch objects. Stage 6 should keep them as Pitch through realization and
 call `toSynthString(pitch, preference)` only when emitting the final
 `[pitch, duration]` events for the synth. Pick `preference` from the tonic
 (sharp side vs. flat side of the circle of fifths) as before.
+
+**Claude.ai-side verification (Steven + Claude Opus 4.7):**
+- Verify-spelling.mjs re-run independently in the conversation
+  workspace — PASSED, exit 0. 47 scales × 14 tonics × 2 preferences
+  fully exercised, plus the 5 spot-checks. Zero pitch-class
+  mismatches across the whole library.
+- Hardest spellings hand-verified outside the test harness:
+  C lydian #4 = F# (was Gb pre-amendment, now correct);
+  F# major 7th = E#; Gb major 4th = Cb (collapses to B with
+  octave wrap at synth boundary);
+  Gb dorian's b3 = Bbb and b7 = Fb (real double-flat case);
+  D# phrygian dominant 3rd = F## (real double-sharp case).
+- Pathological tonic check: pitchSetForScale("altered_dim", "Cb")
+  would require a triple accidental on the b7 degree. Throws cleanly
+  with the documented out-of-scope error and helpful context
+  (letter + octave named in the message). Correct fail-loud behavior.
+- Symmetric-scale spellings reviewed and accepted as documented:
+  whole_tone / wh_diminished / hw_diminished / augmented all use
+  letter repetition rather than double accidentals; pitch classes
+  correct.
+- Portability invariant confirmed by import inspection: pitch.js
+  has zero imports, mode-engine.js imports only pitch.js +
+  scales.json, synth-rendering.js imports only pitch.js. The
+  synth contract is enforced by the verification test rather than
+  a code dependency.
+
+**Verdict: Session 1 amendment complete. Foundation is now suitable
+for cross-project portability into score-notation contexts as well
+as the chiptune synth path. Cleared to proceed to Session 2.**
