@@ -170,9 +170,14 @@
   const METER = { numerator: 4, denominator: 4, grouping: [4] };
   const PROGRESSION = ['I', 'IV', 'V', 'I']; // fixed chord context for every audition
 
-  // --- Five hand-written motifs across five modes (buildplan Session 6). The
-  // degrees are the mode's own degrees, so the mode supplies the colour notes
-  // (phrygian-dominant's b2 and major 3, harmonic minor's raised 7, etc.).
+  // --- Hand-written motifs (buildplan Session 6). The degrees are the mode's
+  // own degrees, so the mode supplies the colour notes (phrygian-dominant's b2
+  // and major 3, harmonic minor's raised 7, etc.). The first five are tame,
+  // CONTROLLED probes (stepwise, mid-register) for hearing a texture cleanly;
+  // the last three are deliberately BOLDER — wide leaps, an octave reach, a
+  // high leading tone, exotic colour — to hear how the textures handle more
+  // adventurous lines. (These are still hand-written test probes, not the
+  // engine's eventual LLM-generated melodies — those arrive in Sessions 9–11.)
   const MOTIFS = {
     bright_arpeggio: {
       mode: 'major', tonic: 'C',
@@ -193,6 +198,22 @@
     pentatonic_skip: {
       mode: 'major_pentatonic', tonic: 'F',
       motif: { degrees: [1, 3, 5, 6, 5, 3, 1], rhythm: [0.5, 0.5, 0.5, 1, 0.5, 0.5, 1], contour: 'peak_descend', register: 'mid', anomaly: null },
+    },
+    // --- bolder lines (wide leaps / range / exotic colour) ---
+    wide_leaps_major: {
+      mode: 'major', tonic: 'C',
+      // octave leap up then leaping back down through the triad — spans C5–C6.
+      motif: { degrees: [1, 8, 6, 3, 5, 1], rhythm: [0.5, 0.5, 1, 0.5, 0.5, 1], contour: 'wandering', register: 'high', anomaly: null },
+    },
+    leaping_harmonic_minor: {
+      mode: 'harmonic_minor', tonic: 'A',
+      // dramatic octave leap, the raised G# leading tone up high, resolving down.
+      motif: { degrees: [1, 8, 5, 7, 1], rhythm: [0.5, 1, 0.5, 1, 1], contour: 'wandering', register: 'high', anomaly: null },
+    },
+    byzantine_flourish: {
+      mode: 'double_harmonic', tonic: 'C',
+      // exotic b2 / b6 colour (the two augmented seconds) with skipping leaps.
+      motif: { degrees: [1, 2, 6, 5, 7, 1], rhythm: [0.5, 0.5, 1, 0.5, 0.5, 1], contour: 'wandering', register: 'mid', anomaly: null },
     },
   };
 
