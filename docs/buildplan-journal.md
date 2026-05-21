@@ -1004,3 +1004,38 @@ to lift on the contrapuntal/textural axis.
 **Verdict: Session 5 complete and confirmed by ear. All six verifiers pass,
 cadences resolve cleanly. Cleared to proceed to Session 6 (texture vocabulary +
 audition harness) when Steven kicks it off.**
+
+**Claude.ai-side verification (Steven + Claude Opus 4.7):**
+- All five verify scripts re-run independently — PASSED:
+  verify-spelling, verify-forms, verify-motif, verify-stage6,
+  verify-stage8 (all exit 0).
+- Cadence output traced through all 3 cases on the final-bar pitches.
+  Every cadence resolves to the documented voicing:
+  · Sunrise — IAC (D5→E5 over G3→C3), deceptive (D5→E5 over G3→A3
+    with harmony's ^7→^8 carrying leading-tone resolution), half
+    (C5→D5 over held V), PAC (D5→C5 over G3→C3)
+  · Wanderer's — modal_iv_i (G5→F5 over G3→D3, no raised leading
+    tone), plagal (D5 held across IV→i), modal_iv_i recap
+  · Desert Caravan — phrygian_ii_i (F5→E5 over F3→E3, the half-
+    step descent in both voices simultaneously), half, phrygian
+    recap
+- Roman-numeral resolver's two-strategy design verified: diatonic
+  numerals stack thirds in the active mode (modal qualities fall
+  out for free); chromatic numerals shift the major-scale degree
+  and rebuild as a triad in the altered root's key. Checked bII
+  in C/E across modes, V7 in dorian (modal b7 — A-C-E-G in D
+  dorian), iv in dorian (proper modal minor with no leading tone).
+- Stage 6 refactor to beat-stamped events confirmed: the toSequence
+  collapse now happens once at the runner after Stage 8, exactly
+  the cleaner seam the prompt recommended. Stage 7's stub and
+  Stage 8 both operate on {pitch, beat, duration}; this materially
+  simplifies Session 7's voice-leading pass.
+- All three inspector cases exercise all 7 cadence types between
+  them (IAC, deceptive, half, PAC, modal_iv_i, plagal,
+  phrygian_ii_i). 0 bad pitches through noteToFreq across every
+  voice in every case.
+
+**Verdict: Session 5 complete and verified. Cadences land correctly
+by both ear (Steven) and pitch (regression). Cleared to proceed to
+Session 6 — the texture-vocabulary audition session that's the one
+explicit human-listening gate in the build.**
