@@ -1301,3 +1301,225 @@ full texture vocabulary dispatches end-to-end, the two audition defects are
 fixed, and the human-listening gate is cleared. Cleared to proceed to Session 7
 (Stage 7 — voice-leading pass) when Steven kicks it off. Do NOT start Session 7
 automatically.**
+
+**Claude.ai-side verification (Steven + Claude Opus 4.7):**
+- All six verify scripts re-run independently — PASSED:
+  verify-spelling, verify-forms, verify-motif, verify-stage6,
+  verify-stage8, verify-textures (all exit 0).
+- Audition fix #1 (parallel *_above textures sitting genuinely above)
+  confirmed by independent MIDI comparison against a C-major arpeggio:
+  thirds_above [76,79,83,81,79,76] vs sixths_below [64,67,71,69,67,64].
+  Same pitch classes, two octaves apart — true register separation,
+  no longer redundant.
+- Audition fix #2 (imitation as true overlapping canon) confirmed in
+  E phrygian-dominant: 7 lead notes → 6 echo notes (last clipped at
+  passage end). Pre-fix was 1 of 7; post-fix is a complete canon.
+- All three inspector cases run with 0 bad pitches through the real
+  noteToFreq across every voice.
+- The two deviations from the buildplan (the *_above ceiling raise +
+  imitation's removed coincident-attack rule) are well-documented in
+  the texture docstrings and the journal; they are corrections, not
+  shortcuts. Music-theoretically the right calls.
+- The "stepwise / not enough musical risk" axis from Steven's
+  listening verdict is correctly scoped to the LLM creativity stages
+  (S9–S11) rather than to Session 6. The deterministic textures
+  cannot supply melodic soul; that is structural by design.
+
+**Verdict: Session 6 complete, audition cleared, both surfaced
+defects fixed in-session. The texture vocabulary works and audibly
+lifts the contrapuntal axis. Cleared to proceed to Session 7 —
+voice-leading pass.**
+
+## Session 7 — 2026-05-21 — Stage 7 voice-leading pass (configurable rule set)
+
+> Implementation entry. This session's human checkpoint is lightweight (a quick
+> confirm that chiptune_idiomatic is audibly unchanged + one curiosity listen to
+> cpp_strict) and is recorded at the end of this entry AFTER Steven's pass — it
+> is not here yet.
+
+**What landed (commits):**
+- feat(jingle): add Stage 7 voice-leading rule set + pipeline wiring
+  - `js/jingle/theory/voice-leading-rules.js` — `applyVoiceLeading` +
+    `voiceLeadingReport` + the four primitive repair helpers
+    (`clampToRange`, `snapToMode`, `moveByStep`, `intervalBetween`) +
+    `summarizeRepairs` + the `PRESETS` registry (data-driven)
+  - `js/jingle/pipeline/stage-6-voice.js` — tags a realized chromatic-neighbor
+    lead note with `anomalous: true` and carries the flag through `asTrack`
+  - `js/jingle/pipeline/stage-7-leading.js` — identity stub replaced with a thin
+    dispatcher over the preset rule set
+  - `js/jingle/pipeline/pipeline-runner.js` — threads `macroParams` into Stage 7
+- feat(jingle): add Stage 7 verifier + inspector preset toggle
+  - `js/jingle/theory/verify-stage7.mjs` — committed regression check
+  - `js/jingle/debug/pipeline-inspector.html` — voice-leading preset toggle +
+    a Stage-7 panel (repairs summary + one diff line per repair + repaired tracks)
+- docs(jingle): record Session 7 implementation (this entry)
+
+**The two presets (PRESETS registry, data-driven):**
+- `chiptune_idiomatic` (default): range_clamp ENFORCED; out_of_mode snaps the
+  LEAD only, EXEMPTING anomaly-flagged notes; voice_crossing IGNORED;
+  parallel_perfects ALLOWED; tritone_outline IGNORED.
+- `cpp_strict`: range_clamp ENFORCED; out_of_mode snaps ALL voices with NO
+  exemption; voice_crossing FORBIDDEN (octave-displace down to restore
+  lead ≥ harmony ≥ bass); parallel_perfects FORBIDDEN (step-nudge the lower
+  voice); tritone_outline REPAIRED (insert a stepwise passing tone, halving the
+  prior note). Unknown preset → clear throw.
+
+**Exit criteria status:**
+- [x] `voice-leading-rules.js` exports `applyVoiceLeading` + the four primitive
+  repair helpers + the `PRESETS` registry, both presets implemented per the
+  rules above; the two presets are thin dispatchers over the same primitives.
+- [x] Stage 6 tags chromatic-neighbor realizations with `anomalous: true`; the
+  flag survives `asTrack` into the VoiceTracks; Stage 7 reads it. Prior tests
+  still pass (the flag is additive — non-anomalous events keep the bare
+  `{ pitch, beat, duration }` shape).
+- [x] `stage-7-leading.js` dispatches on `config.knobs.voice_leading_strictness`
+  (default `chiptune_idiomatic`); identity stub gone.
+- [x] `pipeline-runner` threads `macroParams` through to Stage 7.
+- [x] `pipeline-inspector.html` exposes the preset toggle and shows a repairs
+  summary + per-repair diff lines; an unrepaired pass shows no diff.
+- [x] `verify-stage7.mjs` PASSED (exit 0); all prior verifiers
+  (verify-spelling / -forms / -motif / -stage6 / -stage8 / -textures) still
+  PASS — no regression.
+- [x] This journal entry.
+- [ ] **Human checkpoint** — lightweight confirm + one cpp_strict listen
+  (pending; see the checkpoint note at the end of this entry).
+
+**Verification anchors that passed (`verify-stage7.mjs`, committed):**
+- Primitives: `clampToRange` octave-displaces (E7 → E6, C1 → C4, in-range
+  untouched, bad range throws); `snapToMode` picks the nearest in-mode pitch with
+  the documented downward tie (C#5 → C5, not D5; F#5 → F5 in E phrygian-dominant);
+  `moveByStep` steps one scale degree (C5 →+ D5, →− B4; C5 →+ D5 in D dorian, where
+  C5 is ^7); `intervalBetween` returns signed semitones (C4→G4 = +7, reverse = −7).
+- (a) chiptune_idiomatic fires **0 repairs** on all three Session-6 inspector
+  cases, and does not mutate the input Stage-6 tracks. The cases run end-to-end
+  clean under both presets (positive durations, every synth string parses through
+  the real `synth.js` `noteToFreq` to a finite positive frequency, voices
+  beat-aligned).
+- (b) cpp_strict repair counts locked as a regression anchor — Sunrise 6, Wanderer
+  0, Desert 9. The only crossings among the inspector cases are Desert's imitation
+  A' passage: 6 `uncross` repairs, **all inside the A' beat range** [32, 48), and
+  **zero** uncross repairs on Sunrise/Wanderer (their textures sit at-or-below).
+  A synthetic `parallel_thirds_above` passage is left alone by chiptune (0 repairs)
+  and uncrossed by cpp_strict (the prompt's "*_above + imitation" expectation).
+- (c) A constructed chromatic_neighbor: the flagged lead note is **preserved
+  verbatim** under chiptune_idiomatic (no snap repair) and **snapped into mode**
+  under cpp_strict (a `snap_to_mode` repair lands an in-mode pitch).
+- (d) A voice track carrying E7 (MIDI 100) and D7 (98) is octave-displaced back
+  into the 60..96 window under **both** presets.
+
+**The cpp_strict repair table (the regression anchor, measured):**
+- Sunrise Fanfare — 6 (bass): 5 `parallel_break` (lead/harmony↔bass parallel
+  octaves on downbeats nudged a step) + 1 `tritone_passing` (a bass melodic
+  tritone filled).
+- Wanderer's Path — 0. Its textures (`parallel_thirds_below`, `oblique_held`) sit
+  below, it has no out-of-mode notes, no detected parallels, no melodic tritones.
+- Desert Caravan — 9: 1 `snap_to_mode` (lead F#5 anomaly, beat 36.75) +
+  1 `snap_to_mode` (harmony F#5, the imitation echo, beat 37.75) + 6 `uncross`
+  (imitation A', beats 34–43) + 1 `tritone_passing` (bass, beat 3.5).
+
+**Surprises / decisions made:**
+- **Enforced ranges deviate from the prompt's first-pass numbers, by
+  measurement.** The prompt named lead C4..C6 and bass C2..C4. Dumping the actual
+  Stage-6 output of the already-auditioned Session-6 cases showed the lead's
+  octave-leap motifs reach **F6 (MIDI 89)** (Wanderer's `[5,7,8,7,5]` hits D6;
+  Desert reaches F6) and the walking/arpeggio bass reaches **G4 (MIDI 67)** — both
+  ABOVE those ceilings, in **all three** approved cases. Exit (a) + the human
+  checkpoint require chiptune_idiomatic to fire ZERO repairs (audibly identical to
+  pre-Session-7); clamping approved material to the literal numbers would regress
+  it. So the enforced windows are widened to the genre's real register usage while
+  still catching a genuinely out-of-register note: **lead C4..C7 (60..96), harmony
+  C4..C7 (60..96, the *_above ceiling the prompt names), bass C2..C5 (36..72)**.
+  The (d) range test uses a > C7 pitch — clearly out of any window — so the clamp
+  is still exercised. Documented at the top of `voice-leading-rules.js`.
+- **chiptune_idiomatic's out_of_mode is scoped to the LEAD voice only — also a
+  measurement-driven call.** Session 6's `imitation_one_beat_delay` deliberately
+  emits a chromatic echo (a semitone shift to the nearest chord tone), so Desert
+  carries an out-of-mode **harmony** F#5 at beat 37.75 that is NOT anomaly-flagged
+  (the prompt only tags the lead's chromatic_neighbor realization, which is the
+  right scope). A literal "snap every out-of-mode event except anomaly-flagged
+  ones" applied to all voices would snap that echo and regress the approved Desert
+  audio. So chiptune_idiomatic snaps the LEAD only (exempting anomaly flags) and
+  trusts the texture vocabulary for harmony/bass chromaticism — exactly parallel
+  to why it IGNORES voice crossing ("the texture vocabulary already encodes
+  crossing intent; do not second-guess"). cpp_strict, being strict, snaps ALL
+  voices with no exemption, so it does snap that echo (and the lead anomaly).
+- **Parallel-perfect repair can only approximate "closer to the chord tone."**
+  The prompt's repair text says to nudge "whichever keeps it closer to the chord
+  tone," but Stage 7's signature is `(voiceTracks, macroParams, preset)` — it is
+  not handed the HarmonicPlan, so the chord is unavailable here. The repair instead
+  picks the one-scale-step nudge that (a) actually breaks the parallel and (b) does
+  not push the lower voice above the upper (no new crossing), preferring downward
+  on a tie. This is the one place cpp_strict approximates the literal rule; flagged
+  for the review. (cpp_strict exists "for correctness, not because it's the desired
+  aesthetic," so the approximation is low-stakes.)
+- **Parallel detection works on shared onsets, signed direction, same perfect
+  class.** Two voices are checked only where both have an event onset at the same
+  beat; a parallel is two consecutive shared-onset positions where the lower→upper
+  interval is the same perfect class (P5 = 7 semitones, or P8/unison = 0) AND both
+  voices move the same melodic direction. This is why the `parallel_thirds_below`
+  passages never trip it (thirds aren't perfect) and only the down-beat
+  lead/bass-octave coincidences in Sunrise do.
+- **Two layers, data-driven presets.** `PRESETS` maps a name to a plain
+  rule-config object (one entry per rule); `applyVoiceLeading` is a thin dispatcher
+  that runs the same primitive operations per the config. A third preset is a data
+  entry, not new code — per the prompt's "added by data rather than by code."
+- **`voiceLeadingReport` is the report-bearing twin of `applyVoiceLeading`.** The
+  spec'd contract `applyVoiceLeading(...) → voiceTracks` is preserved exactly;
+  `voiceLeadingReport(...) → { tracks, repairs }` exists so the inspector (and the
+  verifier) can show/count the labelled repairs without changing the contract.
+- **Rule order: out_of_mode → range_clamp → voice_crossing → parallel_perfects →
+  tritone_outline.** Fix pitch classes, then octaves, then crossings, then
+  parallels, then insert passing tones last (so nothing downstream re-scans the
+  inserted notes). Each voice is re-sorted by beat defensively before return.
+- **No DEC/CHANGELOG entry** — consistent with Sessions 1–6 and the buildplan: the
+  new pipeline is built alongside the deployed app and is not user-visible until
+  Session 12, where the DEC/CHANGELOG/architecture updates are scheduled.
+
+**Deferred:**
+- **Chord-aware parallel-perfect repair.** When Session 11 wires the HarmonicPlan
+  through the pipeline, Stage 7 could take the chord context and resolve the
+  parallel-break nudge toward an actual chord tone (the literal rule), rather than
+  the smoothness/no-crossing approximation used now. Revisit then.
+- **`out_of_mode` for harmony/bass under chiptune_idiomatic.** Intentionally left
+  permissive (trusts the texture vocabulary). If a future texture or LLM stage
+  produces a genuinely-wrong out-of-mode harmony note under chiptune, this rule
+  will not catch it — by design. Re-evaluate if that ever surfaces.
+- **Voice-crossing repair is best-effort within range.** `uncross` drops octaves
+  until the voice is at/below its reference without leaving the window floor; if it
+  can't (the only headroom is below the floor), it leaves the crossing rather than
+  go out of range. Has not triggered on the cases.
+- **cpp_strict aesthetic.** This preset exists for correctness/curiosity, not as
+  the target sound; it is not on the default path (`balanced` → `chiptune_idiomatic`).
+
+**Notes for next session (Session 8 — Stage 5b texture choreography, first LLM
+stage):**
+- Stage 7 sits between Stage 6 and Stage 8 in the runner and is a pure
+  pass-through under the default config (`balanced` → `chiptune_idiomatic`), which
+  fires zero repairs on the current cases — so wiring the LLM texture stage does
+  not change the deterministic back-half's behaviour.
+- The VoiceTracks event shape gained an optional `anomalous: true` flag on
+  chromatic-neighbor lead notes (additive; non-anomalous events are unchanged).
+  Any new stage that synthesises lead events from a declared anomaly should set it
+  so chiptune_idiomatic's out_of_mode exemption keeps working.
+- Same theory-layer conventions hold: `voice-leading-rules.js` imports only
+  `mode-engine.js` + `pitch.js` (zero imports outside `theory/`); run
+  `verify-stage7.mjs` with the throwaway `package.json` dance.
+- The inspector's preset toggle drives both the Stage-7 delta panel and playback
+  (it builds a config with the chosen `voice_leading_strictness`), so an LLM-stage
+  inspector panel can sit above it unchanged.
+
+**HUMAN CHECKPOINT — PENDING (lightweight).** Not a full audition. After this
+implementation, Steven will: (1) open the inspector and run each case under both
+presets; (2) confirm chiptune_idiomatic is audibly identical to pre-Session-7
+(the repairs summary should read "Repairs: 0" on every case — the rules don't
+fire); (3) listen briefly to one case under cpp_strict to hear what strict
+counterpoint does to the chiptune sound (curiosity, not a gate — cpp_strict is a
+correctness configuration, not the desired aesthetic). The session closes after
+that quick listen + a sanity check that the repairs summary makes sense.
+
+**Verdict: Session 7 implementation complete; all seven verifiers pass, the
+identity stub is gone, and the rule set runs end-to-end under both presets.
+chiptune_idiomatic is a measured no-op on the existing cases (zero repairs);
+cpp_strict produces the expected crossing/parallel/tritone repairs. The session
+is NOT closed until Steven's lightweight checkpoint listen is recorded here. Do
+NOT start Session 8 automatically.**
