@@ -1082,8 +1082,8 @@ enumerated).
   (verify-spelling / -forms / -motif / -stage6 / -stage8) still PASS — no
   regression.
 - [x] This implementation journal entry.
-- [ ] **Human checkpoint — Steven's per-texture audition notes** (pending; the
-  session is complete only after the listening pass).
+- [x] **Human checkpoint — Steven's audition pass** (CLEARED; see the checkpoint
+  block at the end of this entry).
 
 **Verification anchors that passed (`verify-textures.mjs`, committed):**
 - Every texture, run against representative two-bar leads in four modes (C major,
@@ -1241,12 +1241,63 @@ phrygian_dominant **1/7**, pentatonic 3/7 — not a canon, just stray blips.
   bright_arpeggio now echoes C5 E5 G5 F5 E5 (5 of 6, last clipped); phrygian
   echoes the full E5 F5 G#5 A5 G#5 F5 line one beat late.
 
-**Still open (taste call, awaiting Steven's decision — not a defect):**
-`heterophony` is logically correct and behaves as documented, but (a) it sits an
-OCTAVE BELOW the lead rather than at unison, and (b) it always moves by step, so
-it traces the lead's *direction* but not its *intervals* — a leapy lead (an
-arpeggio) gets its leaps filled into a scale underneath, a stepwise lead becomes
-the line an octave down with each note anticipated. Options on the table: keep
-the octave-below shadow (current) or switch to literal unison + ornament (now
-viable since crossing is accepted for intrinsic-crossing textures). Deferred to
-Steven's call.
+**Resolved (taste call, Steven's decision):** `heterophony` is logically
+correct and behaves as documented, but (a) it sits an OCTAVE BELOW the lead
+rather than at unison, and (b) it always moves by step, so it traces the lead's
+*direction* but not its *intervals* — a leapy lead (an arpeggio) gets its leaps
+filled into a scale underneath, a stepwise lead becomes the line an octave down
+with each note anticipated. The alternative was literal unison + ornament (now
+viable since crossing is accepted for intrinsic-crossing textures). **Steven
+listened and kept the octave-below shadow as-is** ("sounds fine, we can keep it
+how it is"). No change.
+
+**Bolder demo motifs added (2026-05-21).** At Steven's request, three
+deliberately adventurous probes were added to `texture-demo.html` alongside the
+five tame controlled ones, so the textures can be auditioned against
+wide-leap / wide-range / exotic lines rather than only stepwise ones:
+`wide_leaps_major` (C major, an octave leap spanning C5–C6),
+`leaping_harmonic_minor` (A harmonic minor, octave leap + the high G# leading
+tone), `byzantine_flourish` (C double-harmonic, the b2/b6 augmented-second
+colour with skipping leaps). All three render clean across every texture (0
+problems over 3 motifs × 13 textures: in-tune, no overlaps, no throws). These
+are still hand-written probes — the engine's own creative melodies are the LLM
+stages' job (S9–S11), not Session 6.
+
+**HUMAN CHECKPOINT — CLEARED (2026-05-21).** Steven auditioned the textures in
+`texture-demo.html` and the three full-pipeline cases in the inspector. Verdict,
+verbatim:
+
+> It's getting there! The textures make it more interesting for sure. It still
+> isn't...taking the kinds of creative, musical risks that I would hope it would.
+> The melodies all feel very stepwise and simple. As we continue to iterate, I'll
+> be looking for more creative, soulful, emotional, evocative melodies,
+> accompaniment styles, etc.
+
+That clears Session 6's specific bar: the texture vocabulary works and audibly
+lifts the contrapuntal/textural axis ("more interesting") that Sessions 4–5 were
+flat on. Two concrete defects surfaced during the pass and were fixed in-session
+(see "Audition fixes" above): the four parallel textures collapsing to two
+distinct sounds (the `*_above` textures now sit genuinely above the lead) and
+`imitation_one_beat_delay` being gutted by the coincident-attack rule (now a true
+overlapping canon). `heterophony` was accepted as-is (octave-below shadow).
+
+The "stepwise / not enough musical risk" axis is **not a Session-6 defect** and
+not a texture issue — it's the melodic material, which this session uses only as
+hand-written controlled probes. Melodic creativity (motif shape, leaps,
+development, harmonic risk) is the explicit remit of the not-yet-built LLM
+creative stages: Stage 4 motifs (S10), Stage 5a phrase/development (S9), Stage 3
+harmony (S11), wielded through the freedom-knob presets (`adventurous`/`wild`),
+the anomaly slots, and the 47-scale palette. Recorded as the standing aesthetic
+bar to beat as those stages land (also captured in project memory) — the
+deterministic back-half is rule-following by design and will not be the source
+of "soul." The bolder demo motifs added this session let that adventurousness be
+heard against the textures now, ahead of the generative stages.
+
+No wrong-sounding texture defect remains open. Carrying "textures work and add
+interest; melodic soul is the LLM stages' job" forward as the baseline.
+
+**Verdict: Session 6 complete and confirmed by ear. All six verifiers pass, the
+full texture vocabulary dispatches end-to-end, the two audition defects are
+fixed, and the human-listening gate is cleared. Cleared to proceed to Session 7
+(Stage 7 — voice-leading pass) when Steven kicks it off. Do NOT start Session 7
+automatically.**
