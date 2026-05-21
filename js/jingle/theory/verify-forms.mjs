@@ -14,7 +14,11 @@
      3. The engine behaves — distributeBars sums to the requested total with
         no empty section across every form, total and variant; getForm /
         getPhraseStructure hand back defensive copies; listFormsByTag works.
-     4. The Session-2 exit-criterion demo — 16 bars across AABA with the
+     3b. Largest-remainder symmetry — an all-equal default split is near-
+        uniform (max - min <= 1), and sections sharing an `of:` target with
+        equal proportions stay within one bar of each other across every
+        variant. (contrast_from is deliberately not held to this.)
+     4. The Session-2 exit-criterion demo — AABA over 16 and 20 bars with the
         default and both alternative proportions, printed for eyeballing.
 
    Prints failures verbosely and exits non-zero on any failure.
@@ -176,6 +180,56 @@ for (const name of Object.keys(forms)) {
   }
 }
 
+// --- 3b. Bar-distribution symmetry (Hamilton largest-remainder). -----------
+// A. Equal-proportion symmetry: when proportions_default is all-equal, the
+//    default bar split must be near-uniform (max - min <= 1). This is the
+//    AABA-20 case the old even-preference rounding got wrong ([4,4,6,6]).
+// B. of:-relationship symmetry: sections that share an `of:` target AND were
+//    given equal proportions must land within one bar of each other, so
+//    repeated/reprise sections (an AABA's A1/A2/A3) stay recognizably equal
+//    across every variant. Sections deliberately given different proportions
+//    (an AABA alt variant's longer reprise) are exempt — only equal-proportion
+//    siblings are held to the bound, which is exactly what largest-remainder
+//    guarantees and is the point of the fix.
+// C. contrast_from is intentionally NOT checked: a B that contrasts with A1
+//    carries no obligation to match the length of another contrasting section.
+const variantProportions = (form, variant) =>
+  variant === 0 ? form.proportions_default : form.proportions_alt[variant - 1];
+const allEqual = (numbers) => numbers.every((n) => n === numbers[0]);
+const spread = (numbers) => Math.max(...numbers) - Math.min(...numbers);
+
+for (const [name, form] of Object.entries(forms)) {
+  const variantCount = 1 + form.proportions_alt.length;
+  for (let variant = 0; variant < variantCount; variant++) {
+    const proportions = variantProportions(form, variant);
+    for (const total of TEST_TOTALS) {
+      if (total < form.section_count) continue;
+      const counts = distributeBars(name, total, variant);
+
+      // A — default distribution only, and only when it is all-equal.
+      if (variant === 0 && allEqual(proportions) && spread(counts) > 1) {
+        fail(name, `equal-proportion default at ${total} bars is not near-uniform: [${counts}]`);
+      }
+
+      // B — bucket sections by (of: target, proportion); each bucket holds
+      // equal-proportion siblings of one target and must stay within one bar.
+      const buckets = new Map();
+      form.section_labels.forEach((label, i) => {
+        const target = form.relationships[label].of;
+        if (target === null) return;
+        const key = `${target}@${proportions[i]}`;
+        if (!buckets.has(key)) buckets.set(key, []);
+        buckets.get(key).push(counts[i]);
+      });
+      for (const [key, bucketCounts] of buckets) {
+        if (spread(bucketCounts) > 1) {
+          fail(name, `of:-siblings ${key} got asymmetric counts [${bucketCounts}] at ${total} bars, v${variant}`);
+        }
+      }
+    }
+  }
+}
+
 // distributeBars rejects an out-of-range variant and an impossibly small total.
 try {
   distributeBars('AABA', 16, 99);
@@ -211,15 +265,22 @@ if (!listFormsByTag('balanced').includes('AABA')) {
   fail('AABA', 'listFormsByTag("balanced") did not include AABA');
 }
 
-// --- 4. Session-2 exit-criterion demo: 16 bars across AABA. ----------------
-console.log('AABA over 16 bars:');
+// --- 4. Session-2 exit-criterion demo: AABA over 16 and 20 bars. -----------
+// 20 bars is the case the old even-preference rounding got wrong (default
+// [0.25,0.25,0.25,0.25] -> [4,4,6,6]); under largest-remainder it is the
+// symmetric [5,5,5,5].
 const aabaForm = getForm('AABA');
-[aabaForm.proportions_default, ...aabaForm.proportions_alt].forEach((distribution, i) => {
-  const variantTag = i === 0 ? 'default' : `alt[${i - 1}]`;
-  const counts = distributeBars('AABA', 16, i);
-  const labelled = aabaForm.section_labels.map((label, j) => `${label}=${counts[j]}`).join(' ');
-  console.log(`  ${variantTag.padEnd(7)} [${distribution.join(', ')}] -> ${labelled} (sum ${sumOf(counts)})`);
-});
+const printAABA = (total) => {
+  console.log(`AABA over ${total} bars:`);
+  [aabaForm.proportions_default, ...aabaForm.proportions_alt].forEach((distribution, i) => {
+    const variantTag = i === 0 ? 'default' : `alt[${i - 1}]`;
+    const counts = distributeBars('AABA', total, i);
+    const labelled = aabaForm.section_labels.map((label, j) => `${label}=${counts[j]}`).join(' ');
+    console.log(`  ${variantTag.padEnd(7)} [${distribution.join(', ')}] -> ${labelled} (sum ${sumOf(counts)})`);
+  });
+};
+printAABA(16);
+printAABA(20);
 
 console.log('\nSection relationships for AABA:');
 for (const [label, relationship] of Object.entries(getSectionRelationships('AABA'))) {

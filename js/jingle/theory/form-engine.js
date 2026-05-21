@@ -19,16 +19,19 @@
    phrase-structures.json — no synth- or pipeline-specific code. It is
    portable to other composition projects as-is.
 
-   BAR DISTRIBUTION. distributeBars favours even bar counts (multiples of
-   two), because musical phrases overwhelmingly come in even lengths. It is
-   a soft preference: the hard guarantees are that the returned counts sum
-   to exactly totalBars and that no section is shorter than one bar. When a
-   total cannot be split into all-even sections (an odd total, or
-   proportions that do not land on even multiples), single-bar adjustments
-   are applied to the sections whose counts deviate most from their ideal.
-   The function does not guarantee that repeated sections (the two A's of an
-   AABA, say) receive identical counts when the total forces an uneven split
-   — downstream stages may override the plan if exact symmetry is wanted.
+   BAR DISTRIBUTION. distributeBars splits a bar budget across a form's
+   sections with Hamilton's largest-remainder method: each section's ideal
+   share is its proportion × totalBars, floored to an integer baseline, and
+   the leftover bars (the deficit) are handed out one at a time to the
+   sections with the largest fractional remainder (ties broken by ideal
+   share, then by section order). The hard guarantees are that the returned
+   counts sum to exactly totalBars and that no section is shorter than one
+   bar. Bar counts are NOT biased toward even values — they fall out of the
+   proportions and the total, so sections given equal proportions land within
+   one bar of each other (an AABA at 20 bars on equal proportions is
+   [5,5,5,5], not [4,4,6,6]; repeated sections stay recognizably equal). A
+   caller that wants only-even outputs should request a totalBars that is a
+   clean multiple of the form's structure.
    ================================================================= */
 import forms from './forms.json' with { type: 'json' };
 import phraseStructures from './phrase-structures.json' with { type: 'json' };
@@ -81,13 +84,15 @@ export function getForm(name) {
 
 /**
  * Integer bar counts for each section of `formName`, summing to exactly
- * `totalBars`. `variantIndex` selects the proportion distribution: 0 (the
+ * `totalBars`, allocated by Hamilton's largest-remainder method (see the
+ * module header). `variantIndex` selects the proportion distribution: 0 (the
  * default) is `proportions_default`, 1 is the first entry of
  * `proportions_alt`, and so on.
  *
- * Counts are biased toward even values where the total allows (see the
- * module header). Every section gets at least one bar; `totalBars` must
- * therefore be at least the form's section count.
+ * Counts follow the proportions directly — they are not rounded toward even
+ * values — so sections given equal proportions land within one bar of each
+ * other. Every section gets at least one bar; `totalBars` must therefore be
+ * at least the form's section count.
  */
 export function distributeBars(formName, totalBars, variantIndex = 0) {
   const form = rawForm(formName);
@@ -103,39 +108,34 @@ export function distributeBars(formName, totalBars, variantIndex = 0) {
     );
   }
 
-  // Ideal real-valued share per section, and an even-preferring first guess
-  // (nearest even integer, floored at one so no section is empty).
+  // Hamilton's largest-remainder method. Floor each section's ideal share
+  // (proportion × totalBars) for a baseline, then hand the leftover bars out
+  // one at a time to the sections with the largest fractional remainder,
+  // breaking ties by ideal share (descending) and finally by section order.
   const ideal = proportions.map((proportion) => proportion * totalBars);
-  const counts = ideal.map((share) => Math.max(1, 2 * Math.round(share / 2)));
+  const counts = ideal.map((share) => Math.floor(share));
+  const deficit = totalBars - sumOf(counts);
 
-  // Reconcile the guess to the exact total. Each pass moves bars in pairs to
-  // preserve evenness, falling back to a single bar when the remaining
-  // difference is odd or no section can absorb a pair without dropping below
-  // one. Bars are added to the most under-allocated section and taken from
-  // the most over-allocated one, measured against the ideal share.
-  const reconcile = () => {
-    let difference = totalBars - sumOf(counts);
-    while (difference !== 0) {
-      let step = difference > 0 ? Math.min(2, difference) : Math.max(-2, difference);
-      let candidates = counts
-        .map((_, index) => index)
-        .filter((index) => counts[index] + step >= 1);
-      if (candidates.length === 0) {
-        step = step > 0 ? 1 : -1;
-        candidates = counts.map((_, index) => index).filter((index) => counts[index] + step >= 1);
-      }
-      const deviation =
-        step > 0
-          ? (index) => ideal[index] - counts[index] // reward under-allocated
-          : (index) => counts[index] - ideal[index]; // reward over-allocated
-      const target = candidates.reduce((best, index) =>
-        deviation(index) > deviation(best) ? index : best
-      );
-      counts[target] += step;
-      difference -= step;
-    }
-  };
-  reconcile();
+  const remainderRank = ideal
+    .map((share, index) => ({ index, share, remainder: share - Math.floor(share) }))
+    .sort((a, b) => b.remainder - a.remainder || b.share - a.share || a.index - b.index);
+  remainderRank.slice(0, deficit).forEach(({ index }) => {
+    counts[index] += 1;
+  });
+
+  // Safety net for tiny proportions. The totalBars >= sectionCount guard plus
+  // the deficit pass normally leave every section with at least one bar, but
+  // if a share floored to zero and missed the deficit, promote it to one bar
+  // by taking from the largest section. The sum stays at totalBars. This
+  // should not trigger for the shipped forms; it keeps the contract safe.
+  let empty = counts.indexOf(0);
+  while (empty !== -1) {
+    const donor = counts.reduce((best, count, index) => (count > counts[best] ? index : best), 0);
+    if (counts[donor] <= 1) break;
+    counts[donor] -= 1;
+    counts[empty] += 1;
+    empty = counts.indexOf(0);
+  }
 
   return counts;
 }

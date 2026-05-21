@@ -319,3 +319,108 @@ IAC then PAC), hybrid (2+2+4, basic idea + contrasting idea + continuation).
   `start_bar`, `length_bars`). They are *suggestions* the phrase-placement
   stage can take or ignore, not bindings — kept deliberately small so they
   read as defaults, not a fixed score.
+
+**Claude.ai-side verification (Steven + Claude Opus 4.7):**
+- verify-forms.mjs re-run independently — PASSED, exit 0. All 12 forms
+  internally consistent, all 4 phrase structures consistent, distributeBars
+  sums correctly across 8 totals × all variants.
+- Session 1's verify-spelling.mjs still passes (no regression).
+- Forms reviewed: relationship encodings match each form's traditional
+  identity (AABA's A2 as repetition of A1, arch's symmetric B1/B2 and A1/A2
+  reprises, rondo's refrain/episode distinction, eki_mini's front-loaded
+  proportions matching the genre convention).
+- Phrase structures reviewed: period / sentence / phrase_group / hybrid
+  match canonical Caplin schema; phrase_group is the only structure using
+  two distinct motifs (a + b), which correctly distinguishes its
+  "independent phrases" character from the motif-a-developmental
+  structures.
+
+**Issue flagged: distributeBars asymmetric for repeated sections.** The
+even-preference rounding produces unequal bar counts for sections the user
+gave equal proportions to. AABA at 20 bars yields [4,4,6,6] instead of
+[5,5,5,5]; at 12 bars yields [2,2,4,4]; rondo at 16 yields [2,2,4,4,4];
+arch loses palindromic symmetry at most non-multiple-of-2×section_count
+totals. This breaks form identity (A3 longer than A1 in AABA) and would
+mislead Session 5a/9's reading of the bar plan. The current docstring
+acknowledges the limitation but understates frequency — it's the default
+outcome at most odd-quotient totals, not an edge case.
+
+Amendment applied (see addendum below): the even-preference reconcile is
+replaced with Hamilton's largest-remainder method, and equal-proportion +
+of:-relationship symmetry are now enforced by the verifier. PASSED.
+
+**Verdict: Session 2 amendment-complete. Cleared to proceed to Session 3.**
+
+### Addendum (2026-05-21) — Hamilton's largest-remainder bar distribution
+
+**Amendment, not a new session.** The Session-2 review flagged that
+`distributeBars`'s even-preference rounding produced asymmetric bar counts for
+sections the user gave equal proportions to. This addendum replaces the
+algorithm; `forms.json` and `phrase-structures.json` are untouched (the data
+was fine — the algorithm was the issue).
+
+**The bug.** The old strategy rounded each section's ideal share to the
+nearest *even* integer, then reconciled to the exact total by moving bars in
+pairs. At most non-trivial totals this forced repeated sections to unequal
+lengths even when their proportions were identical:
+
+- AABA 20 (equal proportions) → `[4,4,6,6]` (should be `[5,5,5,5]`)
+- AABA 12 → `[2,2,4,4]` (should be `[3,3,3,3]`)
+- rondo 16 → `[2,2,4,4,4]` (should be near-uniform)
+- arch 16 → `[2,2,4,4,4]` (broke palindromic symmetry)
+
+An AABA whose A3 is 50% longer than A1 isn't recognizably AABA, and the bad
+bar plan would have misled Session 5a/9 when they read it.
+
+**The fix.** `distributeBars` now uses Hamilton's largest-remainder method:
+floor each section's ideal share (proportion × totalBars) for a baseline,
+compute the deficit (totalBars − Σfloors), then hand the deficit out one bar
+at a time to the sections with the largest fractional remainder — ties broken
+by ideal share (descending), then by section order. A safety net promotes any
+section that floored to zero up to one bar (taking from the largest section,
+sum preserved); given the existing `totalBars >= section_count` guard it does
+not trigger for the shipped forms, but it keeps the ≥1-bar contract honest.
+The even-preference guess and the pair-by-pair reconcile loop are gone.
+
+Bar counts are no longer biased toward even values — they fall out of the
+proportions and the total. A caller wanting only-even output should request a
+`totalBars` that is a clean multiple of the form's structure. The module
+header and the `distributeBars` docstring were updated to say so.
+
+**New distribution values (vs. the original Session-2 entry's table):**
+- AABA 16 default `[0.25×4]` → `[4,4,4,4]` (unchanged — divides cleanly)
+- AABA 16 alt[0] `[0.2,0.2,0.35,0.25]` → `[3,3,6,4]` (was `[2,4,6,4]`)
+- AABA 16 alt[1] `[0.25,0.25,0.3,0.2]` → `[4,4,5,3]` (was `[4,4,4,4]`)
+- AABA 20 default → `[5,5,5,5]` (was `[4,4,6,6]` — the headline fix)
+- AABA 20 alt[0] → `[4,4,7,5]`; alt[1] → `[5,5,6,4]`
+
+**New verifier assertions (`verify-forms.mjs` §3b):**
+- **A. Equal-proportion symmetry.** For every total ≥ section_count, when a
+  form's `proportions_default` is all-equal, the default split is near-uniform
+  (max − min ≤ 1). Catches the AABA-20 case directly.
+- **B. of:-relationship symmetry.** Sections bucketed by `(of: target,
+  proportion)` — i.e. equal-proportion siblings of the same target — must stay
+  within one bar of each other across every form, variant and total. Catches
+  asymmetric AABA/rondo reprises. Sections deliberately given *different*
+  proportions (an AABA alt variant's longer reprise) are exempt by
+  construction, which is why the unchanged data still passes.
+- **C. `contrast_from` symmetry is NOT required** and is deliberately not
+  checked — contrasting sections carry no equal-length obligation.
+- **D.** The existing checks (sum equals total, no zero/negative counts,
+  out-of-range variant and too-small total throw) are preserved.
+- **E.** The exit-criterion demo now prints AABA over **16 and 20** bars, so
+  the run visibly shows the formerly-failing `[4,4,6,6]` is now `[5,5,5,5]`.
+
+**Result.** `verify-forms.mjs` PASSED, exit 0 (12 forms × 8 totals × all
+variants, plus the new symmetry sweep). Session-1 `verify-spelling.mjs` still
+PASSED, exit 0 (no regression). Theory layer still imports nothing outside
+`theory/` — `form-engine.js` reads only `forms.json` + `phrase-structures.json`.
+
+**Note for next session.** The original entry's "Deferred" bullet about
+`distributeBars` not forcing repeated-section symmetry, and its
+even-preference "Surprises / decisions made" bullet, are now superseded by
+this addendum; they stand as the historical record of what Session 2 first
+shipped.
+
+**Verdict: Session 2 amendment complete. Bar plans are now symmetric where the
+proportions are. Cleared to proceed to Session 3.**
