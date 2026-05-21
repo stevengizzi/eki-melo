@@ -148,6 +148,72 @@ export function getSectionRelationships(formName) {
   return structuredClone(rawForm(formName).relationships);
 }
 
+// The leading alphabetic run of a section label, uppercased ("A1"→"A",
+// "A'"→"A", "B2"→"B"). The "letter" is the shared material identity; the
+// trailing digits/primes distinguish occurrences.
+function sectionLetter(label) {
+  const match = String(label).match(/^[A-Za-z]+/);
+  return (match ? match[0] : String(label)).toUpperCase();
+}
+
+// A primed label ("A'", "A″") denotes a varied return of its letter.
+function sectionIsPrimed(label) {
+  return /['′″]/.test(String(label));
+}
+
+/**
+ * Infer a section-relationship map from a bare sequence of section labels,
+ * with no form metadata — the form-independent fallback for when the curated
+ * `relationships` aren't available or don't line up with the labels in play
+ * (e.g. a piece that overrides a form's labels, like an explicit ternary
+ * `["A", "B", "A'"]` against the library's `["A1", "B", "A2"]`).
+ *
+ * The inference reads the letter pattern (matching letters = same material):
+ *   - the first appearance of a letter is the `exposition` (the home letter)
+ *     or, for any non-home letter, a `contrast` section;
+ *   - a later appearance with NO different letter intervening is a `repetition`
+ *     (e.g. AABA's A2 right after A1);
+ *   - a later appearance AFTER a contrasting section is a `reprise` — the home
+ *     theme returning (e.g. AABA's A3, ternary's closing A) — `ornamented` when
+ *     the label is primed.
+ * `of` points at the first appearance of the same letter; `contrast_from`
+ * points at the home letter's first section.
+ *
+ * Returns `{ <label>: { role, of, variation, contrast_from } }`. Pure; takes no
+ * form name, so it composes with `getSectionRelationships` rather than
+ * replacing it.
+ */
+export function deriveSectionRelationships(labels) {
+  if (!Array.isArray(labels)) {
+    throw new Error(`deriveSectionRelationships expects an array of labels, got ${typeof labels}.`);
+  }
+  const homeLetter = labels.length ? sectionLetter(labels[0]) : null;
+  const firstByLetter = new Map();
+  const relationships = {};
+
+  labels.forEach((label, index) => {
+    const letter = sectionLetter(label);
+    if (!firstByLetter.has(letter)) {
+      firstByLetter.set(letter, label);
+      relationships[label] =
+        index === 0 || letter === homeLetter
+          ? { role: 'exposition', of: null, variation: null, contrast_from: null }
+          : { role: 'contrast', of: null, variation: null, contrast_from: firstByLetter.get(homeLetter) ?? null };
+      return;
+    }
+    const source = firstByLetter.get(letter);
+    const sourceIndex = labels.indexOf(source);
+    const contrastIntervened = labels
+      .slice(sourceIndex + 1, index)
+      .some((between) => sectionLetter(between) !== letter);
+    relationships[label] = contrastIntervened
+      ? { role: 'reprise', of: source, variation: sectionIsPrimed(label) ? 'ornamented' : null, contrast_from: null }
+      : { role: 'repetition', of: source, variation: sectionIsPrimed(label) ? 'minor' : null, contrast_from: null };
+  });
+
+  return relationships;
+}
+
 /**
  * The full phrase-structure data object for `name`, returned as a fresh
  * copy so callers cannot mutate the shared library.

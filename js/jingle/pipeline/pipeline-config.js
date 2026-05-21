@@ -19,6 +19,11 @@
    It is distinct from `texture_change_rate` (a hint reserved for the
    deterministic side); 5b honors texture_adventurousness directly in its prompt.
    Additive — no existing stage reads it.
+
+   SESSION 9 ADDITION. `phrase_adventurousness` ({ tame | adventurous | wild }) is
+   the sibling knob the second LLM stage (Stage 5a phrase structure + motif
+   placement) reads — how boldly the motifs develop (literal/sequence vs.
+   retrograde/inversion/ornament). Modeled on texture_adventurousness; additive.
    ================================================================= */
 
 // Preset knob bundles. `balanced` is the default; the others widen or narrow
@@ -32,6 +37,7 @@ export const PRESETS = {
     allow_secondary_dominants: false,
     texture_change_rate: 'low',
     texture_adventurousness: 'tame',
+    phrase_adventurousness: 'tame',
     voice_leading_strictness: 'cpp_strict',
     anomaly_budget_per_motif: 0,
     anomaly_budget_per_section: 0,
@@ -44,6 +50,7 @@ export const PRESETS = {
     allow_secondary_dominants: false,
     texture_change_rate: 'medium',
     texture_adventurousness: 'adventurous',
+    phrase_adventurousness: 'adventurous',
     voice_leading_strictness: 'chiptune_idiomatic',
     anomaly_budget_per_motif: 1,
     anomaly_budget_per_section: 1,
@@ -56,6 +63,7 @@ export const PRESETS = {
     allow_secondary_dominants: true,
     texture_change_rate: 'high',
     texture_adventurousness: 'adventurous',
+    phrase_adventurousness: 'adventurous',
     voice_leading_strictness: 'chiptune_idiomatic',
     anomaly_budget_per_motif: 1,
     anomaly_budget_per_section: 2,
@@ -68,6 +76,7 @@ export const PRESETS = {
     allow_secondary_dominants: true,
     texture_change_rate: 'high',
     texture_adventurousness: 'wild',
+    phrase_adventurousness: 'wild',
     voice_leading_strictness: 'chiptune_idiomatic',
     anomaly_budget_per_motif: 2,
     anomaly_budget_per_section: 3,
