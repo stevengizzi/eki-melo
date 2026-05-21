@@ -4,7 +4,7 @@
 
 ## Project Snapshot
 
-EKI Melo — single-file HTML app that generates 8-bit chiptune arrival jingles and 16-bit pixel avatars for birthday-party guests, using the Anthropic Claude API. Weekend project, one user, intentionally tiny scope.
+EKI Melo — vanilla-JS web app that generates 8-bit chiptune arrival jingles and pixel-art avatars for birthday-party guests. Uses the Claude API for composition and PixelLab for sprite rendering. Single developer, deployed at https://eki-melo.pages.dev via Cloudflare Pages.
 
 ## Read These First
 
@@ -13,53 +13,62 @@ EKI Melo — single-file HTML app that generates 8-bit chiptune arrival jingles 
 3. `docs/architecture.md` — components, patterns, file structure
 4. `docs/decision-log.md` — why things are the way they are
 
-Skip the workflow metarepo's heavier protocols (sprint planning, tier-3 reviews, runner orchestration) — they're not applied to this project.
+## File Layout
+
+Client code is split into ES modules under `js/`. `index.html` is markup only; it loads `styles.css` and `js/main.js` as a single module entry point. Load order is the import graph, not script-tag order. The full layout and rationale are in DEC-013.
+
+Server-side Pages Functions live in `functions/api/`. `generate.js` proxies jingle requests to Anthropic; `avatar.js` runs the Claude→PixelLab pipeline. Their paths ARE their routes (Cloudflare Pages convention), so don't relocate them.
 
 ## Common Operations
 
-**Run locally** (once the serverless proxy exists):
+**Run locally:**
 ```bash
-# Cloudflare Pages local dev — TBD
+# Full stack (recommended — exercises the Pages Functions):
 wrangler pages dev .
-# OR static serve if you just want to view the UI:
+
+# UI only (Functions return 404; the artifact-mode fallback in js/env.js
+# means jingles still work via direct Anthropic calls, but avatars don't):
 python3 -m http.server 8000
 ```
 
-**Test changes to the HTML:**
-Open the file directly in a browser. No build step. Hard-refresh after edits.
+Open the served URL in a browser. No build step. Hard-refresh after edits.
 
-**Git workflow:** commit straight to `main`. This is a solo weekend project — no branches, no PRs, no review gates. The auto-deploy on push to main IS the deployment workflow.
+**Git workflow:** commit straight to `main`. Solo developer, no branches or PRs. Auto-deploy on push IS the deployment workflow.
 
-**Deploy:**
-Push to `main`. Auto-deploy via platform integration (TBD which platform).
-
-## Editing Discipline
-
-- The whole app is one file. Keep it that way unless the file crosses ~3000 lines.
-- `index.html` is the canonical, deployable version. The `archive/` folder preserves historical artifact-runtime versions for reference but is not deployed.
-- Every architectural change gets a DEC entry in `docs/decision-log.md`. Use the format already in the file.
-- Update `CHANGELOG.md` for any user-visible change.
+**Deploy:** push to `main`. Cloudflare Pages picks it up.
 
 ## Hard Constraints
 
-- **Preserve user data above all else.** This app exists to compose jingles for real people. Storage migrations must be non-destructive (transform in memory, write back only after success). The JSON backup export must always work.
-- **No external JS libraries.** Single file, vanilla JS. If something needs a library, propose it in a DEC entry first.
-- **No build step.** The file must be openable and editable as-is.
-- **Key never on the client.** All API calls go through the serverless proxy. Never inline an API key in the HTML.
+These have real teeth and apply regardless of how small a change feels:
+
+- **Preserve user data above all.** Storage migrations must be non-destructive (transform in memory, write back only after success). The JSON backup export must always work. See DEC-007, DEC-009.
+- **API keys never on the client.** All Anthropic calls go through `functions/api/generate.js`; all PixelLab calls go through `functions/api/avatar.js`. The only direct-to-`api.anthropic.com` path is the artifact-runtime branch in `js/env.js`, which exists because the Claude.ai artifact runtime proxies it automatically. See DEC-010.
+- **No build step.** Files are served directly; ES modules resolve in the browser. Introducing a bundler is a posture change — propose it as a DEC entry first.
+- **No frameworks (React, Vue, etc.).** Audio synthesis is imperative; the rest of the app is simple enough not to need component machinery. See DEC-001 (the single-file aspect of which is superseded by DEC-013; the no-framework aspect still holds).
+- **Both runtime modes must keep working.** The same code runs in deployed Cloudflare Pages (`localStorage` + `/api/*`) AND in the Claude.ai artifact runtime (`window.storage` + direct `api.anthropic.com` for jingles; avatars unavailable). The detection seam in `js/env.js` is the only point that distinguishes them — keep it intact.
+
+External JS libraries are not banned, but introduce one only when the alternative is materially worse. Log it as a DEC entry.
+
+## Editing Discipline
+
+- Every architectural change gets a `DEC-NNN` entry in `docs/decision-log.md`. Format follows the existing entries.
+- User-visible changes get a `CHANGELOG.md` entry.
+- Pattern or component-graph changes get reflected in `docs/architecture.md`.
+- Trivial edits (typos, small refactors, prompt tweaks within an existing approach) don't need DEC entries.
+
+## Picking the Right Solution
+
+This is a single-user app with no SLA, no team, and no cross-release migration burden — which means the cost of choosing the wrong abstraction is low and the freedom to pick whatever fits is high. Don't pre-emptively default to "minimal because the project is small." If a more involved solution is genuinely the right shape (a dedicated module, a richer data structure, a more deliberate process), do it. If the simple thing fits, do that. Decide on merits, not on project label.
+
+The constraints above are what's non-negotiable; everything else is a judgment call. When a change has real tradeoffs, name them — don't present only the upside.
+
+## Workflow
+
+This project uses a light subset of `claude-workflow`: decision logging, canon docs (`docs/`), README discipline, changelog discipline. The heavier protocols (sprint planning, tier-3 reviews, adversarial review, autonomous runner, risk register, roadmap, sprint history, mid-sprint doc-sync, in-flight triage, campaign orchestration) are designed for multi-developer cadence and aren't currently applied. If a situation comes up where one genuinely would help, it's fine to invoke it — just don't reach for them by default.
 
 ## Things Not To Do
 
-- Don't add React, a bundler, or a framework — see DEC-001.
-- Don't replace pulse-wave synthesis with `osc.type = 'square'` — see DEC-003.
-- Don't change the storage key without writing a migration — see DEC-007.
-- Don't make reroll overwrite the existing version — see DEC-006.
-
-## Context This Project Does Not Use
-
-This project uses a deliberately light subset of `claude-workflow`. Do not invoke:
-- Sprint planning protocol
-- Tier-3 review protocol
-- Autonomous runner
-- Risk register / roadmap / sprint-history docs
-
-The full workflow is appropriate for production software with a sprint cadence. This is a weekend party app — decision logging and the canon docs are sufficient.
+- Don't replace pulse-wave synthesis with `osc.type = 'square'` — kills the NES timbre. See DEC-003.
+- Don't change `STORAGE_KEY` without writing a migration that preserves existing guest data. See DEC-007.
+- Don't make reroll overwrite the existing version. The versioned-array structure is deliberate. See DEC-006.
+- Don't move files under `functions/api/` — their paths are their routes.
