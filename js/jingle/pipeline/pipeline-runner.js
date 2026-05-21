@@ -14,7 +14,8 @@
    Flow:
      1. Stage 6  — realizeVoices → VoiceTracks of beat-stamped { pitch, beat,
                    duration } events (Pitch objects throughout).
-     2. Stage 7  — applyVoiceLeading (identity stub until Session 7).
+     2. Stage 7  — applyVoiceLeading — runs the configured voice-leading rule
+                   set (config.knobs.voice_leading_strictness; Session 7).
      3. Stage 8  — enforceCadences  — overwrites each section's closing beats
                    with its declared cadence (Session 5).
      4. Sequence — collapse each voice's beat-stamped events into the synth's
@@ -93,7 +94,7 @@ export function runPipeline(input, config = DEFAULT_CONFIG) {
   const { macroParams } = input;
 
   let voiceTracks = realizeVoices({ ...input, config });
-  voiceTracks = applyVoiceLeading(voiceTracks, config);
+  voiceTracks = applyVoiceLeading(voiceTracks, config, macroParams);
   voiceTracks = enforceCadences(voiceTracks, input.harmonicPlan, macroParams, config);
 
   // Sequence each beat-stamped voice into the synth's contiguous shape (rests

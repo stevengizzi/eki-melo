@@ -182,12 +182,17 @@ function realizeLeadAssignment(transformed, startBeat, mode, tonic, leadOctave) 
 
   return degreeEvents.map((event, i) => {
     let pitch = pitchAt(event);
+    let anomalous = false;
     if (i === chromaticAt) {
       const neighborIndex = i + 1 < degreeEvents.length ? i + 1 : i - 1;
       if (neighborIndex >= 0) {
         const neighbor = pitchAt(degreeEvents[neighborIndex]);
         const direction = Math.sign(toMidi(neighbor) - toMidi(pitch)) || 1;
         pitch = bendHalfStep(pitch, direction);
+        // Tag the realized chromatic note so Stage 7's chiptune_idiomatic
+        // out_of_mode rule exempts it (it is a declared anomaly, not a stray
+        // accidental). See theory/voice-leading-rules.js.
+        anomalous = true;
       }
     }
     return {
@@ -196,6 +201,7 @@ function realizeLeadAssignment(transformed, startBeat, mode, tonic, leadOctave) 
       duration: event.duration,
       degree: event.degree,
       octave_offset: event.octave_offset,
+      ...(anomalous ? { anomalous: true } : {}),
     };
   });
 }
@@ -388,10 +394,13 @@ export function pieceTotalBeats(macroParams) {
 
 // Strip a voice's events down to the { pitch, beat, duration } VoiceTracks
 // shape (lead events also carry degree/octave_offset internally, for harmony)
-// and sort by beat.
+// and sort by beat. The `anomalous` flag — set on a chromatic-neighbor lead
+// note — is carried through so Stage 7 can exempt it from out_of_mode repair.
 function asTrack(events) {
   return events
-    .map(({ pitch, beat, duration }) => ({ pitch, beat, duration }))
+    .map(({ pitch, beat, duration, anomalous }) =>
+      anomalous ? { pitch, beat, duration, anomalous: true } : { pitch, beat, duration }
+    )
     .sort((a, b) => a.beat - b.beat);
 }
 

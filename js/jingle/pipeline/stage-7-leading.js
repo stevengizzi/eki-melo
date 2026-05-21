@@ -1,26 +1,38 @@
 /* =================================================================
-   STAGE 7 — VOICE-LEADING PASS (identity stub, buildplan Session 4).
+   STAGE 7 — VOICE-LEADING PASS (buildplan Session 7).
 
-   *** PLACEHOLDER. Implemented in Session 7. ***
+   applyVoiceLeading(voiceTracks, config, macroParams) → voiceTracks
 
-   The real Stage 7 will scan VoiceTracks against a configurable voice-leading
-   rule set (theory/voice-leading-rules.js — `chiptune_idiomatic` and
-   `cpp_strict` presets) and apply repair operations: octave displacement for
-   range violations, pitch substitution for parallel perfects (cpp_strict),
-   snap-to-mode for out-of-mode accidentals unless anomaly-flagged. For now it
-   returns its input unchanged so the runner can thread all stages end-to-end.
+   A thin pass-through to theory/voice-leading-rules.js. It selects the rule
+   preset from the PipelineConfig — `config.knobs.voice_leading_strictness`
+   (buildplan §3), defaulting to 'chiptune_idiomatic' — and threads macroParams
+   (mode/tonic) so the mode-aware repairs (snap-to-mode, step nudges) work.
 
-   As of Session 5 the VoiceTracks it passes through are beat-stamped
-   { pitch, beat, duration } events (the runner sequences after Stage 8) — an
-   identity pass is agnostic to that, but the future implementation will read
-   the beat positions.
+   The actual rule set, repair primitives, and PRESETS registry live in
+   theory/voice-leading-rules.js. The two presets:
+   - chiptune_idiomatic (default): range-clamp; snap out-of-mode LEAD notes
+     unless anomaly-flagged; allow parallel perfects, ignore voice crossing and
+     tritones (the texture vocabulary owns those).
+   - cpp_strict: range-clamp; snap every voice to mode (no anomaly exemption);
+     forbid voice crossing and parallel perfects; fill melodic tritones.
+
+   Operates on beat-stamped { pitch, beat, duration } events (the Session-5
+   VoiceTracks shape); returns a NEW VoiceTracks, input unmutated. The runner
+   calls this between Stage 6 and Stage 8.
+
+   PORTABILITY. pipeline/ code — may import theory/ and pipeline-config.
    ================================================================= */
+import { applyVoiceLeading as applyRules } from '../theory/voice-leading-rules.js';
+import { DEFAULT_CONFIG } from './pipeline-config.js';
 
 /**
- * Identity pass — returns VoiceTracks unchanged. `config` is accepted for
- * signature stability with the Session-7 implementation.
+ * Dispatch to the configured voice-leading preset. `config` is the
+ * PipelineConfig (defaults to DEFAULT_CONFIG); `macroParams` supplies the
+ * mode/tonic the rules need. With no macroParams the pass is a no-op (the wired
+ * pipeline always provides it — this guards stray callers).
  */
-export function applyVoiceLeading(voiceTracks /* , config */) {
-  // TODO(Session 7): scan and repair per voice_leading_strictness.
-  return voiceTracks;
+export function applyVoiceLeading(voiceTracks, config = DEFAULT_CONFIG, macroParams) {
+  if (!macroParams) return voiceTracks;
+  const preset = config?.knobs?.voice_leading_strictness ?? 'chiptune_idiomatic';
+  return applyRules(voiceTracks, macroParams, preset);
 }
