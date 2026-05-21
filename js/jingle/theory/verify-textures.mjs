@@ -6,11 +6,14 @@
      1. textures — every texture in TEXTURE_REGISTRY, run against representative
         lead-event sequences in several modes, (a) returns an array, (b) emits
         events with a valid Pitch and a positive duration, (c) keeps every Pitch
-        in the harmony register MIDI 60..83, and (d) never sits a harmony event
-        above the lead note sounding at its onset — the no-voice-crossing rule.
-        imitation_one_beat_delay is the documented exception to (d): a one-beat-
-        delay canon legitimately crosses, so it is checked for (a)-(c) only, and
-        the crossing it produces is reported (informationally) so we can see it.
+        in the harmony register (MIDI 60..83 for below-the-lead textures; the
+        two `*_above` upper harmonies get the raised ceiling MIDI 60..96), and
+        (d) never sits a harmony event above the lead note sounding at its onset
+        — the no-voice-crossing rule. THREE textures are documented exceptions
+        to (d), where crossing is intrinsic: parallel_thirds_above,
+        parallel_sixths_above (upper harmonies) and imitation_one_beat_delay (a
+        delayed canon). They are checked for (a)-(c) only, and the crossings they
+        produce are reported (informationally) so we can see them.
      2. dispatch — Stage 6's buildHarmony reaches the registry: every registry
         name is callable through a TexturePlan.
      3. end-to-end — runPipeline over every hand-written inspector case (now
@@ -42,8 +45,12 @@ import { CASES } from '../debug/pipeline-inspector-cases.js';
 
 const HARMONY_LOW_MIDI = 60;
 const HARMONY_HIGH_MIDI = 83;
+const HARMONY_ABOVE_HIGH_MIDI = 96; // raised ceiling for the *_above upper harmonies
 const EPSILON = 1e-9;
-const CROSSING_EXEMPT = new Set(['imitation_one_beat_delay']);
+// Upper harmonies — sit above the lead by design, with the raised ceiling.
+const ABOVE_TEXTURES = new Set(['parallel_thirds_above', 'parallel_sixths_above']);
+// Textures where crossing above the lead is intrinsic, not an accident.
+const CROSSING_EXEMPT = new Set(['imitation_one_beat_delay', ...ABOVE_TEXTURES]);
 
 const failures = [];
 const notes = [];
@@ -137,10 +144,12 @@ for (const name of Object.keys(TEXTURE_REGISTRY)) {
         fail(`texture:${name}:${mode}`, `event ${i} beat not finite: ${JSON.stringify(event.beat)}`);
       }
 
-      // (c) in the harmony register.
+      // (c) in the harmony register (the *_above upper harmonies get the
+      // raised ceiling).
       const midi = toMidi(pitch);
-      if (midi < HARMONY_LOW_MIDI || midi > HARMONY_HIGH_MIDI) {
-        fail(`texture:${name}:${mode}`, `event ${i} pitch ${toScoreString(pitch)} (MIDI ${midi}) out of range 60..83`);
+      const ceiling = ABOVE_TEXTURES.has(name) ? HARMONY_ABOVE_HIGH_MIDI : HARMONY_HIGH_MIDI;
+      if (midi < HARMONY_LOW_MIDI || midi > ceiling) {
+        fail(`texture:${name}:${mode}`, `event ${i} pitch ${toScoreString(pitch)} (MIDI ${midi}) out of range ${HARMONY_LOW_MIDI}..${ceiling}`);
       }
 
       // (d) no voice crossing (except the documented imitation exception).
@@ -160,7 +169,8 @@ for (const name of Object.keys(TEXTURE_REGISTRY)) {
     fail(`texture:${name}`, 'produced no events across any probe mode');
   }
   if (CROSSING_EXEMPT.has(name) && crossings > 0) {
-    notes.push(`${name}: ${crossings} documented voice crossing(s) across the probes (the one-beat-delay canon dipping below its echo) — accepted, not a failure.`);
+    const why = ABOVE_TEXTURES.has(name) ? 'an upper harmony, above the lead by design' : 'a delayed canon overlapping the lead';
+    notes.push(`${name}: ${crossings} documented voice crossing(s) across the probes (${why}) — accepted, not a failure.`);
   }
 }
 

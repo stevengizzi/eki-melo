@@ -1199,3 +1199,54 @@ enumerated).
 **Verdict: Session 6 implementation complete; all verifiers pass and the
 audition harness is ready. The session is NOT closed until Steven completes the
 listening pass and his per-texture notes are recorded here.**
+
+### Audition fixes (2026-05-21, mid-pass) — two defects found by ear, fixed
+
+Steven's listening pass surfaced two concrete defects (not taste calls); both
+fixed in `textures.js` + `verify-textures.mjs`, all verifiers still green.
+
+**1. The four parallel textures collapsed to two distinct sounds.** With the
+strict at-or-below rule, `parallel_thirds_above` octave-displaced down to avoid
+crossing is *identical* to `parallel_sixths_below` (a third above and a sixth
+below are octave-equivalent — same pitch classes a 7-scale-step octave apart),
+and likewise `parallel_sixths_above` == `parallel_thirds_below`. Confirmed
+pitch-for-pitch: over a C5 E5 G5 F5 E5 C5 lead, thirds_above and sixths_below
+both produced E4 G4 B4 A4 G4 E4. The buildplan literally instructed this
+("octave-displace down if it would cross"), but with the lead always in octave
+5 the "above" textures *always* fold under and become redundant — the melody
+never changes, so they can't sound higher.
+- **Fix (decision, deviates from the buildplan's voice-crossing rule):** the two
+  `*_above` textures now sit GENUINELY ABOVE the lead — a true upper harmony —
+  rather than folding down. They get a raised register ceiling
+  (`HARMONY_ABOVE_HIGH_MIDI` = MIDI 96 / C7) so a third/sixth over an octave-5/6
+  lead has headroom instead of clamping back under it, and they are documented
+  voice-crossing exceptions alongside imitation. All four parallel textures are
+  now distinct registers: close-below, close-above, wide-below, wide-above (over
+  the C-major probe: A4-class below thirds, E5-class above thirds, E4-class
+  below sixths, A5/C6-class above sixths).
+
+**2. `imitation_one_beat_delay` was gutted, not "gappy".** The Session-6
+"rest on a coincident attack" reading dropped almost every echo note: the
+one-beat delay snaps the echo onto the lead's own (0.5-quantized) beat grid, so
+onset coincidences are the rule, not the exception. Measured survivors out of
+the lead's notes: bright_arpeggio 2/6, dorian_call 2/6, harmonic_minor 3/5,
+phrygian_dominant **1/7**, pentatonic 3/7 — not a canon, just stray blips.
+- **Fix (decision, drops a buildplan clause):** the coincident-attack rest is
+  removed; imitation is now a true overlapping canon (every echo note sounds,
+  one beat later, transposed to the nearest chord tone, tail clipped at the
+  passage end). Overlap with the lead IS the canon, and crossing is already the
+  documented exception here. The literal "rest where it overlaps a still-
+  sounding lead note" clause stays unimplemented — a continuous lead makes it
+  degenerate, and the coincident-attack reading was the destructive cut.
+  bright_arpeggio now echoes C5 E5 G5 F5 E5 (5 of 6, last clipped); phrygian
+  echoes the full E5 F5 G#5 A5 G#5 F5 line one beat late.
+
+**Still open (taste call, awaiting Steven's decision — not a defect):**
+`heterophony` is logically correct and behaves as documented, but (a) it sits an
+OCTAVE BELOW the lead rather than at unison, and (b) it always moves by step, so
+it traces the lead's *direction* but not its *intervals* — a leapy lead (an
+arpeggio) gets its leaps filled into a scale underneath, a stepwise lead becomes
+the line an octave down with each note anticipated. Options on the table: keep
+the octave-below shadow (current) or switch to literal unison + ornament (now
+viable since crossing is accepted for intrinsic-crossing textures). Deferred to
+Steven's call.

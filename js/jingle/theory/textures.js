@@ -34,13 +34,20 @@
    (Stage 6 inserts rests for gaps later, in toSequence).
 
    RANGE / VOICING CONSTRAINTS.
-   - Harmony register window is MIDI 60 (C4) … 83 (B5). Any computed pitch
-     outside it is octave-displaced back in (clampToRange).
-   - Voice crossing: harmony sits AT OR BELOW the lead at every instant. A
-     texture that would place harmony above the lead octave-displaces it down
-     (placeAtOrBelow). The ONE documented exception is imitation: a one-beat-
-     delay canon legitimately crosses when the lead has dipped below the echo,
-     so it only range-clamps and may briefly sit above the lead.
+   - Harmony register window is MIDI 60 (C4) … 83 (B5) for textures that sit
+     below the lead. Any computed pitch outside it is octave-displaced back in
+     (clampToRange). The two `*_above` textures get a raised ceiling
+     (HARMONY_ABOVE_HIGH_MIDI) so they have headroom to genuinely sit over the
+     lead instead of folding back under it.
+   - Voice crossing: textures that sit below the lead stay AT OR BELOW it at
+     every instant (placeAtOrBelow octave-displaces a would-be crossing down).
+     THREE textures are documented exceptions, where crossing is intrinsic to
+     the texture rather than an accident:
+       · parallel_thirds_above / parallel_sixths_above — an UPPER harmony; the
+         whole point is to sit above the lead (range-clamped to the raised
+         ceiling, not forced under).
+       · imitation_one_beat_delay — a delayed canon that overlaps the lead by
+         design and may sit above or below it.
 
    PORTABILITY. Imports only from theory/ (mode-engine.js, pitch.js). No synth,
    no pipeline — keeps the theory layer portable.
@@ -51,6 +58,7 @@ import { toMidi, pitchClassOf, pitchFromLetterAndAccidental } from './pitch.js';
 const DEGREES_PER_OCTAVE = 7;
 const HARMONY_LOW_MIDI = 60; // C4
 const HARMONY_HIGH_MIDI = 83; // B5
+const HARMONY_ABOVE_HIGH_MIDI = 96; // C7 — headroom for an upper harmony over an octave-5/6 lead
 const EPSILON = 1e-9;
 const OCTAVE_GUARD = 16; // the window is 2 octaves wide; this never trips in practice
 
@@ -96,14 +104,16 @@ function pitchFromLinear(linear, mode, tonic, baseOctave) {
 
 // --- range / voice-crossing helpers ----------------------------------------
 
-// Octave-displace `pitch` until it sits within the harmony register window.
-function clampToRange(pitch) {
+// Octave-displace `pitch` until it sits within [HARMONY_LOW_MIDI, highMidi].
+// `highMidi` defaults to the below-the-lead ceiling; the `*_above` textures
+// pass HARMONY_ABOVE_HIGH_MIDI so an upper harmony has room to stay above.
+function clampToRange(pitch, highMidi = HARMONY_HIGH_MIDI) {
   let result = pitch;
   let guard = 0;
   while (toMidi(result) < HARMONY_LOW_MIDI && guard++ < OCTAVE_GUARD) {
     result = { ...result, octave: result.octave + 1 };
   }
-  while (toMidi(result) > HARMONY_HIGH_MIDI && guard++ < OCTAVE_GUARD) {
+  while (toMidi(result) > highMidi && guard++ < OCTAVE_GUARD) {
     result = { ...result, octave: result.octave - 1 };
   }
   return result;
@@ -148,8 +158,6 @@ function lowestLeadMidi(leadEventsInRange) {
   return Math.min(...leadEventsInRange.map((event) => toMidi(event.pitch)));
 }
 
-const roundBeat = (beat) => Math.round(beat * 1e6) / 1e6;
-
 // The absolute bar indices a passage covers, ascending (the keys of
 // chordsByAbsBar). The chord for a missing key is the first available chord.
 const passageBars = (chordsByAbsBar) => [...chordsByAbsBar.keys()].sort((a, b) => a - b);
@@ -159,13 +167,18 @@ const passageBars = (chordsByAbsBar) => [...chordsByAbsBar.keys()].sort((a, b) =
 // =================================================================
 
 // One harmony event per lead event, a fixed number of scale steps from the
-// lead and clamped to sit at or below it. `steps` is signed in scale degrees
-// (a third = ±2, a sixth = ±5).
-function parallelBySteps(leadEventsInRange, steps, mode, tonic, leadOctave) {
+// lead. `steps` is signed in scale degrees (a third = ±2, a sixth = ±5).
+// `above` selects the register: below textures clamp at or under the lead (the
+// no-crossing rule); above textures clamp to the raised ceiling and genuinely
+// sit over the lead. Without this split a third above, octave-displaced down to
+// avoid crossing, would be identical to a sixth below (and vice versa) — the
+// two pairs would collapse to the same pitches. Keeping the above textures
+// above keeps all four parallel textures distinct.
+function parallelBySteps(leadEventsInRange, steps, mode, tonic, leadOctave, above = false) {
   return leadEventsInRange.map((event) => {
     const pitch = pitchFromLinear(leadLinearOf(event) + steps, mode, tonic, leadOctave);
     return {
-      pitch: placeAtOrBelow(pitch, toMidi(event.pitch)),
+      pitch: above ? clampToRange(pitch, HARMONY_ABOVE_HIGH_MIDI) : placeAtOrBelow(pitch, toMidi(event.pitch)),
       beat: event.beat,
       duration: event.duration,
     };
@@ -181,10 +194,11 @@ export function parallel_thirds_below(leadEventsInRange, chordsByAbsBar, mode, t
 }
 
 /**
- * A third above the lead, octave-displaced down so it never crosses above it.
+ * A third ABOVE the lead — a true upper harmony (crosses above the lead by
+ * design; the raised ceiling gives it room rather than folding it back under).
  */
 export function parallel_thirds_above(leadEventsInRange, chordsByAbsBar, mode, tonic, leadOctave) {
-  return parallelBySteps(leadEventsInRange, +2, mode, tonic, leadOctave);
+  return parallelBySteps(leadEventsInRange, +2, mode, tonic, leadOctave, true);
 }
 
 /**
@@ -195,10 +209,11 @@ export function parallel_sixths_below(leadEventsInRange, chordsByAbsBar, mode, t
 }
 
 /**
- * A sixth above the lead, octave-displaced down so it never crosses above it.
+ * A sixth ABOVE the lead — a true upper harmony (sits above the lead by design,
+ * like parallel_thirds_above).
  */
 export function parallel_sixths_above(leadEventsInRange, chordsByAbsBar, mode, tonic, leadOctave) {
-  return parallelBySteps(leadEventsInRange, +5, mode, tonic, leadOctave);
+  return parallelBySteps(leadEventsInRange, +5, mode, tonic, leadOctave, true);
 }
 
 // =================================================================
@@ -303,19 +318,22 @@ function shiftToNearestChordTone(fromPitch, chord) {
 /**
  * Harmony plays the lead's line one beat later, transposed (in semitones) so
  * its first note lands on the chord tone nearest the lead's first pitch — a
- * one-beat-delay canon. Two Session-6 rules shape the echo:
+ * one-beat-delay canon. Every echo note sounds (the overlap with the lead IS
+ * the canon); the only trim is CLIPPING THE TAIL: the one-beat delay would push
+ * the final echo past the passage, so events starting at/after the passage end
+ * are dropped and a straddler is truncated — imitation never spills into the
+ * next texture or the cadence.
  *
- *  - REST ON COINCIDENT ATTACK. The literal "rest wherever the harmony overlaps
- *    a still-sounding lead note" is degenerate (the lead sounds continuously, so
- *    nothing would ever play). We read it as the strongest overlap — a
- *    simultaneous attack — and suppress (rest) any echo note whose onset
- *    coincides with a lead onset, leaving an audible call-and-echo with gaps.
- *  - CLIP THE TAIL. The one-beat delay would push the final echo past the
- *    passage; events starting at/after the passage end are dropped and a
- *    straddler is truncated, so imitation never spills into the next texture.
+ * The buildplan's "rest wherever the harmony would overlap a still-sounding
+ * lead note" clause is NOT implemented: the lead sounds continuously, so a
+ * literal reading silences the whole voice, and the audition's first cut (which
+ * read it as "rest on a coincident attack") gutted the canon to one or two
+ * stray notes because the one-beat delay snaps the echo onto the lead's own
+ * beat grid. A true overlapping canon is the musically correct realization of
+ * "plays the lead's pitches one beat later." See the Session-6 journal entry.
  *
- * VOICE CROSSING is allowed here (the documented exception): a delayed echo can
- * legitimately sit above the lead when the lead has dipped low. Output is only
+ * VOICE CROSSING is allowed here (the documented exception): a delayed echo
+ * legitimately overlaps and may sit above or below the lead. Output is only
  * range-clamped, never forced under the lead.
  */
 export function imitation_one_beat_delay(leadEventsInRange, chordsByAbsBar, mode, tonic, leadOctave, meter) {
@@ -330,13 +348,10 @@ export function imitation_one_beat_delay(leadEventsInRange, chordsByAbsBar, mode
   const chord = chordsByAbsBar.get(firstBar) ?? (bars.length > 0 ? chordsByAbsBar.get(bars[0]) : null);
   const shift = chord ? shiftToNearestChordTone(first.pitch, chord) : 0;
 
-  const leadOnsets = new Set(leadEventsInRange.map((event) => roundBeat(event.beat)));
-
   const events = [];
   for (const event of leadEventsInRange) {
     const onset = event.beat + 1; // one beat-unit later
     if (onset >= passageEndBeat - EPSILON) continue; // tail past the passage
-    if (leadOnsets.has(roundBeat(onset))) continue; // would attack with the lead → rest
     const duration = Math.min(event.duration, passageEndBeat - onset);
     if (duration <= EPSILON) continue;
     events.push({
