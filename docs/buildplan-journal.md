@@ -1824,3 +1824,328 @@ verifiers pass offline. Texture choreography reads as compositional, the texture
 variation and counterpoint are audibly landing, and the human gate is cleared.
 Cleared to proceed to Session 9 (Stage 5a — phrase structure + motif placement)
 when Steven kicks it off. Do NOT start Session 9 automatically.
+
+**Claude.ai-side verification (Steven + Claude Opus 4.7):**
+- All eight verify scripts re-run independently — PASSED:
+  verify-spelling, verify-forms, verify-motif, verify-stage6,
+  verify-stage8, verify-textures, verify-stage7, verify-stage5b
+  (all exit 0, all offline).
+- Backward compatibility confirmed: sync `runPipeline` produces
+  the same event counts on all three Session-6 cases (79/68 lead/
+  bass for Sunrise, 58/33 for Wanderer's, 54/38 for Desert) —
+  bit-for-bit unchanged.
+- Sync `runPipeline` throws cleanly on missing texturePlan with
+  a message pointing to `runPipelineGenerating` — surfaces
+  incorrect API usage immediately.
+- Async `runPipelineGenerating` with `__mockResponse` produces a
+  beat-aligned (64/64/64) generated case with 0 bad pitches
+  through the real synth.js noteToFreq.
+- Validator catches all four documented defect modes with
+  retry-actionable error messages: unknown texture name (lists
+  allowed), coverage gap (names the uncovered bars), coverage
+  overlap (names the colliding bar), missing section (names the
+  missing label + expected set). Validator collects ALL defects
+  in one pass — the one-shot retry can address them together.
+- Two architectural choices judged correct in retrospect:
+  (a) Sync core + async sibling (rather than the prompt's
+      implicit "make runPipeline async") — every existing call
+      site stays sync, the throw-on-missing surfaces wrong-side
+      usage, and the pattern generalizes to Stages 5a/4/3/2/1.
+  (b) Wrapped envelope at the LLM seam, flat plan inter-stage —
+      downstream consumers (Stage 6) see one consistent shape
+      whether the plan came from hand-supplied input or the LLM.
+- Model pinning to claude-sonnet-4-20250514 to match the
+  /api/generate allow-list is well-documented — preserves both
+  the deployed Pages and Claude.ai artifact-runtime paths
+  without a server change (a project-instructions hard
+  constraint).
+- Steven's "counterpoint harmony is getting there" verdict
+  matches the Stage-5b deliverable exactly; the "melodies/bass/
+  forms" axes are correctly scoped to the remaining LLM stages
+  (S9–S12).
+
+**Verdict: Session 8 complete and verified. First LLM stage is
+wired end-to-end with strict validation, one-shot retry, offline
+fallback, and the freedom-knob plumbing. The patterns established
+here (sync-core + async-sibling, wrapped envelope at LLM seam,
+collect-all-defects validation, model-pinning) are the template
+for Stages 5a, 4, 3, 2, 1. Cleared to proceed to Session 9 —
+Stage 5a phrase structure + motif placement.**
+
+## Session 9 — 2026-05-21 — Stage 5a phrase structure + motif placement (SECOND LLM stage)
+
+> Implementation entry. Stage 5a is the SECOND LLM stage and the sibling of
+> Session 8's Stage 5b — same architecture, different remit (it shapes how the
+> motifs develop, not the harmony texture). The human checkpoint is SUBSTANTIAL
+> this session (Steven's "want more creative melodies" pressure starts to bite:
+> listen to a fully-generated case, A/B against the hand-supplied + Stage-5b-only
+> twins, try the new phrase_adventurousness knob, read the generated PhrasePlan
+> for compositional intent) and is recorded at the END of this entry AFTER his
+> pass — it is not here yet.
+
+**What landed (commits):**
+- feat(jingle): add Stage 5a phrase structure + motif placement (2nd LLM stage)
+  - `js/jingle/pipeline/stage-5a-phrase.js` — `generatePhrasePlan` (with
+    `__mockResponse` offline fallback + `onTrace`), `validatePhrasePlan`,
+    `buildPhrasePlanPrompt`; LLM call mimics api.js / Stage 5b; validate-then-
+    retry-once. Structurally identical to stage-5b-texture.js.
+  - `js/jingle/theory/form-engine.js` — new `deriveSectionRelationships(labels)`
+    (form-independent, label-pattern inference; the fallback for when curated
+    metadata doesn't line up with the labels in play)
+  - `js/jingle/pipeline/pipeline-config.js` — new `phrase_adventurousness` knob on
+    all four presets (tame/adventurous/wild), modeled on texture_adventurousness
+  - `js/jingle/pipeline/pipeline-runner.js` — `runPipelineGenerating` now threads
+    Stage 5a (phrasePlan) before Stage 5b (texturePlan); sync `runPipeline`
+    requires BOTH phrasePlan AND texturePlan
+- feat(jingle): wire Stage 5a into the inspector + add the offline verifier
+  - `js/jingle/debug/pipeline-inspector-cases.js` — new `wanderer-fully-generated`
+    case in `GENERATED_CASES` (both phrasePlan AND texturePlan omitted); `CASES`
+    and the Session-8 generated cases unchanged
+  - `js/jingle/debug/pipeline-inspector.html` — a phrase-adventurousness selector,
+    a Stage-5a panel (prompt / raw response(s) / generated PhrasePlan) above the
+    Stage-5b panel, and a phrase-then-texture generation flow for the
+    fully-generated case
+  - `js/jingle/theory/verify-stage5a.mjs` — committed offline regression check
+- docs(jingle): record Session 9 implementation (this entry)
+
+**Exit criteria status:**
+- [x] `stage-5a-phrase.js` exports `generatePhrasePlan` + `validatePhrasePlan` +
+  `buildPhrasePlanPrompt`, structurally mirroring stage-5b-texture.js (prompt
+  builder separated from the fetch; wrapped LLM envelope unwrapped to the flat §3
+  plan; collect-all-defects validation; validate-then-retry-once; `__mockResponse`
+  offline fallback; model pinned to `claude-sonnet-4-20250514`).
+- [x] The validator catches every development-rule defect with retry-actionable
+  messages — unknown motif, unknown transform, B-section-without-development,
+  reprise-without-source-motif, adjacent-identical, overlap, motivic-transform-on-
+  a-cadence-bar, plus the schema rules (missing/extra section, bad phrase_structure,
+  out-of-range start_bar, bad length_bars, envelope shape). Each is asserted in
+  `verify-stage5a.mjs` with a keyword check on the message.
+- [x] form-engine exposes section relationships for the validator: the curated
+  `getSectionRelationships(form)` (already present from Session 2) PLUS the new
+  `deriveSectionRelationships(labels)` fallback. The stage combines them — see the
+  form-engine amendment below.
+- [x] pipeline-runner threads phrasePlan generation into `runPipelineGenerating`
+  (Stage 5a before Stage 5b, so the texture stage receives the resolved phrasePlan);
+  sync `runPipeline` now requires BOTH phrasePlan AND texturePlan.
+- [x] `pipeline-inspector.html` shows the generated PhrasePlan (Stage-5a panel) and
+  the generated TexturePlan (Stage-5b panel) on the fully-generated case, with a
+  phrase-adventurousness selector alongside the texture one.
+- [x] `verify-stage5a.mjs` passes offline (no API calls); all prior verifiers still
+  pass (verify-spelling / -forms / -motif / -stage6 / -stage8 / -textures / -stage7 /
+  -stage5b — all exit 0).
+- [x] This journal entry.
+- [ ] **Human checkpoint** — substantial (the melodic-creativity pressure point);
+  NOT yet run. Added after Steven's listening pass.
+
+**Verification anchors that passed (`verify-stage5a.mjs`, committed, OFFLINE):**
+- `validatePhrasePlan` on a valid wrapped plan (D dorian ternary; A states/sequences
+  motif a, B develops motif b with invert+retrograde, A' brings back a) →
+  `{ ok:true, errors:[] }`. Each documented defect → `{ ok:false }` with a message
+  naming the defect (the keyword-checked list above). Notably: the cadence-bar rule
+  fires with the harmonicPlan supplied and is correctly SKIPPED when it is omitted
+  (the optional 4th arg — see the decision below).
+- `generatePhrasePlan({ __mockResponse })`: a valid mock parses + validates and
+  returns the FLAT §3 plan (keys = section labels, no `sections` wrapper). Threaded
+  through `runPipelineGenerating` with Stage 5b ALSO mocked, it runs end-to-end
+  (5a → 5b → 6 → 7 → 8 → toSynthString) to a FinalJingle whose every pitch parses
+  through the real synth.js `noteToFreq` to a finite positive frequency, all three
+  voices beat-aligned (48/48/48 for the 12-bar case). A malformed mock (bad JSON)
+  throws; a semantically-invalid mock (B-without-development, unknown transform)
+  throws on validation.
+- `buildPhrasePlanPrompt` is pure and names the exact section labels (including the
+  primed `"A'"`), the phrase-structure + transform vocabularies, cadential_gesture,
+  and the active adventurousness directive.
+- Spot-check of the live prompt for the fully-generated Wanderer's case: the FORM
+  ROLES block reads `A: exposition`, `B: contrast vs A — MUST contain non-literal
+  motivic development`, `A': reprise of A — MUST bring back a motif from A` — the
+  curated AABA/ternary metadata correctly remapped onto the explicit `[A, B, A']`
+  labels.
+
+**Prompt design choices:**
+- **System prompt** verbatim from the buildplan: "You are a composer choosing phrase
+  structure and shaping motivic development for a chiptune piece. Your output is a
+  strict JSON object matching the given schema; no commentary."
+- **User prompt** is assembled from compact, labeled blocks: PIECE (key/mode/form/
+  tempo/meter/register/harmonic-rhythm/sections-with-bar-counts), MOTIFS (degrees +
+  rhythm + contour + register + any anomaly, each named so the model references it
+  by name), HARMONIC PLAN (per-section progression + cadence — informs phrase choices
+  and which sections need the cadential slot), FORM ROLES (per-section role / reprise-
+  source / contrast, with inline "MUST …" notes so the model honors the development
+  rules), the PHRASE STRUCTURE vocabulary (period/sentence/phrase_group/hybrid with
+  one-line descriptions), the TRANSFORM vocabulary (every transformations.js export +
+  cadential_gesture, each with a one-line description), an explicit DEVELOPMENT RULES
+  block (the same five rules the validator enforces, stated as prompt asks so the
+  first pass is usually valid), the active adventurousness directive, and a JSON
+  skeleton listing every section by its exact label + bar count + a per-section
+  cadential-bar note.
+- **Transform vocabulary is generated off transformations.js's own exports**
+  (`Object.keys(Transforms)` filtered to functions), so the listing — and what the
+  validator accepts — can never drift from the library. cadential_gesture is appended
+  separately (it is a reserved slot, not a transformations.js export).
+- **Forced-JSON by instruction**, fences-stripped + brace-matched parse — identical
+  to Stage 5b / api.js. Model pinned to `claude-sonnet-4-20250514` (the /api/generate
+  allow-list), max_tokens 2500 (slightly above 5b's 2000, since a lead array per
+  section is a touch larger than a texture/bass pair).
+
+**Validation strategy (the music-theory work this session):**
+- `validatePhrasePlan` collects ALL defects in one pass (like 5b), so the single
+  retry is handed every problem at once. Two layers: a per-section `validateLead`
+  (schema rule f, adjacency c, coverage/overlap d, cadence-bar e) and a cross-section
+  pass (development a, reprise-motif b) that uses the section relationships.
+- The five DEVELOPMENT RULES, implemented:
+  - (a) **B-type development.** A `contrast`/`variation` section must contain at least
+    one assignment whose transform is a genuine non-literal motivic transform (motif
+    ≠ null, transform ∉ {literal, cadential_gesture}). All-literal (or literal +
+    cadential only) → rejected with the buildplan's exact message.
+  - (b) **Reprise reuses its source motif.** A `reprise`/`varied_reprise` section must
+    use at least one motif that its source section also uses (so A3 of AABA must
+    contain "a"). The source's motif set is collected from the plan being validated;
+    if the source has no motifs, the rule is a no-op (nothing to match).
+  - (c) **No adjacent identical pair.** Adjacent (by sorted start_bar) assignments
+    may not share the same `{ motif, transform }` — compared via a canonical key with
+    sorted params, so `transpose_third(direction=up)` ≠ `transpose_third(direction=down)`.
+  - (d) **No overlaps; no overflow.** Sorted by start_bar, each assignment's
+    `start + length` (the first free bar) must be ≤ the next assignment's start; gaps
+    (rests) are allowed; the last assignment may not run past `section.bars + 1`.
+  - (e) **Cadenced final bar = cadential_gesture.** If the section declares a cadence
+    in the harmonicPlan, any assignment covering its final bar with a transform other
+    than cadential_gesture is rejected (Stage 8 overwrites that bar, so a motivic
+    transform there is silently wiped — this is the "musically wrong" defect the human
+    checkpoint watches for, caught at validation instead).
+  - (f) Schema: exact section-label set, phrase_structure ∈ the four names, motif null
+    or a known key, transform a recognized name (or the object form), start_bar in
+    [1, bars], length_bars ≥ 1.
+- **The validator reuses `computeSectionPlan`** (from stage-6-voice.js) as the single
+  source of truth for labels + bar counts — the same function Stage 6, the runner,
+  and Stage 5b use — so "what's a valid section" can't drift.
+
+**Form-engine amendment (the section-relationship work):**
+- form-engine already exposed `getSectionRelationships(formName)` (Session 2), keyed
+  by the FORM's section labels. The wrinkle: a piece can override a form's labels via
+  `macroParams.sections` (e.g. Wanderer's uses `form: ternary` but labels `[A, B, A']`,
+  while the library's ternary is `[A1, B, A2]`), so a direct `relationships[label]`
+  lookup misses. Two parts to the fix, split by layer:
+  - **theory layer:** added `deriveSectionRelationships(labels)` to form-engine — a
+    pure, form-independent inference from the label letter-pattern (first appearance
+    of a letter = exposition or, for a non-home letter, contrast; a later appearance
+    with no contrast between = repetition; a later appearance after a contrast =
+    reprise; `of`/`contrast_from` resolved to the right sibling). Verified against
+    ternary/AABA/ABCA — matches the curated forms.json semantics.
+  - **pipeline layer:** Stage 5a's `sectionRelationshipsForPlan(macroParams, plan)`
+    PREFERS the curated `getForm(form).relationships`, remapped onto the actual labels
+    by POSITION (and remapping `of`/`contrast_from` through the same position map), and
+    FALLS BACK to `deriveSectionRelationships(labels)` only when there is no matching
+    form (unknown form, or a section-count mismatch). This keeps the curated, hand-
+    authored relationships for the 12 library forms (so e.g. ABAB's A2 stays a
+    `repetition`, not a `reprise`) while still handling label overrides and ad-hoc
+    forms. The label-remapping lives in the pipeline (not form-engine) because it
+    depends on `computeSectionPlan`, which is pipeline code — form-engine stays
+    theory-pure (imports nothing outside theory/).
+
+**Surprises / decisions made:**
+- **`validatePhrasePlan` takes an OPTIONAL 4th arg `harmonicPlan`.** The buildplan's
+  signature is `validatePhrasePlan(wrappedPlan, macroParams, motifs)`, but rule (e)
+  needs the per-section cadence, which lives in the harmonicPlan, not macroParams.
+  Resolved by adding `harmonicPlan` as an optional 4th argument: when present, rule
+  (e) runs; when absent, it is skipped (the other rules still hold). `generatePhrasePlan`
+  always passes it. The documented 3-arg form still works; this is additive.
+- **Two mock channels in `runPipelineGenerating`.** Stage 5b's `__mockResponse`
+  (Session 8) is now the TEXTURE channel (kept for back-compat — verify-stage5b is
+  unchanged and still passes); the new `__mockPhraseResponse` is the PHRASE channel,
+  with `onPhraseTrace` as the phrase trace hook. The fully-generated verifier supplies
+  both; the Session-8 sunrise/wanderer-generated cases still supply only the texture
+  mock (their phrasePlan is present, so Stage 5a is never called for them).
+- **Dependency order in the runner: Stage 5a before Stage 5b.** Stage 5b's prompt
+  consumes the phrasePlan (which motif/transform lands where), so the phrasePlan must
+  be resolved first. The runner generates phrasePlan (if absent), then passes the now-
+  resolved phrasePlan into the texture generation. Present-supplied input still wins at
+  each step.
+- **The hand-supplied Session 4–7 phrase plans put motivic transforms on cadenced
+  final bars; the GENERATED plans must NOT (rule e).** The fixtures in
+  pipeline-inspector-cases.js end sections with `fragment_tail` / ornaments even though
+  those sections declare cadences — harmless, because (1) those hand-supplied cases are
+  never run through `validatePhrasePlan` (only generated plans are) and (2) Stage 8
+  overwrites the final bar regardless. Rule (e) exists precisely so the LLM doesn't
+  waste a developmental gesture on a bar that's about to be overwritten. So generated
+  plans use the reserved `cadential_gesture` (motif null) on every cadenced section's
+  final bar; the hand-supplied fixtures are left as the historical Session-4 shape.
+- **`phrase_adventurousness` knob (≠ `texture_adventurousness`).** Added a distinct knob
+  on all four presets (conservative→tame, balanced→adventurous, adventurous→adventurous,
+  wild→wild), modeled on Session 8's texture knob. tame ≈ "literal + step/third
+  sequences, period-dominant, ornaments rare"; adventurous ≈ "retrograde/inversion in
+  contrast sections, fragmentation, tasteful ornaments"; wild ≈ "bold throughout, plus
+  exactly one section reaches for a striking anomaly gesture (chromatic passing /
+  retrograde / invert) the others don't." The wild "exactly one anomaly section" rule
+  is a PROMPT directive, not a validator rule (the buildplan lists it under the knobs,
+  and the enforced rules are a–f) — it is what the human checkpoint's step 3 confirms by
+  ear, not a hard rejection.
+- **Stacked Stage-5a / Stage-5b panels, not literal side-by-side.** The inspector is a
+  vertical stack of stage panels; the generated PhrasePlan (Stage-5a panel) sits directly
+  above the generated TexturePlan (Stage-5b panel) on the fully-generated case, both
+  visible at once. This matches the existing layout idiom and satisfies "inspect what the
+  model chose for both stages on the same case." The inspector keeps its manual
+  generate-then-display flow (rather than calling `runPipelineGenerating`) so the
+  intermediate VoiceTracks / Stage-7 repairs / cadence panels still render.
+- **No DEC/CHANGELOG entry** — consistent with Sessions 1–8 and the buildplan: the new
+  pipeline is built alongside the deployed app and is not user-visible until Session 12,
+  where the DEC/CHANGELOG/architecture updates are scheduled.
+
+**Deferred:**
+- **Live prompt tuning.** Any aesthetic adjustments (how strongly each adventurousness
+  level develops, whether the model reaches for the bolder transforms often enough) wait
+  on Steven's listening pass — those are findings, not blockers, per the checkpoint rules.
+  Verification this session was OFFLINE only (no API key in the build context); the model's
+  actual motif-placement choices are exactly what the human checkpoint evaluates.
+- **`deriveSectionRelationships` vs. curated metadata for ABAB-style returns.** The
+  label-pattern fallback marks a returned home section after a contrast as a `reprise`,
+  whereas forms.json marks ABAB's mid-stream A2 a `repetition`. This only affects the
+  FALLBACK path (non-library forms / count mismatch) — the 12 library forms use the
+  curated metadata — and even the stricter reading is musically defensible (it would just
+  ask A2 to reuse A1's motif, which an "A" return should anyway). Documented; revisit only
+  if a non-library form needs the finer distinction.
+- **`params` semantics validated but not deeply specified to the model.** The prompt
+  describes `invert {pivot}`, `transpose_third {direction}`, etc.; the validator checks the
+  transform name + that `params` is an object. If the model supplies an unsupported param
+  key, Stage 6's transform reads only the keys it knows (or uses its default). Tighten if
+  it matters.
+- **Anomaly-budget enforcement** (buildplan §7.1) is still untouched — the wild knob asks
+  for "exactly one" striking section in prose but nothing counts ornament_chromatic_passing
+  usage against `anomaly_budget_per_section`. That accounting is a later concern (it spans
+  Stage 4 motifs + Stage 3 harmony too).
+
+**Notes for next session (Session 10 — Stage 4 motivic material):**
+- Mimic this stage's structure exactly (it is now the second worked example of the LLM-
+  stage template, alongside 5b): a pure `build<Stage>Prompt({…}) → { system, user }`; a
+  `validate<Output>(…) → { ok, errors }` collecting ALL defects and reusing
+  `computeSectionPlan`/theory libraries for ground truth; a `generate<Output>({ …,
+  __mockResponse, onTrace })` with the offline fallback + one-shot validate-then-retry;
+  model pinned to `claude-sonnet-4-20250514`; wrapped LLM envelope unwrapped to the flat
+  inter-stage shape.
+- Stage 4 generates the MOTIFS that Stage 5a places. In `runPipelineGenerating` it slots
+  in BEFORE Stage 5a (motifs → phrase plan → texture plan), following the same "generate
+  if absent" pattern. It will need its own mock channel (e.g. `__mockMotifsResponse`).
+  `validateMotif` already exists in theory/motif.js — Stage 4's validator should lean on it
+  for the per-motif shape and add the schema/degree-range/leap-budget/anomaly-budget checks.
+- The motif-playground (Session 3) is the visualization the buildplan asks Stage 4's
+  inspector panel to reuse.
+- `verify-stage5a.mjs` runs with the throwaway-package.json dance like the others.
+
+**HUMAN CHECKPOINT — NOT YET RUN (substantial — the melodic-creativity pressure point).**
+The session is NOT closed until Steven completes the listening pass: open the inspector,
+run "Wanderer's Path — fully generated" (live LLM for BOTH Stage 5a and 5b), A/B it against
+the hand-supplied Wanderer's and the Stage-5b-only-generated Wanderer's from Session 8,
+exercise the phrase_adventurousness knob (tame/adventurous/wild — confirm wild produces
+ornaments/retrogrades the others don't), and read the generated PhrasePlan in the Stage-5a
+panel for compositional intent (a B with a retrograde/inversion, a reprise that brings A's
+motif back varied). His verdict and any findings get appended here afterward. Per the
+checkpoint rules: validation failures / ill-formed plans are fix-now items; aesthetic
+surprises are future prompt-tuning findings, not blockers — UNLESS a surprise is musically
+wrong (e.g. a motivic transform stranded on a cadence bar Stage 8 will overwrite, which
+rule (e) is built to catch).
+
+**Verdict: Session 9 implementation complete; all nine verifiers pass offline (the eight
+prior + verify-stage5a), the second LLM stage is wired end-to-end with strict schema +
+music-theory validation, a one-shot retry, a deterministic offline fallback, and the
+phrase_adventurousness freedom knob. The session closes after Steven's listening pass
+confirms the LLM phrase stage produces audibly different motivic development than the
+hand-supplied baseline. Do NOT start Session 10 automatically.**
