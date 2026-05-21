@@ -113,15 +113,25 @@
 <body>
   <h1>♪ Pipeline Inspector</h1>
   <p class="subtitle">
-    Session 7 — voice realization through voice-leading + cadences to audio.
-    <code>stage-6-voice.js</code> → <code>stage-7-leading.js</code> (preset rule set) →
+    Session 8 — Stage 5b (texture choreography) is the first LLM stage.
+    <code>stage-5b-texture.js</code> (generated cases only) →
+    <code>stage-6-voice.js</code> → <code>stage-7-leading.js</code> →
     <code>stage-8-cadence.js</code> → <code>toSynthString</code> → <code>LiveSynth</code>.
+    Hand-supplied cases skip 5b; <b>generated</b> cases hit the live LLM.
   </p>
 
   <div class="controls">
     <div class="field">
       <label for="case-select">Test case</label>
       <select id="case-select"></select>
+    </div>
+    <div class="field">
+      <label for="adventurousness-select">Texture adventurousness (generated only)</label>
+      <select id="adventurousness-select">
+        <option value="tame">tame</option>
+        <option value="adventurous" selected>adventurous</option>
+        <option value="wild">wild</option>
+      </select>
     </div>
     <div class="field">
       <label for="preset-select">Voice-leading preset</label>
@@ -143,6 +153,22 @@
     <div class="guest-card" data-id="inspector">
       <div id="piano-roll-host"></div>
     </div>
+  </div>
+
+  <div class="stage" id="stage5b">
+    <h2>Stage 5b — Texture choreography (LLM)</h2>
+    <p class="note">First LLM stage (Session 8). For <b>generated</b> cases this calls <code>generateTexturePlan</code> (live model) and the generated TexturePlan flows into Stage 6. For hand-supplied cases it shows n/a — those carry their own texturePlan. The prompt is built by <code>buildTexturePlanPrompt</code>; the raw response is parsed + validated against the strict schema (retry once on a validation error).</p>
+    <p class="repairs-summary" id="stage5b-status"></p>
+    <details>
+      <summary style="cursor:pointer;color:var(--accent-blue);font-size:12px;">prompt (system + user)</summary>
+      <pre id="stage5b-prompt"></pre>
+    </details>
+    <details>
+      <summary style="cursor:pointer;color:var(--accent-blue);font-size:12px;">raw model response(s)</summary>
+      <pre id="stage5b-raw"></pre>
+    </details>
+    <p class="note">Generated TexturePlan (the flat plan Stage 6 consumes):</p>
+    <pre id="stage5b-plan"></pre>
   </div>
 
   <div class="stage">
@@ -180,20 +206,34 @@
   import { runPipeline } from '../pipeline/pipeline-runner.js';
   import { realizeVoices } from '../pipeline/stage-6-voice.js';
   import { enforceCadences } from '../pipeline/stage-8-cadence.js';
+  import { generateTexturePlan, buildTexturePlanPrompt } from '../pipeline/stage-5b-texture.js';
   import { voiceLeadingReport, summarizeRepairs } from '../theory/voice-leading-rules.js';
   import { toScoreString } from '../theory/pitch.js';
   import { DEFAULT_CONFIG } from '../pipeline/pipeline-config.js';
   import { renderPianoRoll } from '../render.js';
   import { synth } from '../synth.js';
-  import { CASES } from './pipeline-inspector-cases.js';
+  import { CASES, GENERATED_CASES } from './pipeline-inspector-cases.js';
 
   const caseSelect = document.getElementById('case-select');
   const presetSelect = document.getElementById('preset-select');
+  const adventurousnessSelect = document.getElementById('adventurousness-select');
   const errorBox = document.getElementById('error');
   const caseMeta = document.getElementById('case-meta');
   const pianoHost = document.getElementById('piano-roll-host');
 
-  CASES.forEach((c, i) => caseSelect.add(new Option(`${c.title} — ${c.macroParams.tonic} ${c.macroParams.mode}`, String(i))));
+  // One flat list (hand-supplied first, then generated); the <option> value is
+  // the index into it. Two optgroups make clear which cases hit the LLM.
+  const ALL_CASES = [...CASES, ...GENERATED_CASES];
+  const handGroup = document.createElement('optgroup');
+  handGroup.label = 'Hand-supplied texturePlan (Sessions 4–7)';
+  const genGroup = document.createElement('optgroup');
+  genGroup.label = 'Generated texturePlan (Session 8 · live LLM)';
+  ALL_CASES.forEach((c, i) => {
+    const opt = new Option(`${c.title} — ${c.macroParams.tonic} ${c.macroParams.mode}`, String(i));
+    (c.generated ? genGroup : handGroup).appendChild(opt);
+  });
+  caseSelect.appendChild(handGroup);
+  caseSelect.appendChild(genGroup);
 
   // Render VoiceTracks Pitch objects in their theoretical spelling, one voice
   // per block, as [note, duration] tuples (null → "rest").
@@ -204,19 +244,65 @@
 
   let currentJingle = null;
 
-  function run() {
+  // Render the Stage-5b panel. For hand-supplied cases it reads n/a; for
+  // generated cases it shows the built prompt, the raw model response(s), and
+  // the validated TexturePlan that flowed into Stage 6.
+  function showStage5b({ generated, prompt, traces, plan, status, statusClean }) {
+    const statusEl = document.getElementById('stage5b-status');
+    statusEl.textContent = status;
+    statusEl.classList.toggle('clean', !!statusClean);
+    document.getElementById('stage5b-prompt').textContent = prompt
+      ? `SYSTEM:\n${prompt.system}\n\nUSER:\n${prompt.user}`
+      : (generated ? '' : 'n/a — hand-supplied case');
+    document.getElementById('stage5b-raw').textContent = traces && traces.length
+      ? traces.map((t) => `# attempt ${t.attempt} — ${t.ok ? 'valid' : 'INVALID: ' + t.errors.join('; ')}\n${t.raw}`).join('\n\n')
+      : (generated ? '' : 'n/a — hand-supplied case');
+    document.getElementById('stage5b-plan').textContent = plan
+      ? JSON.stringify(plan, null, 1)
+      : (generated ? '' : 'n/a — hand-supplied case');
+  }
+
+  async function run() {
     errorBox.textContent = '';
-    const testCase = CASES[Number(caseSelect.value)];
+    const testCase = ALL_CASES[Number(caseSelect.value)];
     const preset = presetSelect.value;
-    // The pipeline config the runner uses for playback — DEFAULT_CONFIG with the
-    // chosen voice-leading preset (Stage 7 reads knobs.voice_leading_strictness).
-    const config = { ...DEFAULT_CONFIG, knobs: { ...DEFAULT_CONFIG.knobs, voice_leading_strictness: preset } };
+    const adventurousness = adventurousnessSelect.value;
+    // The pipeline config — DEFAULT_CONFIG with the chosen voice-leading preset
+    // (Stage 7 reads knobs.voice_leading_strictness) and, for generated cases,
+    // the chosen texture adventurousness (Stage 5b reads it).
+    const config = {
+      ...DEFAULT_CONFIG,
+      knobs: { ...DEFAULT_CONFIG.knobs, voice_leading_strictness: preset, texture_adventurousness: adventurousness },
+    };
     try {
-      const voiceTracks = realizeVoices(testCase);
+      // Generated cases call Stage 5b (live LLM) to get a texturePlan; hand-
+      // supplied cases use their own. `effectiveCase` carries the texturePlan
+      // either way, so the synchronous display path below is identical.
+      let effectiveCase = testCase;
+      if (testCase.generated) {
+        const prompt = buildTexturePlanPrompt({ ...testCase, config });
+        showStage5b({ generated: true, prompt, traces: [], plan: null, status: `Calling Stage 5b LLM (${adventurousness})…` });
+        caseMeta.innerHTML = `<b>${testCase.title}</b> · calling Stage 5b LLM (${adventurousness})…`;
+        const traces = [];
+        const texturePlan = await generateTexturePlan({
+          ...testCase,
+          config,
+          onTrace: (t) => traces.push(t),
+        });
+        effectiveCase = { ...testCase, texturePlan };
+        showStage5b({
+          generated: true, prompt, traces, plan: texturePlan,
+          status: `Stage 5b OK (${adventurousness}) — ${traces.length} model round-trip(s).`, statusClean: true,
+        });
+      } else {
+        showStage5b({ generated: false, prompt: null, traces: null, plan: null, status: '' });
+      }
+
+      const voiceTracks = realizeVoices(effectiveCase);
       // Stage 7 with the selected preset, keeping the repair report for the delta.
-      const report = voiceLeadingReport(voiceTracks, testCase.macroParams, preset);
-      const afterCadence = enforceCadences(report.tracks, testCase.harmonicPlan, testCase.macroParams, config);
-      currentJingle = runPipeline(testCase, config);
+      const report = voiceLeadingReport(voiceTracks, effectiveCase.macroParams, preset);
+      const afterCadence = enforceCadences(report.tracks, effectiveCase.harmonicPlan, effectiveCase.macroParams, config);
+      currentJingle = runPipeline(effectiveCase, config);
 
       document.getElementById('voicetracks-out').textContent = JSON.stringify(readableVoiceTracks(voiceTracks), null, 1);
 
@@ -240,7 +326,7 @@
         { title: currentJingle.title, tempo: currentJingle.tempo, key: currentJingle.key, mood: currentJingle.mood, form: currentJingle.form, sections: currentJingle.sections, lead: currentJingle.lead, harmony: currentJingle.harmony, bass: currentJingle.bass },
         null, 1
       );
-      document.getElementById('input-out').textContent = JSON.stringify(testCase, null, 1);
+      document.getElementById('input-out').textContent = JSON.stringify(effectiveCase, null, 1);
       pianoHost.innerHTML = renderPianoRoll(currentJingle);
 
       const beats = (t) => t.reduce((s, e) => s + e[1], 0);
@@ -257,13 +343,14 @@
   }
 
   document.getElementById('run-btn').addEventListener('click', run);
-  document.getElementById('play-btn').addEventListener('click', () => {
-    if (!currentJingle) run();
+  document.getElementById('play-btn').addEventListener('click', async () => {
+    if (!currentJingle) await run();
     if (currentJingle) synth.play(currentJingle, 'inspector');
   });
   document.getElementById('stop-btn').addEventListener('click', () => synth.stop());
   caseSelect.addEventListener('change', () => { synth.stop(); run(); });
   presetSelect.addEventListener('change', () => { synth.stop(); run(); });
+  adventurousnessSelect.addEventListener('change', () => { synth.stop(); run(); });
 
   run();
 </script>

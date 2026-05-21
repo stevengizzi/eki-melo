@@ -27,6 +27,14 @@
    Bar indices in phrasePlan/texturePlan are 1-indexed and SECTION-RELATIVE
    (bar 1 is the first bar of the section). Transforms are given as the
    "name@k=v" string form or the { name, params } object form interchangeably.
+
+   SESSION 8. `CASES` (below) is the hand-supplied set, UNCHANGED — every prior
+   verifier iterates over it and runs it synchronously, so it must keep its
+   texturePlan. `GENERATED_CASES` (at the bottom) is a separate export: the same
+   upstream context as Sunrise and Wanderer's but with the texturePlan OMITTED,
+   so the inspector calls Stage 5b (the LLM) to choreograph one live. Kept out of
+   `CASES` on purpose — a case with no texturePlan would crash the Stage-6/7/8
+   verifiers, which trust the hand-supplied plan.
    ================================================================= */
 
 export const CASES = [
@@ -333,4 +341,27 @@ export const CASES = [
       },
     },
   },
+];
+
+// ---------------------------------------------------------------- Session 8
+// Generated cases: the same macroParams / motifs / harmonicPlan / phrasePlan as
+// the matching hand-supplied case, but with `texturePlan` OMITTED so the
+// inspector calls Stage 5b (generateTexturePlan) to produce one via the LLM.
+// `generated: true` lets the inspector route these through the async path and
+// the Stage-5b debug panel. Kept OUT of `CASES` so the prior verifiers (which
+// trust a hand-supplied texturePlan) are unaffected.
+function withoutTexturePlan(base, overrides) {
+  const { texturePlan, ...rest } = base;
+  return { ...rest, generated: true, ...overrides };
+}
+
+export const GENERATED_CASES = [
+  withoutTexturePlan(CASES[0], {
+    id: 'sunrise-generated',
+    title: 'Sunrise Fanfare — generated',
+  }),
+  withoutTexturePlan(CASES[1], {
+    id: 'wanderer-generated',
+    title: "Wanderer's Path — generated",
+  }),
 ];
