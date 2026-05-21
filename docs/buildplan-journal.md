@@ -226,3 +226,96 @@ call `toSynthString(pitch, preference)` only when emitting the final
 **Verdict: Session 1 amendment complete. Foundation is now suitable
 for cross-project portability into score-notation contexts as well
 as the chiptune synth path. Cleared to proceed to Session 2.**
+
+## Session 2 — 2026-05-21 — form library + phrase-structure library
+
+**What landed (commits):**
+- feat(jingle): add form + phrase-structure libraries and form engine
+  - `js/jingle/theory/forms.json` — 12 forms with full relationship metadata
+  - `js/jingle/theory/phrase-structures.json` — 4 phrase structures
+  - `js/jingle/theory/form-engine.js` — getForm, distributeBars,
+    getSectionRelationships, getPhraseStructure, listFormsByTag
+  - `js/jingle/theory/verify-forms.mjs` — committed exit-criterion check
+  - `docs/buildplan-journal.md` — this entry
+
+**Coverage (12 forms):**
+through_composed, binary, rounded_binary, ternary, ternary_varied, AABA,
+ABAB, ABAC, ABCA, rondo (ABACA), arch (ABCBA), eki_mini (ABA' under 12 bars).
+All seven relationship roles are exercised across the library — exposition,
+repetition, contrast, reprise, development, episode, refrain.
+
+Phrase structures (4): period (4+4, half→PAC), sentence (2+2+4,
+presentation/repetition/continuation→PAC), phrase_group (4+4 independent,
+IAC then PAC), hybrid (2+2+4, basic idea + contrasting idea + continuation).
+
+**Exit criteria status:**
+- [x] 10 forms in forms.json with full relationship metadata — shipped 12
+  (the prompt's own list names 12), every `of` / `contrast_from` reference
+  validated against real sibling labels
+- [x] 4 phrase structures in phrase-structures.json
+- [x] `form-engine.js` exports `getForm`, `distributeBars`,
+  `getSectionRelationships`, `getPhraseStructure`, `listFormsByTag`
+- [x] Manual test: distributed 16 bars across AABA with the default and both
+  alt proportions, logged the result, verified labels + relationships match
+  the spec. `verify-forms.mjs` runs the full sweep (12 forms × 8 totals ×
+  all variants for distributeBars, plus library-consistency and defensive-copy
+  checks). Result: `PASSED`, exit 0.
+
+**16-bar AABA distribution (the exit-criterion demo):**
+- default `[0.25, 0.25, 0.25, 0.25]` → A1=4 A2=4 B=4 A3=4
+- alt[0] `[0.2, 0.2, 0.35, 0.25]` → A1=2 A2=4 B=6 A3=4
+- alt[1] `[0.25, 0.25, 0.3, 0.2]` → A1=4 A2=4 B=4 A3=4
+
+**Deferred:**
+- distributeBars does not force repeated sections (the A's of an AABA) to
+  receive identical counts when the total can't be split evenly — see the
+  decision below. Revisit only if a downstream stage needs strict symmetry;
+  it can override the plan in the meantime.
+- Bar distribution is meter-agnostic (a bar is a bar). Correct at this layer;
+  compound-meter beat handling is a Stage-6 concern (buildplan §7 item 3).
+
+**Notes for next session (Session 3 — motif + transformations):**
+- `form-engine.js` sits alongside `mode-engine.js` in `theory/`, same
+  import-attribute (`with { type: 'json' }`) + `structuredClone`-on-read
+  conventions. Zero imports outside `theory/`; portability invariant holds.
+- The transform names in `phrase-structures.json`'s
+  `default_motif_assignments` (`literal`, `sequence_up_step`,
+  `fragment_head`) deliberately anticipate Session 3's transformation
+  library. `cadential_gesture` there is a placeholder *slot* for the closing
+  gesture (matching the PhrasePlan example in buildplan §3), NOT yet a
+  transform — Session 3/5 decides how the cadential gesture is produced.
+- `verify-forms.mjs` is committed; run it with the same throwaway
+  package.json dance as `verify-spelling.mjs`:
+  `printf '{"type":"module"}' > js/jingle/package.json && node
+  js/jingle/theory/verify-forms.mjs; rm js/jingle/package.json` — do not
+  commit that package.json.
+
+**Surprises / decisions made:**
+- **distributeBars even-preference is soft, not strict symmetry.** It rounds
+  each section to the nearest even bar count, then reconciles to the exact
+  total in pairs (falling back to single-bar moves for odd totals or when no
+  section can absorb a pair). The hard guarantees are: sum equals totalBars,
+  and every section ≥ 1 bar. It does NOT guarantee repeated sections get
+  equal counts under awkward totals — the AABA alt[0] case above lands
+  A1=2, A2=4 because `[0.2,0.2,0.35,0.25]×16 = [3.2,3.2,5.6,4]` has no
+  all-even split summing to 16 that also keeps the two A's equal, so one A
+  is docked. Default proportions and totals that divide cleanly (16, 24, 32)
+  give clean symmetric splits. A useful property of the reconciliation step:
+  it forces the sum to totalBars regardless of float drift in the
+  proportions, so the "sums to 1.0" contract on the data is a courtesy, not
+  a load-bearing precondition.
+- **`eki_mini` modeled as ABA', not AB.** The buildplan describes it as
+  "short AB or ABA' under 12 bars"; chose the three-section ABA' form so the
+  mini jingle gets a (varied, `variation: minor`) recap. `typical_total_bars`
+  is [4, 12]; at 4 bars distributeBars yields [2, 1, 1].
+- **cadence_type vocabulary extends buildplan §3 with `"none"`.** The §3
+  cadence list (PAC/IAC/half/deceptive/plagal/modal_iv_i/phrygian_ii_i) names
+  only real cadences. Non-cadencing sub-phrases (a sentence's presentation
+  and repetition, a hybrid's basic idea) need a "no cadence here" marker, so
+  `"none"` was added for those. verify-forms.mjs validates against the
+  extended set.
+- **`default_motif_assignments` use generic motif slots `"a"`/`"b"` and the
+  PhrasePlan assignment shape** (`sub_phrase`, `motif`, `transform`,
+  `start_bar`, `length_bars`). They are *suggestions* the phrase-placement
+  stage can take or ignore, not bindings — kept deliberately small so they
+  read as defaults, not a fixed score.

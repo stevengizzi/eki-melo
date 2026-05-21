@@ -1,0 +1,54 @@
+{
+  "period": {
+    "sub_phrases": [
+      { "label": "antecedent", "length_bars": 4, "cadence_type": "half" },
+      { "label": "consequent", "length_bars": 4, "cadence_type": "PAC" }
+    ],
+    "default_motif_assignments": [
+      { "sub_phrase": "antecedent", "motif": "a", "transform": "literal", "start_bar": 1, "length_bars": 2 },
+      { "sub_phrase": "antecedent", "motif": "a", "transform": "sequence_up_step", "start_bar": 3, "length_bars": 2 },
+      { "sub_phrase": "consequent", "motif": "a", "transform": "literal", "start_bar": 5, "length_bars": 2 },
+      { "sub_phrase": "consequent", "motif": null, "transform": "cadential_gesture", "start_bar": 7, "length_bars": 2 }
+    ],
+    "tags": ["balanced", "closed", "classical", "question-answer"]
+  },
+  "sentence": {
+    "sub_phrases": [
+      { "label": "presentation", "length_bars": 2, "cadence_type": "none" },
+      { "label": "repetition", "length_bars": 2, "cadence_type": "none" },
+      { "label": "continuation", "length_bars": 4, "cadence_type": "PAC" }
+    ],
+    "default_motif_assignments": [
+      { "sub_phrase": "presentation", "motif": "a", "transform": "literal", "start_bar": 1, "length_bars": 2 },
+      { "sub_phrase": "repetition", "motif": "a", "transform": "sequence_up_step", "start_bar": 3, "length_bars": 2 },
+      { "sub_phrase": "continuation", "motif": "a", "transform": "fragment_head", "start_bar": 5, "length_bars": 2 },
+      { "sub_phrase": "continuation", "motif": null, "transform": "cadential_gesture", "start_bar": 7, "length_bars": 2 }
+    ],
+    "tags": ["dynamic", "developmental", "driving", "fragmentation"]
+  },
+  "phrase_group": {
+    "sub_phrases": [
+      { "label": "phrase_1", "length_bars": 4, "cadence_type": "IAC" },
+      { "label": "phrase_2", "length_bars": 4, "cadence_type": "PAC" }
+    ],
+    "default_motif_assignments": [
+      { "sub_phrase": "phrase_1", "motif": "a", "transform": "literal", "start_bar": 1, "length_bars": 4 },
+      { "sub_phrase": "phrase_2", "motif": "b", "transform": "literal", "start_bar": 5, "length_bars": 4 }
+    ],
+    "tags": ["open", "loose", "additive", "narrative"]
+  },
+  "hybrid": {
+    "sub_phrases": [
+      { "label": "basic_idea", "length_bars": 2, "cadence_type": "none" },
+      { "label": "contrasting_idea", "length_bars": 2, "cadence_type": "half" },
+      { "label": "continuation", "length_bars": 4, "cadence_type": "PAC" }
+    ],
+    "default_motif_assignments": [
+      { "sub_phrase": "basic_idea", "motif": "a", "transform": "literal", "start_bar": 1, "length_bars": 2 },
+      { "sub_phrase": "contrasting_idea", "motif": "b", "transform": "literal", "start_bar": 3, "length_bars": 2 },
+      { "sub_phrase": "continuation", "motif": "a", "transform": "fragment_head", "start_bar": 5, "length_bars": 2 },
+      { "sub_phrase": "continuation", "motif": null, "transform": "cadential_gesture", "start_bar": 7, "length_bars": 2 }
+    ],
+    "tags": ["ambiguous", "developmental", "balanced", "hybrid"]
+  }
+}

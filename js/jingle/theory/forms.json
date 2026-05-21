@@ -1,0 +1,201 @@
+{
+  "through_composed": {
+    "section_count": 3,
+    "section_labels": ["A", "B", "C"],
+    "relationships": {
+      "A": { "role": "exposition", "of": null, "variation": null, "contrast_from": null },
+      "B": { "role": "development", "of": null, "variation": null, "contrast_from": "A" },
+      "C": { "role": "development", "of": null, "variation": null, "contrast_from": "B" }
+    },
+    "proportions_default": [0.34, 0.33, 0.33],
+    "proportions_alt": [
+      [0.25, 0.35, 0.4],
+      [0.4, 0.35, 0.25]
+    ],
+    "typical_total_bars": [8, 24],
+    "tags": ["developmental", "expansive", "narrative", "unpredictable"]
+  },
+  "binary": {
+    "section_count": 2,
+    "section_labels": ["A", "B"],
+    "relationships": {
+      "A": { "role": "exposition", "of": null, "variation": null, "contrast_from": null },
+      "B": { "role": "contrast", "of": null, "variation": null, "contrast_from": "A" }
+    },
+    "proportions_default": [0.5, 0.5],
+    "proportions_alt": [
+      [0.4, 0.6],
+      [0.6, 0.4]
+    ],
+    "typical_total_bars": [8, 16],
+    "tags": ["balanced", "simple", "open", "dance"]
+  },
+  "rounded_binary": {
+    "section_count": 3,
+    "section_labels": ["A1", "B", "A2"],
+    "relationships": {
+      "A1": { "role": "exposition", "of": null, "variation": null, "contrast_from": null },
+      "B": { "role": "contrast", "of": null, "variation": null, "contrast_from": "A1" },
+      "A2": { "role": "reprise", "of": "A1", "variation": "minor", "contrast_from": null }
+    },
+    "proportions_default": [0.4, 0.35, 0.25],
+    "proportions_alt": [
+      [0.375, 0.375, 0.25],
+      [0.5, 0.25, 0.25]
+    ],
+    "typical_total_bars": [8, 16],
+    "tags": ["balanced", "closed", "classical", "dance"]
+  },
+  "ternary": {
+    "section_count": 3,
+    "section_labels": ["A1", "B", "A2"],
+    "relationships": {
+      "A1": { "role": "exposition", "of": null, "variation": null, "contrast_from": null },
+      "B": { "role": "contrast", "of": null, "variation": null, "contrast_from": "A1" },
+      "A2": { "role": "reprise", "of": "A1", "variation": null, "contrast_from": null }
+    },
+    "proportions_default": [0.33, 0.34, 0.33],
+    "proportions_alt": [
+      [0.3, 0.4, 0.3],
+      [0.375, 0.25, 0.375]
+    ],
+    "typical_total_bars": [12, 24],
+    "tags": ["balanced", "closed", "classical", "song"]
+  },
+  "ternary_varied": {
+    "section_count": 3,
+    "section_labels": ["A1", "B", "A2"],
+    "relationships": {
+      "A1": { "role": "exposition", "of": null, "variation": null, "contrast_from": null },
+      "B": { "role": "contrast", "of": null, "variation": null, "contrast_from": "A1" },
+      "A2": { "role": "reprise", "of": "A1", "variation": "ornamented", "contrast_from": null }
+    },
+    "proportions_default": [0.33, 0.34, 0.33],
+    "proportions_alt": [
+      [0.3, 0.4, 0.3],
+      [0.35, 0.3, 0.35]
+    ],
+    "typical_total_bars": [12, 24],
+    "tags": ["balanced", "closed", "expressive", "song"]
+  },
+  "AABA": {
+    "section_count": 4,
+    "section_labels": ["A1", "A2", "B", "A3"],
+    "relationships": {
+      "A1": { "role": "exposition", "of": null, "variation": null, "contrast_from": null },
+      "A2": { "role": "repetition", "of": "A1", "variation": "minor", "contrast_from": null },
+      "B": { "role": "contrast", "of": null, "variation": null, "contrast_from": "A1" },
+      "A3": { "role": "reprise", "of": "A1", "variation": null, "contrast_from": null }
+    },
+    "proportions_default": [0.25, 0.25, 0.25, 0.25],
+    "proportions_alt": [
+      [0.2, 0.2, 0.35, 0.25],
+      [0.25, 0.25, 0.3, 0.2]
+    ],
+    "typical_total_bars": [16, 32],
+    "tags": ["balanced", "song", "pop", "memorable"]
+  },
+  "ABAB": {
+    "section_count": 4,
+    "section_labels": ["A1", "B1", "A2", "B2"],
+    "relationships": {
+      "A1": { "role": "exposition", "of": null, "variation": null, "contrast_from": null },
+      "B1": { "role": "contrast", "of": null, "variation": null, "contrast_from": "A1" },
+      "A2": { "role": "repetition", "of": "A1", "variation": null, "contrast_from": null },
+      "B2": { "role": "repetition", "of": "B1", "variation": null, "contrast_from": null }
+    },
+    "proportions_default": [0.25, 0.25, 0.25, 0.25],
+    "proportions_alt": [
+      [0.2, 0.3, 0.2, 0.3],
+      [0.3, 0.2, 0.3, 0.2]
+    ],
+    "typical_total_bars": [16, 32],
+    "tags": ["balanced", "pop", "verse-chorus", "driving"]
+  },
+  "ABAC": {
+    "section_count": 4,
+    "section_labels": ["A1", "B", "A2", "C"],
+    "relationships": {
+      "A1": { "role": "exposition", "of": null, "variation": null, "contrast_from": null },
+      "B": { "role": "contrast", "of": null, "variation": null, "contrast_from": "A1" },
+      "A2": { "role": "reprise", "of": "A1", "variation": null, "contrast_from": null },
+      "C": { "role": "contrast", "of": null, "variation": null, "contrast_from": "A1" }
+    },
+    "proportions_default": [0.25, 0.25, 0.25, 0.25],
+    "proportions_alt": [
+      [0.3, 0.2, 0.3, 0.2],
+      [0.25, 0.2, 0.25, 0.3]
+    ],
+    "typical_total_bars": [16, 32],
+    "tags": ["song", "expansive", "march", "varied"]
+  },
+  "ABCA": {
+    "section_count": 4,
+    "section_labels": ["A1", "B", "C", "A2"],
+    "relationships": {
+      "A1": { "role": "exposition", "of": null, "variation": null, "contrast_from": null },
+      "B": { "role": "contrast", "of": null, "variation": null, "contrast_from": "A1" },
+      "C": { "role": "contrast", "of": null, "variation": null, "contrast_from": "B" },
+      "A2": { "role": "reprise", "of": "A1", "variation": null, "contrast_from": null }
+    },
+    "proportions_default": [0.25, 0.25, 0.25, 0.25],
+    "proportions_alt": [
+      [0.3, 0.2, 0.2, 0.3],
+      [0.25, 0.25, 0.3, 0.2]
+    ],
+    "typical_total_bars": [16, 32],
+    "tags": ["balanced", "developmental", "framed", "narrative"]
+  },
+  "rondo": {
+    "section_count": 5,
+    "section_labels": ["A1", "B", "A2", "C", "A3"],
+    "relationships": {
+      "A1": { "role": "refrain", "of": null, "variation": null, "contrast_from": null },
+      "B": { "role": "episode", "of": null, "variation": null, "contrast_from": "A1" },
+      "A2": { "role": "refrain", "of": "A1", "variation": null, "contrast_from": null },
+      "C": { "role": "episode", "of": null, "variation": null, "contrast_from": "A1" },
+      "A3": { "role": "refrain", "of": "A1", "variation": null, "contrast_from": null }
+    },
+    "proportions_default": [0.2, 0.2, 0.2, 0.2, 0.2],
+    "proportions_alt": [
+      [0.15, 0.25, 0.15, 0.25, 0.2],
+      [0.2, 0.25, 0.15, 0.25, 0.15]
+    ],
+    "typical_total_bars": [20, 40],
+    "tags": ["expansive", "playful", "recurring", "developmental"]
+  },
+  "arch": {
+    "section_count": 5,
+    "section_labels": ["A1", "B1", "C", "B2", "A2"],
+    "relationships": {
+      "A1": { "role": "exposition", "of": null, "variation": null, "contrast_from": null },
+      "B1": { "role": "contrast", "of": null, "variation": null, "contrast_from": "A1" },
+      "C": { "role": "development", "of": null, "variation": null, "contrast_from": "B1" },
+      "B2": { "role": "reprise", "of": "B1", "variation": null, "contrast_from": null },
+      "A2": { "role": "reprise", "of": "A1", "variation": null, "contrast_from": null }
+    },
+    "proportions_default": [0.18, 0.2, 0.24, 0.2, 0.18],
+    "proportions_alt": [
+      [0.2, 0.2, 0.2, 0.2, 0.2],
+      [0.25, 0.18, 0.14, 0.18, 0.25]
+    ],
+    "typical_total_bars": [20, 40],
+    "tags": ["symmetric", "developmental", "expansive", "structured"]
+  },
+  "eki_mini": {
+    "section_count": 3,
+    "section_labels": ["A1", "B", "A2"],
+    "relationships": {
+      "A1": { "role": "exposition", "of": null, "variation": null, "contrast_from": null },
+      "B": { "role": "contrast", "of": null, "variation": null, "contrast_from": "A1" },
+      "A2": { "role": "reprise", "of": "A1", "variation": "minor", "contrast_from": null }
+    },
+    "proportions_default": [0.4, 0.35, 0.25],
+    "proportions_alt": [
+      [0.4, 0.4, 0.2],
+      [0.34, 0.33, 0.33]
+    ],
+    "typical_total_bars": [4, 12],
+    "tags": ["punchy", "compact", "idiomatic", "memorable", "jingle"]
+  }
+}
