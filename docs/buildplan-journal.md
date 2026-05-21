@@ -972,12 +972,35 @@ working at the expected baseline. Cleared to proceed to Session 5.**
   entry, CHANGELOG line, and architecture.md update. The beat-stamped-VoiceTracks
   refactor is internal to the in-progress pipeline and is recorded here.
 
-**HUMAN CHECKPOINT — PENDING.** Steven to listen to all 3 inspector cases and
-confirm each section now resolves to a clean cadence (rather than stopping on the
-last fragment). Specific listening checks: Sunrise Fanfare A3 → strong PAC (lead
-lands on C, bass V→I); Desert Caravan A and A' → phrygian half-step descent (bass
-F→E under lead F→E). Both are confirmed correct in the rendered output and the
-regression check; the open item is Steven's ear.
+**HUMAN CHECKPOINT — CLEARED (2026-05-21).** Steven listened to all three
+inspector cases. Verdict, verbatim:
 
-**Verdict: Session 5 implementation complete; all six verifiers pass. Awaiting
-the human listening checkpoint before clearing to Session 6.**
+> Sounding good. Still roughly the same in terms of basic-but-not-musically-
+> stimulating. It's technically fine, and clearly intentionally composed, but
+> it's fairly uninspiring. The cadences do wrap up more cleanly than before
+> though, so that's good.
+
+That clears Session 5's specific bar: **the cadences resolve cleanly now**
+("wrap up more cleanly than before") — sections no longer stop on the last motif
+fragment. The two named listening targets land as designed (Sunrise A3 PAC,
+Desert A/A' phrygian half-step descent), confirmed both by ear and in the
+regression check.
+
+The "basic / uninspiring" axis is unchanged from the Session-4 "amateur but
+intentional" verdict, and is the expected ceiling for the back-half-only
+deterministic pipeline — every lever that adds musical interest is a later
+session, not a defect here:
+- **Contrapuntally flat** — harmony is still only `parallel_thirds_below`
+  (Session 6's texture vocabulary: contrary motion, imitation, drones, etc.),
+  with no voice-leading pass yet (Session 7).
+- **Harmonically/structurally plain** — progressions, motifs, transforms and
+  phrase placements are the hand-authored fixtures; the LLM creativity that
+  varies them lands in Sessions 9–11.
+
+No wrong-sounding cadence defect was reported. Carrying the "basic but
+intentional, now with clean cadences" baseline forward as the bar for Session 6
+to lift on the contrapuntal/textural axis.
+
+**Verdict: Session 5 complete and confirmed by ear. All six verifiers pass,
+cadences resolve cleanly. Cleared to proceed to Session 6 (texture vocabulary +
+audition harness) when Steven kicks it off.**
