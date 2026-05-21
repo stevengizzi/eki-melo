@@ -12,7 +12,9 @@
    anomaly path). All in 4/4 to keep the audio legible at the human checkpoint;
    bass-patterns' 3/4 and 6/8 support is covered by the regression check, not by
    these listening fixtures. Between them the cases exercise all five bass
-   patterns and the parallel_thirds_below harmony texture.
+   patterns and three harmony textures (Session 6): the parallel_thirds_below
+   default, oblique_held (Wanderer's B section, a held drone), and
+   imitation_one_beat_delay (Desert Caravan's A' recap, a delayed canon).
 
    CADENCE COVERAGE (Session 5). The three cases between them declare all seven
    cadence types so Stage 8 is audibly exercised end-to-end:
@@ -221,7 +223,9 @@ export const CASES = [
         ],
       },
       B: {
-        harmony: [{ bars: [1, 4], mode: 'parallel_thirds_below' }],
+        // Session 6: a held drone over the B section (chord root, rearticulated
+        // per bar) to audition oblique_held end-to-end through the pipeline.
+        harmony: [{ bars: [1, 4], mode: 'oblique_held' }],
         bass: [{ bars: [1, 4], pattern: 'pedal', degree: 1 }],
       },
       "A'": {
@@ -319,7 +323,9 @@ export const CASES = [
         bass: [{ bars: [1, 4], pattern: 'pedal', degree: 1 }],
       },
       "A'": {
-        harmony: [{ bars: [1, 3], mode: 'parallel_thirds_below' }],
+        // Session 6: a one-beat-delay canon over the recap, transposed to the
+        // chord tone — auditions imitation_one_beat_delay end-to-end.
+        harmony: [{ bars: [1, 3], mode: 'imitation_one_beat_delay' }],
         bass: [
           { bars: [1, 3], pattern: 'root_fifth' },
           { bars: [4, 4], pattern: 'cadential_5_1' },

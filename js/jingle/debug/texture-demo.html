@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Texture Demo — eki-melo composition engine (Session 6)</title>
+<!--
+  Audition harness for the texture vocabulary (theory/textures.js), buildplan
+  Session 6. THIS IS THE ONE EXPLICIT HUMAN-LISTENING GATE in the build.
+
+  Pick one of five hand-written motifs (across five modes) and a texture; Play
+  renders the motif into a lead, runs the chosen texture against it over a fixed
+  I-IV-V-I chord context, and plays lead + harmony through the existing
+  LiveSynth (no bass here — the ear is focused on the lead/harmony interaction).
+  "Play all textures" auditions every texture in TEXTURE_REGISTRY back-to-back
+  against the selected motif, with the texture name shown above the piano roll.
+
+  The notes box at the bottom is a scratchpad for per-texture observations
+  during the listening pass — it does not persist; transcribe the keepers into
+  docs/buildplan-journal.md afterward.
+
+  MUST BE SERVED OVER HTTP (the modules use ES imports, which file:// blocks).
+  From the repo root:  python3 -m http.server 8000
+  then open  /js/jingle/debug/texture-demo.html
+-->
+<style>
+  :root {
+    --bg-deep: #0d0221;
+    --bg-card: #1a0f3a;
+    --text: #fffefb;
+    --text-dim: #b8b3d4;
+    --accent-red: #ff3864;
+    --accent-blue: #29adff;
+    --accent-yellow: #fee761;
+    --accent-green: #00e436;
+    --accent-pink: #ff77a8;
+    --accent-purple: #c77dff;
+    --border: #4a3a8a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px;
+    background: var(--bg-deep);
+    color: var(--text);
+    font-family: 'Courier New', monospace;
+    line-height: 1.5;
+  }
+  h1 { color: var(--accent-yellow); font-size: 20px; letter-spacing: 1px; margin: 0 0 4px; }
+  .subtitle { color: var(--text-dim); margin: 0 0 20px; font-size: 14px; }
+  .subtitle code { color: var(--accent-pink); }
+  .controls {
+    display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end;
+    background: var(--bg-card); border: 2px solid var(--border);
+    border-radius: 6px; padding: 16px; margin-bottom: 16px;
+  }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { color: var(--accent-blue); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+  select {
+    background: #18093a; border: 2px solid var(--border); color: var(--text);
+    font-family: inherit; font-size: 14px; padding: 6px 8px; border-radius: 4px; min-width: 240px;
+  }
+  select:focus { outline: none; border-color: var(--accent-pink); }
+  button {
+    background: #2a1959; border: 2px solid var(--border); color: var(--text);
+    font-family: inherit; font-size: 14px; padding: 8px 16px; border-radius: 4px;
+    cursor: pointer; text-transform: uppercase; letter-spacing: 1px;
+  }
+  button:hover { border-color: var(--accent-pink); color: var(--accent-pink); }
+  button.play { border-color: var(--accent-yellow); color: var(--accent-yellow); }
+  button.all { border-color: var(--accent-green); color: var(--accent-green); }
+  button:disabled { opacity: 0.4; cursor: default; border-color: var(--border); color: var(--text-dim); }
+  .now-playing { color: var(--accent-green); font-size: 16px; margin: 0 0 8px; min-height: 22px; letter-spacing: 1px; }
+  .now-playing .label { color: var(--accent-yellow); }
+  .meta { color: var(--text-dim); font-size: 13px; margin: 0 0 12px; }
+  .meta b { color: var(--text); }
+  #error { color: var(--accent-red); min-height: 20px; margin-bottom: 12px; font-size: 14px; }
+  .stage {
+    background: var(--bg-card); border: 2px solid var(--border); border-radius: 6px;
+    padding: 14px 16px; margin-bottom: 16px;
+  }
+  .stage h2 { font-size: 13px; color: var(--accent-green); margin: 0 0 8px; letter-spacing: 1px; text-transform: uppercase; }
+  .stage .note { color: var(--text-dim); font-size: 12px; margin: 0 0 8px; }
+  pre {
+    background: #18093a; border: 1px solid var(--border); border-radius: 4px;
+    padding: 10px; font-size: 12px; color: var(--text-dim);
+    overflow: auto; max-height: 200px; margin: 0; white-space: pre;
+  }
+  textarea {
+    width: 100%; min-height: 160px; background: #18093a; border: 2px solid var(--border);
+    color: var(--text); font-family: inherit; font-size: 13px; padding: 10px;
+    border-radius: 4px; resize: vertical; line-height: 1.6;
+  }
+  textarea:focus { outline: none; border-color: var(--accent-pink); }
+  /* Piano-roll styles mirrored from styles.css so render.js output renders here. */
+  .guest-card { background: transparent; }
+  .piano-roll { background: #000; border: 2px solid var(--border); height: 96px; position: relative; overflow: hidden; }
+  .note-block { position: absolute; border: 1px solid rgba(0,0,0,0.5); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.15); }
+  .note-block.lead { background: var(--accent-green); }
+  .note-block.harmony { background: var(--accent-blue); }
+  .note-block.bass { background: var(--accent-yellow); }
+  .section-marker { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255,119,168,0.25); pointer-events: none; }
+  .section-label { position: absolute; top: 2px; font-size: 9px; color: rgba(255,119,168,0.75); letter-spacing: 1px; pointer-events: none; padding-left: 3px; }
+  .piano-roll-legend { position: absolute; bottom: 4px; right: 6px; font-size: 12px; color: var(--text-dim); display: flex; gap: 10px; pointer-events: none; }
+  .piano-roll-legend span::before { content: '■ '; display: inline; }
+  .piano-roll-legend .lead-l { color: var(--accent-green); }
+  .piano-roll-legend .harm-l { color: var(--accent-blue); }
+  .piano-roll-legend .bass-l { color: var(--accent-yellow); }
+  .playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent-red); box-shadow: 0 0 6px var(--accent-red); pointer-events: none; left: 0; display: none; }
+  .playhead.active { display: block; }
+</style>
+</head>
+<body>
+  <h1>♪ Texture Demo — audition harness</h1>
+  <p class="subtitle">
+    Session 6 — the texture vocabulary in <code>theory/textures.js</code>, lead +
+    harmony only, through <code>LiveSynth</code>. This is the human-listening gate.
+  </p>
+
+  <div class="controls">
+    <div class="field">
+      <label for="motif-select">Motif</label>
+      <select id="motif-select"></select>
+    </div>
+    <div class="field">
+      <label for="texture-select">Texture</label>
+      <select id="texture-select"></select>
+    </div>
+    <button id="play-btn" class="play">▶ Play</button>
+    <button id="play-all-btn" class="all">▶▶ Play all textures</button>
+    <button id="stop-btn">■ Stop</button>
+  </div>
+
+  <p class="now-playing" id="now-playing"></p>
+  <p class="meta" id="meta"></p>
+  <div id="error"></div>
+
+  <div class="stage">
+    <h2>Piano roll — lead (green) + harmony (blue)</h2>
+    <div class="guest-card" data-id="texture-demo">
+      <div id="piano-roll-host"></div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <h2>Harmony events (theoretical spelling)</h2>
+    <p class="note">Texture output as <code>[note, beat, duration]</code> via <code>toScoreString</code> — the beat-stamped harmony before sequencing.</p>
+    <pre id="harmony-out"></pre>
+  </div>
+
+  <div class="stage">
+    <h2>Audition notes (scratchpad — not saved)</h2>
+    <p class="note">Jot per-texture observations while listening; transcribe the keepers into <code>docs/buildplan-journal.md</code>.</p>
+    <textarea id="notes" placeholder="parallel_thirds_below — &#10;parallel_thirds_above — &#10;parallel_sixths_below — &#10;contrary_motion — &#10;oblique_held — &#10;drone_on_1 — &#10;drone_on_5 — &#10;imitation_one_beat_delay — &#10;voice_exchange — &#10;chord_tones_pulse — &#10;heterophony — &#10;dropout — "></textarea>
+  </div>
+
+<script type="module">
+  import { TEXTURE_REGISTRY } from '../theory/textures.js';
+  import { renderMotifToDegreeEvents } from '../theory/motif.js';
+  import { degreeToPitch } from '../theory/mode-engine.js';
+  import { resolveRoman } from '../theory/roman-numeral.js';
+  import { toScoreString, toMidi } from '../theory/pitch.js';
+  import { toSynthString } from '../theory/synth-rendering.js';
+  import { toSequence } from '../pipeline/stage-6-voice.js';
+  import { renderPianoRoll } from '../render.js';
+  import { synth } from '../synth.js';
+
+  const LEAD_OCTAVE = 5;
+  const TEMPO = 120;
+  const METER = { numerator: 4, denominator: 4, grouping: [4] };
+  const PROGRESSION = ['I', 'IV', 'V', 'I']; // fixed chord context for every audition
+
+  // --- Five hand-written motifs across five modes (buildplan Session 6). The
+  // degrees are the mode's own degrees, so the mode supplies the colour notes
+  // (phrygian-dominant's b2 and major 3, harmonic minor's raised 7, etc.).
+  const MOTIFS = {
+    bright_arpeggio: {
+      mode: 'major', tonic: 'C',
+      motif: { degrees: [1, 3, 5, 4, 3, 1], rhythm: [0.5, 0.5, 1, 0.5, 0.5, 1], contour: 'peak_descend', register: 'mid', anomaly: null },
+    },
+    dorian_call: {
+      mode: 'dorian', tonic: 'D',
+      motif: { degrees: [1, 3, 4, 6, 5, 3], rhythm: [0.5, 0.5, 0.5, 1, 0.5, 1], contour: 'peak_descend', register: 'mid', anomaly: null },
+    },
+    harmonic_minor_descent: {
+      mode: 'harmonic_minor', tonic: 'A',
+      motif: { degrees: [5, 3, 1, 7, 1], rhythm: [0.5, 0.5, 1, 0.5, 1.5], contour: 'falling_arc', register: 'mid', anomaly: null },
+    },
+    phrygian_dominant_flourish: {
+      mode: 'phrygian_dominant', tonic: 'E',
+      motif: { degrees: [1, 2, 3, 4, 3, 2, 1], rhythm: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1], contour: 'peak_descend', register: 'mid', anomaly: null },
+    },
+    pentatonic_skip: {
+      mode: 'major_pentatonic', tonic: 'F',
+      motif: { degrees: [1, 3, 5, 6, 5, 3, 1], rhythm: [0.5, 0.5, 0.5, 1, 0.5, 0.5, 1], contour: 'peak_descend', register: 'mid', anomaly: null },
+    },
+  };
+
+  const motifSelect = document.getElementById('motif-select');
+  const textureSelect = document.getElementById('texture-select');
+  const errorBox = document.getElementById('error');
+  const nowPlaying = document.getElementById('now-playing');
+  const metaBox = document.getElementById('meta');
+  const pianoHost = document.getElementById('piano-roll-host');
+  const playBtn = document.getElementById('play-btn');
+  const playAllBtn = document.getElementById('play-all-btn');
+
+  Object.keys(MOTIFS).forEach((name) => motifSelect.add(new Option(`${name} — ${MOTIFS[name].tonic} ${MOTIFS[name].mode}`, name)));
+  Object.keys(TEXTURE_REGISTRY).forEach((name) => textureSelect.add(new Option(name, name)));
+
+  // Flat-side preference for an explicitly-flat (or F) tonic; sharp otherwise.
+  function preferenceForTonic(tonic) {
+    if (tonic.includes('b')) return 'flat';
+    if (tonic.includes('#')) return 'sharp';
+    return tonic[0] === 'F' ? 'flat' : 'sharp';
+  }
+
+  // Realize the selected motif into lead events (Pitch + degree/octave_offset),
+  // exactly as Stage 6 does.
+  function buildLead(entry) {
+    return renderMotifToDegreeEvents(entry.motif, 0).map((event) => ({
+      pitch: degreeToPitch(entry.mode, entry.tonic, event.degree, LEAD_OCTAVE + event.octave_offset),
+      beat: event.beat,
+      duration: event.duration,
+      degree: event.degree,
+      octave_offset: event.octave_offset,
+    }));
+  }
+
+  // The chord-per-bar map over the lead's span, one chord per bar from the fixed
+  // I-IV-V-I progression (resolved near the harmony register).
+  function buildChords(entry, lead) {
+    const beatsPerBar = METER.numerator;
+    const totalBeats = lead.reduce((s, e) => Math.max(s, e.beat + e.duration), 0);
+    const barCount = Math.max(1, Math.ceil(totalBeats / beatsPerBar));
+    const chords = new Map();
+    for (let bar = 0; bar < barCount; bar++) {
+      chords.set(bar, resolveRoman(PROGRESSION[bar % PROGRESSION.length], entry.mode, entry.tonic, 4));
+    }
+    return { chords, totalBeats: barCount * beatsPerBar };
+  }
+
+  // Build a synth-ready jingle (lead + harmony, no bass) for one texture.
+  function buildJingle(motifName, textureName) {
+    const entry = MOTIFS[motifName];
+    const lead = buildLead(entry);
+    const { chords, totalBeats } = buildChords(entry, lead);
+    const harmony = TEXTURE_REGISTRY[textureName](lead, chords, entry.mode, entry.tonic, LEAD_OCTAVE, METER, {});
+    const preference = preferenceForTonic(entry.tonic);
+
+    const render = (events) =>
+      toSequence(events, totalBeats).map((e) => [e.pitch === null ? 'rest' : toSynthString(e.pitch, preference), e.duration]);
+
+    return {
+      jingle: {
+        title: `${motifName} · ${textureName}`,
+        tempo: TEMPO,
+        key: `${entry.tonic} ${entry.mode}`,
+        sections: [],
+        lead: render(lead),
+        harmony: render(harmony),
+        bass: [],
+      },
+      harmonyScore: harmony.map((e) => [toScoreString(e.pitch), e.beat, e.duration]),
+      crossings: countCrossings(lead, harmony),
+    };
+  }
+
+  // Informational: how many harmony events sit above the lead sounding under
+  // them (expected only for imitation, the documented exception).
+  function countCrossings(lead, harmony) {
+    const leadAt = (beat) => {
+      for (const e of lead) if (beat >= e.beat - 1e-9 && beat < e.beat + e.duration - 1e-9) return e.pitch;
+      return null;
+    };
+    let n = 0;
+    for (const h of harmony) {
+      const l = leadAt(h.beat);
+      if (l && toMidi(h.pitch) > toMidi(l) + 1e-9) n += 1;
+    }
+    return n;
+  }
+
+  function show(motifName, textureName) {
+    errorBox.textContent = '';
+    try {
+      const { jingle, harmonyScore, crossings } = buildJingle(motifName, textureName);
+      pianoHost.innerHTML = renderPianoRoll(jingle);
+      document.getElementById('harmony-out').textContent =
+        harmonyScore.length ? JSON.stringify(harmonyScore) : '(no harmony events — e.g. dropout)';
+      const beats = (t) => t.reduce((s, e) => s + e[1], 0);
+      metaBox.innerHTML =
+        `motif <b>${motifName}</b> · texture <b>${textureName}</b> · ` +
+        `lead <b>${jingle.lead.length}</b> ev / harmony <b>${jingle.harmony.length}</b> ev · ` +
+        `<b>${beats(jingle.lead)}</b> beats` +
+        (crossings ? ` · <b style="color:var(--accent-pink)">${crossings} crossing(s)</b>` : '');
+      return jingle;
+    } catch (error) {
+      errorBox.textContent = `${textureName}: ${error.message}`;
+      pianoHost.innerHTML = '';
+      console.error(error);
+      return null;
+    }
+  }
+
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  let auditioning = false;
+
+  function playOne() {
+    nowPlaying.innerHTML = `playing <span class="label">${textureSelect.value}</span>`;
+    const jingle = show(motifSelect.value, textureSelect.value);
+    if (jingle) synth.play(jingle, 'texture-demo');
+  }
+
+  async function playAll() {
+    if (auditioning) return;
+    auditioning = true;
+    playBtn.disabled = true;
+    playAllBtn.disabled = true;
+    const motifName = motifSelect.value;
+    const beatSec = 60 / TEMPO;
+    try {
+      for (const textureName of Object.keys(TEXTURE_REGISTRY)) {
+        if (!auditioning) break;
+        textureSelect.value = textureName;
+        nowPlaying.innerHTML = `playing <span class="label">${textureName}</span> &nbsp;(${motifName})`;
+        const jingle = show(motifName, textureName);
+        if (!jingle) { await sleep(300); continue; }
+        synth.play(jingle, 'texture-demo');
+        const durBeats = jingle.lead.reduce((s, e) => s + e[1], 0);
+        await sleep(durBeats * beatSec * 1000 + 500); // play, then a 0.5s gap
+      }
+    } finally {
+      auditioning = false;
+      playBtn.disabled = false;
+      playAllBtn.disabled = false;
+      if (nowPlaying.textContent) nowPlaying.innerHTML += ' &nbsp;— done';
+    }
+  }
+
+  function stop() {
+    auditioning = false;
+    synth.stop();
+    nowPlaying.textContent = '';
+  }
+
+  playBtn.addEventListener('click', () => { stop(); playOne(); });
+  playAllBtn.addEventListener('click', playAll);
+  document.getElementById('stop-btn').addEventListener('click', stop);
+  motifSelect.addEventListener('change', () => { stop(); show(motifSelect.value, textureSelect.value); });
+  textureSelect.addEventListener('change', () => { if (!auditioning) { stop(); show(motifSelect.value, textureSelect.value); } });
+
+  show(motifSelect.value, textureSelect.value);
+</script>
+</body>
+</html>
