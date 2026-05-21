@@ -644,10 +644,8 @@ the first audible-output session.**
   anomaly realization (verified out-of-scale).
 - [x] `pipeline-runner.js` threads 6 → 7-stub → 8-stub → toSynthString →
   FinalJingle (the existing synth's `[pitch, duration]` JSON shape).
-- [~] `pipeline-inspector.html` plays the 3 cases through LiveSynth — code
-  complete and node-verified end-to-end (every event has positive duration and
-  a synth string that parses to a finite, positive frequency); **awaiting
-  Steven's listen** (the human checkpoint below).
+- [x] `pipeline-inspector.html` plays the 3 cases through LiveSynth — Steven
+  listened to all three and confirmed they sound composed (verdict below).
 - [x] All prior verify scripts still PASS, plus `verify-stage6.mjs` (exit 0).
 - [x] This journal entry.
 
@@ -756,11 +754,35 @@ the first audible-output session.**
   absent, `computeSectionPlan` falls back to the form + `distributeBars`. Bar
   indices in phrasePlan/texturePlan are 1-indexed and section-relative.
 
-**HUMAN CHECKPOINT — pending.** Steven opens
-`/js/jingle/debug/pipeline-inspector.html` (served over HTTP:
-`python3 -m http.server 8000`, or `wrangler pages dev .`), runs each of the
-three cases, and listens. Session is complete only once Steven confirms the
-output sounds *composed* rather than random. The bar to clear is "audio works
-and sounds structured," not "perfect musicality" — cadences (S5), full
-textures (S6) and voice leading (S7) are still to come. Any specific
-wrong-sounding thing should be captured here as a finding for those sessions.
+**HUMAN CHECKPOINT — CLEARED (2026-05-21).** Steven listened to all three
+cases through the inspector. Verdict, verbatim:
+
+> They sound composed, yes. They sound like an amateur composer wrote them —
+> structurally, harmonically, and contrapuntally very simple and by-the-books,
+> but still intentional, nonetheless.
+
+That clears the bar for Session 4 (audio works and reads as *intentional*
+rather than random). The three "amateur / by-the-books" axes he named are each
+the explicit remit of a later session, so this is the expected ceiling for the
+back-half-only pipeline, not a defect:
+
+- **Harmonically simple / by-the-books** — progressions are hand-written stubs
+  (Session 11 hands this to the LLM under the Roman-numeral grammar) and there
+  are no real cadences yet (Session 5, Stage 8). Sections currently just stop
+  on the last fragment.
+- **Contrapuntally simple** — the harmony voice is parallel_thirds_below and
+  nothing else (Session 6's texture vocabulary: contrary motion, imitation,
+  drones, etc.), and there is no voice-leading pass smoothing or de-crossing
+  the voices (Session 7).
+- **Structurally simple** — the motifs, transforms, and phrase placements are
+  the hand-authored fixtures in pipeline-inspector-cases.js (Sessions 9/10
+  generate motifs and phrase plans via the LLM; the development beyond
+  literal/sequence/transpose lives there).
+
+No specific *wrong-sounding* defect was reported — the simplicity is the
+absence of the not-yet-built stages, not a bug in Stage 6. Carrying this
+forward as the baseline to beat once S5–S7 land.
+
+**Verdict: Session 4 complete. End-to-end audio working and confirmed
+composed. Cleared to proceed to Session 5 (Roman resolver + cadence
+enforcement) when Steven kicks it off.**
