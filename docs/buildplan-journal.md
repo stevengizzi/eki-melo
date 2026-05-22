@@ -2755,3 +2755,23 @@ Theory-layer change (a Session-6 deliverable), made in-pass because it's a clear
 fully-LLM audition surfaced — and the no-crossing / in-range / positive-duration invariants are
 unchanged, so the pinned verify-stage6/7/8 cases are unaffected. verify-textures gains a heterophony
 density guard (no sub-sixteenth event; ≤ 2 events per lead note). All eleven verifiers pass offline.
+
+### Checkpoint finding (2026-05-22) — contour validator was stricter than the prompt
+
+A run failed after one retry: *"Motif b is labeled valley_ascend but it falls again after its trough —
+the portion after the trough must ascend."* Root cause: my Stage-4 contour validator demanded the
+post-trough (and post-peak) portion be STRICTLY monotonic — no dip allowed on the way out of the turn
+— but the prompt's own shape vocabulary describes these net-directionally ("falls to an interior
+trough, then climbs above it"). So the model wrote a musically-fine valley with a small dip on the way
+up (a natural melodic wiggle), and the validator rejected it twice, aborting the run. The strict rule
+actively fought the "memorable melodies" goal by banning wiggles and forcing such shapes to be
+relabeled `wandering` (which the prompt discourages).
+
+Fix: relaxed `peak_descend` / `valley_ascend` consistency to NET-directional — an interior turning
+point at the global extreme, with the first and last degrees on the correct side of it (rose to the
+peak and ended below it; fell to the trough and ended above it). Wiggles between are allowed. `static`
+(range ≤ 2) and the two arcs (net rise / net fall) were already net checks and are unchanged. Contour
+is only a metadata/consistency hint — it does not drive realization — so loosening it is low-risk and
+removes a class of spurious retry-failures. verify-stage4 gains tests: a wiggly valley_ascend and a
+wiggly peak_descend now validate, while a "trough" at the very start is still rejected. All eleven
+verifiers pass offline.

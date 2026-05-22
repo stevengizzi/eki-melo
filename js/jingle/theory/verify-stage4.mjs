@@ -186,6 +186,27 @@ const contourPeakMismatch = clone(VALID);
 contourPeakMismatch.motifs.b.contour = 'peak_descend';
 expectInvalid('a:contour-peak-mismatch', validateMotifs(contourPeakMismatch, MACRO), 'peak_descend');
 
+// Contour arcs are NET-directional, not strict monotonic — a melody may wiggle
+// on the way out of the turn (the validator must not fight natural shapes).
+const wiggleValley = clone(VALID);
+wiggleValley.motifs.a.degrees = [5, 3, 1, 4, 2, 5]; // trough 1 at idx2; rises 1->4, dips 4->2, ends 5
+wiggleValley.motifs.a.rhythm = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5];
+wiggleValley.motifs.a.contour = 'valley_ascend';
+expectOk('a:valley-ascend-wiggle', validateMotifs(wiggleValley, MACRO));
+
+const wigglePeak = clone(VALID);
+wigglePeak.motifs.a.degrees = [1, 6, 4, 5, 2]; // peak 6 at idx1; dips 4, lifts 5, ends 2
+wigglePeak.motifs.a.rhythm = [0.5, 0.5, 0.5, 0.5, 0.5];
+wigglePeak.motifs.a.contour = 'peak_descend';
+expectOk('a:peak-descend-wiggle', validateMotifs(wigglePeak, MACRO));
+
+// ...but a trough at the very start is still not a valley_ascend (no descent into it).
+const noTrough = clone(VALID);
+noTrough.motifs.a.degrees = [1, 2, 3, 5, 4, 3]; // min 1 at idx0 — a rise, not a valley
+noTrough.motifs.a.rhythm = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5];
+noTrough.motifs.a.contour = 'valley_ascend';
+expectInvalid('a:valley-ascend-no-trough', validateMotifs(noTrough, MACRO), 'valley_ascend');
+
 // --- register ---
 const badRegister = clone(VALID);
 badRegister.motifs.a.register = 'middle';

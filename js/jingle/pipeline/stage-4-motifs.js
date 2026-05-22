@@ -417,32 +417,28 @@ function contourConsistencyError(degrees, contour, name) {
       }
       return null;
     case 'peak_descend': {
+      // Net shape: rises to an interior peak, then ends below it. Wiggles on the
+      // way up or down are allowed — a melody is not a strict monotone, and the
+      // prompt itself only says "rises to an interior peak, then descends below
+      // it". The validator just checks the label isn't wildly wrong.
       const peakIdx = degrees.indexOf(max);
       if (!(peakIdx > 0 && peakIdx < degrees.length - 1)) {
         return `Motif "${name}" is labeled peak_descend but its highest degree (${max}) is not at an interior position — a peak_descend rises to a peak, then falls back below it.`;
       }
-      for (let i = peakIdx; i < degrees.length - 1; i++) {
-        if (degrees[i + 1] > degrees[i]) {
-          return `Motif "${name}" is labeled peak_descend but it rises again after its peak — the portion after the peak must descend.`;
-        }
-      }
-      if (!(last < max)) {
-        return `Motif "${name}" is labeled peak_descend but it does not descend below its peak by the end.`;
+      if (!(first < max && last < max)) {
+        return `Motif "${name}" is labeled peak_descend but it does not both rise to its peak (${max}) and end below it (starts ${first}, ends ${last}).`;
       }
       return null;
     }
     case 'valley_ascend': {
+      // Net shape: falls to an interior trough, then ends above it. Wiggles are
+      // allowed (see peak_descend).
       const valleyIdx = degrees.indexOf(min);
       if (!(valleyIdx > 0 && valleyIdx < degrees.length - 1)) {
         return `Motif "${name}" is labeled valley_ascend but its lowest degree (${min}) is not at an interior position — a valley_ascend falls to a trough, then climbs back above it.`;
       }
-      for (let i = valleyIdx; i < degrees.length - 1; i++) {
-        if (degrees[i + 1] < degrees[i]) {
-          return `Motif "${name}" is labeled valley_ascend but it falls again after its trough — the portion after the trough must ascend.`;
-        }
-      }
-      if (!(last > min)) {
-        return `Motif "${name}" is labeled valley_ascend but it does not ascend above its trough by the end.`;
+      if (!(first > min && last > min)) {
+        return `Motif "${name}" is labeled valley_ascend but it does not both fall to its trough (${min}) and end above it (starts ${first}, ends ${last}).`;
       }
       return null;
     }
