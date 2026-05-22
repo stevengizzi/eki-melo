@@ -49,7 +49,7 @@
    PORTABILITY. This is pipeline/ code: it may import theory/ and js/env.js. It
    does NOT modify api.js (read-only this session) — it mimics its patterns.
    ================================================================= */
-import { API_ENDPOINT } from '../../env.js';
+import { postMessages } from './llm-call.js';
 import { TEXTURE_REGISTRY } from '../theory/textures.js';
 import { BASS_PATTERNS } from '../theory/bass-patterns.js';
 import { computeSectionPlan } from './stage-6-voice.js';
@@ -255,28 +255,10 @@ function buildRetryPrompt(errors) {
 // =================================================================
 
 async function callTextureLLM(system, messages) {
-  const response = await fetch(API_ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: STAGE_5B_MODEL,
-      max_tokens: STAGE_5B_MAX_TOKENS,
-      system,
-      messages,
-    }),
-  });
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => '');
-    throw new Error(`Stage 5b LLM call failed: API ${response.status}: ${errText.slice(0, 160)}`);
-  }
-
-  const data = await response.json();
-  return (data.content || [])
-    .filter((block) => block.type === 'text')
-    .map((block) => block.text || '')
-    .join('')
-    .trim();
+  return postMessages(
+    { model: STAGE_5B_MODEL, max_tokens: STAGE_5B_MAX_TOKENS, system, messages },
+    'Stage 5b'
+  );
 }
 
 // Strip code fences (if the model wrapped the JSON) and parse, with a

@@ -2702,3 +2702,34 @@ real rhythmic_displacement) and the rhythm-sameness soft warning are now asserte
 verifiers pass offline. The human checkpoint stays OPEN — Steven re-runs the fully-LLM case
 (at `adventurous` and `wild`) after this iteration to judge whether the motifs now read as
 memorable rather than safe, and whether the A2 flick is gone.
+
+### Checkpoint infra fixes (2026-05-22) — proxy body cap + transient-overload retry
+
+The first live re-runs couldn't complete a single generation, hitting two transport errors:
+
+1. **API 413 "Request body too large (8398 bytes; max 8192)" — a regression I introduced.**
+   The `/api/generate` proxy (functions/api/generate.js) caps request bodies at 8 KiB; the
+   enriched Stage-4 coaching prompt (seed exemplars + compositional guidance + the sharpened
+   directive) pushed the body just over. Trimming the first prompt under 8 KiB would not have
+   sufficed — a validation-RETRY call appends the model's prior response + the error list, larger
+   still. Fix: raised `MAX_BODY_BYTES` to **64 KiB**. Output cost (the expensive part) stays
+   bounded by the existing `max_tokens` cap (4000), so a generous INPUT cap is safe; the model
+   allow-list is unchanged. NOTE: this loosens a defense on a public endpoint (the proxy posture
+   is DEC-010 territory) — recorded here; a formal DEC entry can follow if wanted. wrangler pages
+   dev hot-reloads the Function, so the raised cap went live without a restart (verified: a 9 KB
+   body with a disallowed model now returns 400 "Model not allowed", not 413).
+
+2. **API 529 "overloaded" — transient, but fatal to a 3-call run.** The fully-LLM path makes
+   THREE sequential live calls (Stage 4 → 5a → 5b), so a single transient overload on any one
+   aborted the whole generation, and the stages only retried on VALIDATION failures, not transport
+   errors. Fix: a new shared `js/jingle/pipeline/llm-call.js` (`postMessages`) that all three
+   stages now delegate to — it retries 429/5xx/529 and network errors up to 4 attempts with
+   exponential backoff + jitter, while throwing immediately on non-retryable statuses (400/413/…).
+   This transport retry is separate from and composes with each stage's validate-then-retry-once.
+   The three stages' near-identical `callXLLM` copies collapse to thin wrappers over the helper.
+   New `verify-llm-call.mjs` covers it offline (stubbed fetch, 1 ms delays): first-try success,
+   retry-then-succeed on 529, no-retry on 413, give-up after maxAttempts, network-error retry.
+
+All eleven verifiers now pass offline (the ten prior + verify-llm-call). The static pipeline
+modules are served live by wrangler, so a hard-refresh picks up the retry logic; the proxy cap
+is already live. Checkpoint still OPEN pending Steven's re-listen.

@@ -9,7 +9,11 @@
 //   - ANTHROPIC_API_KEY  (secret)  — your sk-ant-... key
 //
 // Defenses included:
-//   - Body size cap (8 KiB; jingle + avatar prompts are well under this)
+//   - Body size cap (64 KiB). The multi-stage composition pipeline sends rich
+//     coaching prompts — Stage 4's motif prompt (seed exemplars + compositional
+//     guidance) alone exceeds the old 8 KiB cap, and a validation-retry call
+//     appends the prior response, larger still. Output cost (the expensive part)
+//     stays bounded by the max_tokens cap below, so a generous input cap is safe.
 //   - Model allow-list (prevents using your key for arbitrary other Claude
 //     calls if the URL leaks)
 //   - max_tokens cap (clamped to 4000 to bound runaway responses)
@@ -22,7 +26,7 @@
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_VERSION = '2023-06-01';
-const MAX_BODY_BYTES = 8 * 1024;
+const MAX_BODY_BYTES = 64 * 1024;
 const MAX_TOKENS_CAP = 4000;
 const ALLOWED_MODELS = new Set([
   'claude-sonnet-4-20250514',

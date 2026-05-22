@@ -64,7 +64,7 @@
    PORTABILITY. This is pipeline/ code: it may import theory/ and js/env.js. It
    does NOT modify api.js (read-only this session) — it mimics its patterns.
    ================================================================= */
-import { API_ENDPOINT } from '../../env.js';
+import { postMessages } from './llm-call.js';
 import { CONTOURS, REGISTERS } from '../theory/motif.js';
 import { computeSectionPlan } from './stage-6-voice.js';
 
@@ -354,28 +354,10 @@ function buildRetryPrompt(errors) {
 // =================================================================
 
 async function callMotifsLLM(system, messages) {
-  const response = await fetch(API_ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: STAGE_4_MODEL,
-      max_tokens: STAGE_4_MAX_TOKENS,
-      system,
-      messages,
-    }),
-  });
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => '');
-    throw new Error(`Stage 4 LLM call failed: API ${response.status}: ${errText.slice(0, 160)}`);
-  }
-
-  const data = await response.json();
-  return (data.content || [])
-    .filter((block) => block.type === 'text')
-    .map((block) => block.text || '')
-    .join('')
-    .trim();
+  return postMessages(
+    { model: STAGE_4_MODEL, max_tokens: STAGE_4_MAX_TOKENS, system, messages },
+    'Stage 4'
+  );
 }
 
 // Strip code fences (if the model wrapped the JSON) and parse, with a brace-match
