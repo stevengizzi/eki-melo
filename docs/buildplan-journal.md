@@ -2806,3 +2806,32 @@ harmony is doing something out of key," and A3 had "a large melody gap in the mi
    the reprise fuller than the development. Soft nudge, not a hard rule (the validator can't measure the
    sub-bar gap from bar indices) — a deterministic gap detector (apply the transform, sum beats, flag a
    long internal rest) is the deeper fix if it persists. All eleven verifiers pass offline.
+
+### Checkpoint finding (2026-05-22) — anomaly-honesty was over-strict (un-blocked)
+
+A run aborted: *"Motif b declares a large_leap at position 3, but the widest interval there is only 2
+scale steps."* The Session-10 anomaly-honesty HARD check (added two iterations ago) was rejecting a
+declared large_leap whose degrees don't actually leap a sixth+. Two problems with making that a hard
+failure:
+
+1. **A prompt contradiction I created.** The adventurous directive says "use a leap of a fourth or
+   fifth," but the large_leap anomaly requires "larger than a fifth" (a sixth+). So the model leaps a
+   4th/5th (as asked) and labels it large_leap — which doesn't qualify — and can't reconcile the
+   contradiction in one retry, so the run dies.
+2. **It's cosmetic.** large_leap and rhythmic_displacement have NO audible realization downstream —
+   Stage 6 only specially realizes chromatic_neighbor (the half-step bend). The leap is just whatever
+   the degrees say; the syncopation is just the rhythm. So a mislabeled large_leap changes nothing you
+   hear. Aborting a whole generation over cosmetic metadata is disproportionate.
+
+Fix: the large_leap / rhythmic_displacement reality checks moved from HARD validation failures to SOFT
+warnings (`anomalyRealityWarnings`, emitted by `generateMotifs` alongside the chord-tone and
+rhythm-sameness notes). The anomaly SCHEMA checks (type in the set, at_position in range) stay hard.
+The prompt was disentangled: the anomaly section now says a 4th/5th leap is good melody and NOT a
+large_leap (leave anomaly null), reserves large_leap for a rare 6th+, and states chromatic_neighbor is
+the only anomaly with audible effect — prefer none otherwise. The adventurous directive echoes this.
+verify-stage4 updated (a fake large_leap now VALIDATES and emits a soft warning; the real-leap case
+still validates). All eleven verifiers pass offline.
+
+Same recurring lesson as the contour relaxation: a validator should catch the wildly-wrong and let the
+merely-imperfect through — hard-failing cosmetic or stylistic choices fights the model and aborts runs.
+Anomaly schema (malformed) = hard; anomaly accuracy (cosmetic) = soft.

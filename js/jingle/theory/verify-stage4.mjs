@@ -225,29 +225,21 @@ const anomalyMissing = clone(VALID);
 delete anomalyMissing.motifs.a.anomaly;
 expectInvalid('a:anomaly-missing', validateMotifs(anomalyMissing, MACRO), 'anomaly');
 
-// --- anomaly honesty: a declared anomaly must be a REAL event ---
-// a = [1,3,5,4,3]; position 2 (degree 5) sits between 3 and 4 — no real leap.
-const fakeLeap = clone(VALID);
-fakeLeap.motifs.a.anomaly = { type: 'large_leap', at_position: 2 };
-expectInvalid('a:fake-large-leap', validateMotifs(fakeLeap, MACRO), 'large_leap');
+// --- anomaly reality is a SOFT warning, not a hard failure ---
+// large_leap / rhythmic_displacement have no audible realization downstream (only
+// chromatic_neighbor bends a note), so a mislabel is cosmetic: validateMotifs
+// ACCEPTS it; generateMotifs emits a soft warning instead (section b below). The
+// anomaly SCHEMA checks (type ∈ set, at_position in range) stay hard — see above.
+const fakeLeapAccepted = clone(VALID);
+fakeLeapAccepted.motifs.a.anomaly = { type: 'large_leap', at_position: 2 }; // no real leap there
+expectOk('a:fake-large-leap-accepted', validateMotifs(fakeLeapAccepted, MACRO));
 
-// A genuine seventh (1 -> 7) at position 1 IS a large_leap.
 const realLeap = clone(VALID);
-realLeap.motifs.a.degrees = [1, 7, 5, 3, 1];
+realLeap.motifs.a.degrees = [1, 7, 5, 3, 1]; // a genuine seventh at position 1
 realLeap.motifs.a.rhythm = [0.5, 0.5, 1, 0.5, 0.5];
 realLeap.motifs.a.contour = 'peak_descend';
 realLeap.motifs.a.anomaly = { type: 'large_leap', at_position: 1 };
 expectOk('a:real-large-leap', validateMotifs(realLeap, MACRO));
-
-// a's rhythm [0.5,0.5,1,0.5,0.5]: position 2 starts at beat 1.0 (on the beat) — not displaced.
-const fakeDisplacement = clone(VALID);
-fakeDisplacement.motifs.a.anomaly = { type: 'rhythmic_displacement', at_position: 2 };
-expectInvalid('a:fake-rhythmic-displacement', validateMotifs(fakeDisplacement, MACRO), 'rhythmic_displacement');
-
-// position 1 starts at beat 0.5 (off the beat) — a real displacement.
-const realDisplacement = clone(VALID);
-realDisplacement.motifs.a.anomaly = { type: 'rhythmic_displacement', at_position: 1 };
-expectOk('a:real-rhythmic-displacement', validateMotifs(realDisplacement, MACRO));
 
 // --- distinctness (2+ motifs identical in degrees/rhythm/contour) ---
 const dup = clone(VALID);
@@ -443,6 +435,24 @@ if (sameRhythmResult) {
   const warnings = rhythmTraces.flatMap((t) => t.warnings ?? []);
   if (!warnings.some((w) => w.toLowerCase().includes('rhythm'))) {
     fail('b7:rhythm-warning', `expected a rhythm-sameness warning, got ${JSON.stringify(warnings)}`);
+  }
+}
+
+// (b8) anomaly-reality SOFT warning: a fake large_leap (a label on ordinary
+// material) validates and returns, with a warning — never a failure.
+const fakeLeapMock = clone(VALID);
+fakeLeapMock.motifs.a.anomaly = { type: 'large_leap', at_position: 2 };
+const leapTraces = [];
+const fakeLeapResult = await generateMotifs({
+  macroParams: MACRO,
+  harmonicPlan: HARMONIC,
+  __mockResponse: JSON.stringify(fakeLeapMock),
+  onTrace: (t) => leapTraces.push(t),
+});
+if (fakeLeapResult) {
+  const warnings = leapTraces.flatMap((t) => t.warnings ?? []);
+  if (!warnings.some((w) => w.toLowerCase().includes('large_leap'))) {
+    fail('b8:large-leap-warning', `expected a large_leap soft warning, got ${JSON.stringify(warnings)}`);
   }
 }
 
