@@ -94,8 +94,10 @@ expect('roman:invalid-garbage', isValidInMode('Q9', 'major', true), false);
 // Render a formula's output for one voice as [score, beat, duration] tuples.
 const voiceTuples = (events) => events.map((e) => [toScoreString(e.pitch), e.beat, e.duration]);
 
-// A C-major section: A3 of an AABA, startBar 12, 4 bars, 4/4 → final bar at
-// beat 60, section end 64.
+// A C-major section: A3 of an AABA, startBar 12, 4 bars, 4/4 → section end 64,
+// so the cadence's final-two-beats window is beats 62–64. Called WITHOUT
+// voiceTracks, so the formulas use the register-centre fallback voicing (the
+// pre-revision pitches) — only the timing moved to the final two beats.
 const C_MAJOR = { meter: { numerator: 4, denominator: 4 }, tonic: 'C', mode: 'major', register_center: 'C5' };
 const C_SEC = { label: 'A3', startBar: 12, bars: 4 };
 
@@ -107,14 +109,14 @@ function expectCadence(name, params, section, expected) {
 }
 
 expectCadence('PAC', C_MAJOR, C_SEC, {
-  lead: [['D5', 60, 2], ['C5', 62, 2]],
-  harmony: [['B4', 60, 2], ['E4', 62, 2]],
-  bass: [['G3', 60, 2], ['C3', 62, 2]],
+  lead: [['D5', 62, 1], ['C5', 63, 1]],
+  harmony: [['B4', 62, 1], ['E4', 63, 1]],
+  bass: [['G3', 62, 1], ['C3', 63, 1]],
 });
 expectCadence('IAC', C_MAJOR, C_SEC, {
-  lead: [['D5', 60, 2], ['E5', 62, 2]],
-  harmony: [['B4', 60, 2], ['G4', 62, 2]],
-  bass: [['G3', 60, 2], ['C3', 62, 2]],
+  lead: [['D5', 62, 1], ['E5', 63, 1]],
+  harmony: [['B4', 62, 1], ['G4', 63, 1]],
+  bass: [['G3', 62, 1], ['C3', 63, 1]],
 });
 expectCadence('half', C_MAJOR, C_SEC, {
   lead: [['C5', 62, 1], ['D5', 63, 1]],
@@ -127,34 +129,35 @@ expectCadence('deceptive', C_MAJOR, C_SEC, {
   bass: [['G3', 62, 1], ['A3', 63, 1]],
 });
 expectCadence('plagal', C_MAJOR, C_SEC, {
-  lead: [['C5', 60, 2], ['C5', 62, 2]],
-  harmony: [['A4', 60, 2], ['E4', 62, 2]],
-  bass: [['F3', 60, 2], ['C3', 62, 2]],
+  lead: [['C5', 62, 1], ['C5', 63, 1]],
+  harmony: [['A4', 62, 1], ['E4', 63, 1]],
+  bass: [['F3', 62, 1], ['C3', 63, 1]],
 });
 expectCadence('modal_iv_i', C_MAJOR, C_SEC, {
-  lead: [['F5', 60, 2], ['E5', 62, 2]],
-  harmony: [['A4', 60, 2], ['G4', 62, 2]],
-  bass: [['F3', 60, 2], ['C3', 62, 2]],
+  lead: [['F5', 62, 1], ['E5', 63, 1]],
+  harmony: [['A4', 62, 1], ['G4', 63, 1]],
+  bass: [['F3', 62, 1], ['C3', 63, 1]],
 });
 expectCadence('phrygian_ii_i', C_MAJOR, C_SEC, {
-  lead: [['D5', 60, 2], ['C5', 62, 2]],
-  harmony: [['F4', 60, 2], ['E4', 62, 2]],
-  bass: [['Db3', 60, 2], ['C3', 62, 2]],
+  lead: [['D5', 62, 1], ['C5', 63, 1]],
+  harmony: [['F4', 62, 1], ['E4', 63, 1]],
+  bass: [['Db3', 62, 1], ['C3', 63, 1]],
 });
 
 // The two mode-specific cadences the human checkpoint listens for: the
 // phrygian half-step descent (bass F→E under lead F→E) and the modal iv→i.
+// Section startBar 0, 4 bars → final-two-beats window is beats 14–16.
 const E_PHR = { meter: { numerator: 4, denominator: 4 }, tonic: 'E', mode: 'phrygian_dominant', register_center: 'E5' };
 expectCadence('phrygian_ii_i', E_PHR, { label: 'A', startBar: 0, bars: 4 }, {
-  lead: [['F5', 12, 2], ['E5', 14, 2]], // F → E half-step descent in the lead
-  harmony: [['A4', 12, 2], ['G#4', 14, 2]],
-  bass: [['F3', 12, 2], ['E3', 14, 2]], // F → E half-step descent in the bass
+  lead: [['F5', 14, 1], ['E5', 15, 1]], // F → E half-step descent in the lead
+  harmony: [['A4', 14, 1], ['G#4', 15, 1]],
+  bass: [['F3', 14, 1], ['E3', 15, 1]], // F → E half-step descent in the bass
 });
 const D_DOR = { meter: { numerator: 4, denominator: 4 }, tonic: 'D', mode: 'dorian', register_center: 'D5' };
 expectCadence('modal_iv_i', D_DOR, { label: 'A', startBar: 0, bars: 4 }, {
-  lead: [['G5', 12, 2], ['F5', 14, 2]],
-  harmony: [['B4', 12, 2], ['A4', 14, 2]],
-  bass: [['G3', 12, 2], ['D3', 14, 2]], // IV (G major in dorian) → i (D)
+  lead: [['G5', 14, 1], ['F5', 15, 1]],
+  harmony: [['B4', 14, 1], ['A4', 15, 1]],
+  bass: [['G3', 14, 1], ['D3', 15, 1]], // IV (G major in dorian) → i (D)
 });
 
 // --- 3. stage-8 splice behaviour -------------------------------------------
@@ -175,12 +178,24 @@ for (const voice of ['lead', 'harmony', 'bass']) {
   if (overlaps) fail(`stage8:overlap:${voice}`, 'events overlap after the cadence splice');
 }
 
-// The very last lead event of the piece (Sunrise A3 = PAC) lands on C (the
-// tonic), held into the final bar — the strong-PAC requirement.
+// Sunrise A3 = PAC. After the cadence-manifestation revision the cadence
+// overwrites only the final two beats (62–64): its last lead event resolves to
+// the tonic C (in whatever octave the approaching melody placed it — no longer
+// pinned to C5), and the A3 motif material in the first half of the final bar
+// SURVIVES and leads into the cadence (the flow-in the Session-9 checkpoint asked
+// for) instead of the whole bar going static.
 const lastLead = tracks8.lead[tracks8.lead.length - 1];
-expect('stage8:PAC-lands-on-tonic', toScoreString(lastLead.pitch), 'C5');
+if (!(lastLead.pitch && lastLead.pitch.letter === 'C' && lastLead.pitch.accidental === 0)) {
+  fail('stage8:PAC-lands-on-tonic', `last lead event ${toScoreString(lastLead.pitch)} is not the tonic C (any octave)`);
+}
 if (!(lastLead.beat >= 62 - 1e-9)) {
-  fail('stage8:PAC-final-beat', `last lead event starts at beat ${lastLead.beat}, expected the final bar's second half (≥62)`);
+  fail('stage8:PAC-final-beat', `last lead event starts at beat ${lastLead.beat}, expected the cadence window (≥62)`);
+}
+// Flow-in: the final bar (beats 60–64) keeps lead material before the cadence
+// window (beats 60–62), rather than being wholly overwritten.
+const leadsIntoCadence = tracks8.lead.some((e) => e.pitch && e.beat >= 60 - 1e-9 && e.beat < 62 - 1e-9);
+if (!leadsIntoCadence) {
+  fail('stage8:flow-in', 'expected lead material in the final bar before the cadence window (the melody leading into the cadence)');
 }
 
 // Stage 8 must not mutate its input (the Stage-6 tracks).

@@ -208,14 +208,6 @@ function sectionRelationshipsForPlan(macroParams, plan) {
   return deriveSectionRelationships(labels);
 }
 
-function cadenceByLabelFrom(harmonicPlan) {
-  const map = new Map();
-  for (const section of harmonicPlan?.sections ?? []) {
-    map.set(section.label, section.cadence ?? null);
-  }
-  return map;
-}
-
 // =================================================================
 // PROMPT BUILDING — kept separate from the fetch (so the inspector can display
 // it and the verifier can assert on it). Returns { system, user }.
@@ -295,8 +287,9 @@ function phraseStructureVocabulary() {
 function transformVocabulary() {
   const lines = [...RECOGNIZED_TRANSFORMS].map((name) => `  - ${name}: ${TRANSFORM_DESCRIPTIONS[name] ?? ''}`);
   lines.push(
-    `  - ${CADENTIAL_GESTURE}: RESERVED end-slot — use it (with motif null) for the final bar of any section `
-    + 'that declares a cadence; Stage 8 fills it. Do NOT place a motivic transform on a cadenced final bar.'
+    `  - ${CADENTIAL_GESTURE}: an OPTIONAL reserved end-slot (with motif null) — a rest into the cadence. Use it `
+    + 'only when you want the melody to pause before a section\'s close; otherwise let a motif lead into the '
+    + 'cadence (see below).'
   );
   return [`TRANSFORMS (use ONLY these names for "transform"):`, ...lines].join('\n');
 }
@@ -309,33 +302,31 @@ function developmentRules() {
     '- A reprise section (role "reprise") must bring back at least one motif used by the section it reprises.',
     '- No two ADJACENT assignments in a section may be the identical { motif, transform } pair.',
     '- Assignments within a section may NOT overlap (a gap/rest is fine); none may run past the section\'s last bar.',
-    '- For any section that declares a cadence (see HARMONIC PLAN), the assignment covering its FINAL bar must '
-      + `be the reserved "${CADENTIAL_GESTURE}" (motif null) — Stage 8 overwrites that bar, so a motivic transform `
-      + 'there is wasted.',
+    'CADENCES: a section that declares a cadence (see HARMONIC PLAN) closes with one — but Stage 8 enforces only '
+      + 'the section\'s final TWO BEATS. So you may let a motif occupy the FINAL bar and lead INTO the cadence '
+      + '(its tail resolves into the close) — that is the preferred, more melodic choice — OR use the reserved '
+      + `"${CADENTIAL_GESTURE}" slot if you want the melody to rest into the cadence. Either is valid.`,
   ].join('\n');
 }
 
 // The JSON skeleton the model fills in, listing each section with its bar count
-// so placements land in range and cadenced finals get the reserved slot.
-function schemaSkeleton(plan, cadenceByLabel) {
+// so placements land in range.
+function schemaSkeleton(plan) {
   const sectionLines = plan
-    .map((s) => {
-      const cadence = cadenceByLabel.get(s.label);
-      const cadenceNote = cadence && cadence !== 'none'
-        ? ` final bar ${s.bars} = cadential_gesture (${cadence})`
-        : '';
-      return `    ${JSON.stringify(s.label)}: { "phrase_structure": "…", "lead": [ /* place motifs across bars 1..${s.bars};${cadenceNote || ' no declared cadence'} */ ] }`;
-    })
+    .map(
+      (s) =>
+        `    ${JSON.stringify(s.label)}: { "phrase_structure": "…", "lead": [ /* place motifs across bars 1..${s.bars} */ ] }`
+    )
     .join(',\n');
   return `{\n  "sections": {\n${sectionLines}\n  }\n}`;
 }
 
-function schemaBlock(plan, cadenceByLabel) {
+function schemaBlock(plan) {
   const labels = plan.map((s) => JSON.stringify(s.label)).join(', ');
   return [
     'RESPOND WITH ONLY THIS JSON OBJECT — no markdown fences, no commentary before or after:',
     '',
-    schemaSkeleton(plan, cadenceByLabel),
+    schemaSkeleton(plan),
     '',
     'REQUIREMENTS:',
     `- Use these EXACT section labels as the keys of "sections": ${labels}.`,
@@ -357,7 +348,6 @@ function schemaBlock(plan, cadenceByLabel) {
 export function buildPhrasePlanPrompt({ macroParams, motifs, harmonicPlan, config }) {
   const plan = computeSectionPlan(macroParams);
   const relationships = sectionRelationshipsForPlan(macroParams, plan);
-  const cadenceByLabel = cadenceByLabelFrom(harmonicPlan);
   const adventurousness = phraseAdventurousnessOf(config);
 
   const system =
@@ -373,7 +363,7 @@ export function buildPhrasePlanPrompt({ macroParams, motifs, harmonicPlan, confi
     transformVocabulary(),
     developmentRules(),
     `PHRASE ADVENTUROUSNESS — ${adventurousness}:\n  ${PHRASE_ADVENTUROUSNESS_DIRECTIVE[adventurousness]}`,
-    schemaBlock(plan, cadenceByLabel),
+    schemaBlock(plan),
   ].join('\n\n');
 
   return { system, user };
@@ -447,21 +437,20 @@ function parsePhrasePlanResponse(raw) {
 // VALIDATION — validatePhrasePlan checks the WRAPPED LLM envelope. Exported so
 // verify-stage5a.mjs can stress-test it without re-deriving the logic. Collects
 // ALL defects (does not stop at the first) so a retry can address them together.
-//
-// `harmonicPlan` is an OPTIONAL 4th argument: rule (e) — "cadenced final bar must
-// be cadential_gesture" — needs the per-section cadence, which lives in the
-// harmonicPlan, not in macroParams. When it is omitted, rule (e) is skipped (the
-// other rules still run). generatePhrasePlan always passes it.
 // =================================================================
 
 /**
  * Validate one section's `lead` array: each assignment well-formed (rule f),
- * no adjacent-identical pair (c), no overlap / no overflow (d), and — if the
- * section declares a cadence — only cadential_gesture on the final bar (e).
- * Pushes every defect via `push` and returns
- * `{ motifSet, hasDevelopment }` for the cross-section rules (a)/(b).
+ * no adjacent-identical pair (c), and no overlap / no overflow (d). Pushes every
+ * defect via `push` and returns `{ motifSet, hasDevelopment }` for the
+ * cross-section rules (a)/(b).
+ *
+ * NOTE: there is intentionally no "final bar must be cadential_gesture" rule.
+ * Stage 8 now enforces only a section's final two beats, so a motif may occupy
+ * the final bar and lead INTO the cadence (only its tail resolves) — that is a
+ * valid, preferred shape, not a defect.
  */
-function validateLead(lead, label, bars, motifNames, cadence, push) {
+function validateLead(lead, label, bars, motifNames, push) {
   const summary = { motifSet: new Set(), hasDevelopment: false };
   if (!Array.isArray(lead)) {
     push(`Section "${label}" "lead" must be an array of assignments.`);
@@ -576,30 +565,15 @@ function validateLead(lead, label, bars, motifNames, cadence, push) {
     );
   }
 
-  // (e) cadential_gesture is the only transform allowed on the final bar of a cadenced section.
-  if (cadence && cadence !== 'none') {
-    for (const a of sorted) {
-      const coversFinal = a.start <= bars && a.start + a.length - 1 >= bars;
-      if (coversFinal && a.name !== CADENTIAL_GESTURE) {
-        push(
-          `Section "${label}" declares a ${cadence} cadence, so its final bar (${bars}) must use the reserved `
-            + `"${CADENTIAL_GESTURE}" slot (Stage 8 overwrites that bar). Found motif ${motifDisplay(a.motif)} `
-            + `with transform "${a.label}" covering bar ${bars}.`
-        );
-      }
-    }
-  }
-
   return summary;
 }
 
 /**
  * Validate the WRAPPED PhrasePlan envelope `{ sections: { <label>: {
- * phrase_structure, lead } } }` against `macroParams` + `motifs` (+ optional
- * `harmonicPlan` for rule e). Returns { ok, errors: [] }; `ok` is true only when
- * `errors` is empty.
+ * phrase_structure, lead } } }` against `macroParams` + `motifs`. Returns
+ * { ok, errors: [] }; `ok` is true only when `errors` is empty.
  */
-export function validatePhrasePlan(wrappedPlan, macroParams, motifs, harmonicPlan) {
+export function validatePhrasePlan(wrappedPlan, macroParams, motifs) {
   const errors = [];
   const push = (message) => errors.push(message);
 
@@ -621,7 +595,6 @@ export function validatePhrasePlan(wrappedPlan, macroParams, motifs, harmonicPla
   const barsByLabel = new Map(plan.map((s) => [s.label, s.bars]));
   const motifNames = motifs && typeof motifs === 'object' ? new Set(Object.keys(motifs)) : new Set();
   const relationships = sectionRelationshipsForPlan(macroParams, plan);
-  const cadenceByLabel = cadenceByLabelFrom(harmonicPlan);
 
   // (f) the section-label set must match exactly — none missing, none extra.
   for (const label of expectedLabels) {
@@ -655,14 +628,7 @@ export function validatePhrasePlan(wrappedPlan, macroParams, motifs, harmonicPla
           + `${[...PHRASE_STRUCTURES].join(', ')}.`
       );
     }
-    const summary = validateLead(
-      sectionPlan.lead,
-      label,
-      bars,
-      motifNames,
-      cadenceByLabel.get(label),
-      push
-    );
+    const summary = validateLead(sectionPlan.lead, label, bars, motifNames, push);
     summaryByLabel.set(label, summary);
   }
 
@@ -738,7 +704,7 @@ export async function generatePhrasePlan({
   // --- Offline / deterministic fallback: same parse + validate, no network. ---
   if (__mockResponse !== undefined) {
     const parsed = parsePhrasePlanResponse(__mockResponse); // throws clearly on bad JSON
-    const result = validatePhrasePlan(parsed, macroParams, motifs, harmonicPlan);
+    const result = validatePhrasePlan(parsed, macroParams, motifs);
     trace({ attempt: 0, raw: __mockResponse, ok: result.ok, errors: result.errors });
     if (!result.ok) {
       console.error('Stage 5a: mock response failed validation. Raw:\n', __mockResponse);
@@ -754,7 +720,7 @@ export async function generatePhrasePlan({
   let parsed;
   try {
     parsed = parsePhrasePlanResponse(raw);
-    result = validatePhrasePlan(parsed, macroParams, motifs, harmonicPlan);
+    result = validatePhrasePlan(parsed, macroParams, motifs);
   } catch (parseError) {
     // Treat an unparseable first response like a validation failure so the single
     // retry gets a chance to return clean JSON.
@@ -767,7 +733,7 @@ export async function generatePhrasePlan({
     messages.push({ role: 'user', content: buildRetryPrompt(result.errors) });
     raw = await callPhraseLLM(system, messages);
     parsed = parsePhrasePlanResponse(raw); // throws clearly if still unparseable
-    result = validatePhrasePlan(parsed, macroParams, motifs, harmonicPlan);
+    result = validatePhrasePlan(parsed, macroParams, motifs);
     trace({ attempt: 2, raw, ok: result.ok, errors: result.errors });
     if (!result.ok) {
       console.error('Stage 5a: PhrasePlan failed validation after one retry. Raw:\n', raw);

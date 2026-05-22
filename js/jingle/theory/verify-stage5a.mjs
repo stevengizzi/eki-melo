@@ -9,10 +9,11 @@
         errors:[] }, and EACH documented defect returns { ok:false } with a clear,
         retry-actionable message: unknown motif, unknown transform, a B (contrast)
         section with no non-literal development, a reprise that drops its source
-        motif, adjacent-identical assignments, an overlap, a motivic transform on a
-        cadenced final bar, plus the schema rules (missing section, extra section,
-        bad phrase_structure, out-of-range start_bar, bad length_bars, envelope
-        shape).
+        motif, adjacent-identical assignments, an overlap, plus the schema rules
+        (missing section, extra section, bad phrase_structure, out-of-range
+        start_bar, bad length_bars, envelope shape). A motif leading INTO a
+        cadenced final bar is now VALID (Stage 8 enforces only the final two
+        beats), not a defect.
      b. generatePhrasePlan(__mockResponse) — a VALID mock parses + validates and
         returns the FLAT §3 plan (keys = section labels, no `sections` wrapper).
         Threaded through runPipelineGenerating (with Stage 5b ALSO mocked) it runs
@@ -142,17 +143,17 @@ const VALID = {
   },
 };
 
-expectOk('a:valid', validatePhrasePlan(VALID, MACRO, MOTIFS, HARMONIC));
+expectOk('a:valid', validatePhrasePlan(VALID, MACRO, MOTIFS));
 
 // unknown motif
 const badMotif = clone(VALID);
 badMotif.sections.A.lead[0].motif = 'z';
-expectInvalid('a:unknown-motif', validatePhrasePlan(badMotif, MACRO, MOTIFS, HARMONIC), 'known motif');
+expectInvalid('a:unknown-motif', validatePhrasePlan(badMotif, MACRO, MOTIFS), 'known motif');
 
 // unknown transform
 const badTransform = clone(VALID);
 badTransform.sections.A.lead[1].transform = 'nope_transform';
-expectInvalid('a:unknown-transform', validatePhrasePlan(badTransform, MACRO, MOTIFS, HARMONIC), 'unknown transform');
+expectInvalid('a:unknown-transform', validatePhrasePlan(badTransform, MACRO, MOTIFS), 'unknown transform');
 
 // B (contrast) section with no non-literal development (all literal, no adjacency)
 const noDev = clone(VALID);
@@ -162,7 +163,7 @@ noDev.sections.B.lead = [
   { motif: 'a', transform: 'literal', start_bar: 3, length_bars: 1 },
   { motif: null, transform: 'cadential_gesture', start_bar: 4, length_bars: 1 },
 ];
-expectInvalid('a:b-no-development', validatePhrasePlan(noDev, MACRO, MOTIFS, HARMONIC), 'non-literal motivic development');
+expectInvalid('a:b-no-development', validatePhrasePlan(noDev, MACRO, MOTIFS), 'non-literal motivic development');
 
 // reprise (A') that drops its source motif (uses only b, never a)
 const lostMotif = clone(VALID);
@@ -172,7 +173,7 @@ lostMotif.sections["A'"].lead = [
   { motif: 'b', transform: 'retrograde', start_bar: 3, length_bars: 1 },
   { motif: null, transform: 'cadential_gesture', start_bar: 4, length_bars: 1 },
 ];
-expectInvalid('a:reprise-lost-motif', validatePhrasePlan(lostMotif, MACRO, MOTIFS, HARMONIC), 'reprise');
+expectInvalid('a:reprise-lost-motif', validatePhrasePlan(lostMotif, MACRO, MOTIFS), 'reprise');
 
 // adjacent identical { motif, transform } pair
 const adjacent = clone(VALID);
@@ -182,49 +183,49 @@ adjacent.sections.A.lead = [
   { motif: 'a', transform: 'fragment_tail', start_bar: 3, length_bars: 1 },
   { motif: null, transform: 'cadential_gesture', start_bar: 4, length_bars: 1 },
 ];
-expectInvalid('a:adjacent-identical', validatePhrasePlan(adjacent, MACRO, MOTIFS, HARMONIC), 'adjacent identical');
+expectInvalid('a:adjacent-identical', validatePhrasePlan(adjacent, MACRO, MOTIFS), 'adjacent identical');
 
 // overlap (bar 1 spans 2 bars, bar 2 assignment starts inside it)
 const overlap = clone(VALID);
 overlap.sections.A.lead[0] = { motif: 'a', transform: 'literal', start_bar: 1, length_bars: 2 };
 overlap.sections.A.lead[1] = { motif: 'a', transform: 'sequence_up_step', start_bar: 2, length_bars: 1 };
-expectInvalid('a:overlap', validatePhrasePlan(overlap, MACRO, MOTIFS, HARMONIC), 'overlap');
+expectInvalid('a:overlap', validatePhrasePlan(overlap, MACRO, MOTIFS), 'overlap');
 
-// motivic transform on a cadenced final bar (needs harmonicPlan for rule e)
-const cadenceBar = clone(VALID);
-cadenceBar.sections.A.lead[3] = { motif: 'a', transform: 'ornament_upper_neighbor', start_bar: 4, length_bars: 1 };
-expectInvalid('a:cadence-bar', validatePhrasePlan(cadenceBar, MACRO, MOTIFS, HARMONIC), 'cadential_gesture');
-// ...and with no harmonicPlan supplied, rule (e) is skipped (the rest still hold)
-expectOk('a:cadence-bar-no-harmony', validatePhrasePlan(cadenceBar, MACRO, MOTIFS));
+// a motif leading INTO the cadence on a cadenced final bar is now VALID (Stage 8
+// enforces only the final two beats, so the motif's lead-in survives) — not a
+// defect. (Before the cadence-manifestation revision this was rejected.)
+const leadIntoCadence = clone(VALID);
+leadIntoCadence.sections.A.lead[3] = { motif: 'a', transform: 'ornament_upper_neighbor', start_bar: 4, length_bars: 1 };
+expectOk('a:motif-leads-into-cadence', validatePhrasePlan(leadIntoCadence, MACRO, MOTIFS));
 
 // schema: missing section
 const missing = clone(VALID);
 delete missing.sections["A'"];
-expectInvalid('a:missing-section', validatePhrasePlan(missing, MACRO, MOTIFS, HARMONIC), 'missing section');
+expectInvalid('a:missing-section', validatePhrasePlan(missing, MACRO, MOTIFS), 'missing section');
 
 // schema: extra section
 const extra = clone(VALID);
 extra.sections.C = { phrase_structure: 'period', lead: [{ motif: 'a', transform: 'literal', start_bar: 1, length_bars: 1 }] };
-expectInvalid('a:extra-section', validatePhrasePlan(extra, MACRO, MOTIFS, HARMONIC), 'unexpected section');
+expectInvalid('a:extra-section', validatePhrasePlan(extra, MACRO, MOTIFS), 'unexpected section');
 
 // schema: bad phrase_structure
 const badStructure = clone(VALID);
 badStructure.sections.A.phrase_structure = 'verse';
-expectInvalid('a:bad-structure', validatePhrasePlan(badStructure, MACRO, MOTIFS, HARMONIC), 'phrase_structure');
+expectInvalid('a:bad-structure', validatePhrasePlan(badStructure, MACRO, MOTIFS), 'phrase_structure');
 
 // schema: start_bar out of range
 const badStart = clone(VALID);
 badStart.sections.A.lead[0].start_bar = 9;
-expectInvalid('a:bad-start', validatePhrasePlan(badStart, MACRO, MOTIFS, HARMONIC), 'out of range');
+expectInvalid('a:bad-start', validatePhrasePlan(badStart, MACRO, MOTIFS), 'out of range');
 
 // schema: length_bars invalid
 const badLength = clone(VALID);
 badLength.sections.A.lead[0].length_bars = 0;
-expectInvalid('a:bad-length', validatePhrasePlan(badLength, MACRO, MOTIFS, HARMONIC), 'length_bars');
+expectInvalid('a:bad-length', validatePhrasePlan(badLength, MACRO, MOTIFS), 'length_bars');
 
 // envelope shape errors
-expectInvalid('a:not-object', validatePhrasePlan(null, MACRO, MOTIFS, HARMONIC), 'object');
-expectInvalid('a:no-sections', validatePhrasePlan({ A: {} }, MACRO, MOTIFS, HARMONIC), 'sections');
+expectInvalid('a:not-object', validatePhrasePlan(null, MACRO, MOTIFS), 'object');
+expectInvalid('a:no-sections', validatePhrasePlan({ A: {} }, MACRO, MOTIFS), 'sections');
 
 // =================================================================
 // c. buildPhrasePlanPrompt — pure { system, user }, names labels + vocab
