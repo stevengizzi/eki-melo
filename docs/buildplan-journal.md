@@ -2196,10 +2196,61 @@ one in-scope fix:
    audible. Actually *realizing* phrase structure (sub-phrase cadence placement) remains
    deferred; `phrase_structure` stays a high-level hint until a stage owns its realization.
 
-**Open question carried into the next step — cadence manifestation (Stage 8 revision).**
-The cadence work is its own focused effort (it revises Stage 5's Stage 8 + needs
-verify-stage8 extended), not part of the Stage-5a checkpoint. Approach is being decided
-with Steven: (A) let the melody flow into the cadence (overwrite only the resolution, not
-the whole bar) AND vary the voicing by context, (B) just stop the hard-stop (overwrite
-fewer beats; resolution voicing unchanged), or (C) just vary the voicing (keep full-bar
-overwrite). The Stage-5a listening pass and this Stage-8 work are evaluated separately.
+### Cadence-manifestation revision (2026-05-21) — Stage 8, post-checkpoint
+
+Steven chose option (A): the melody flows into the cadence AND the voicing varies by
+context. Implemented as a Stage 8 (Session-5) revision — the cadence TYPE per section
+stays fixed and the harmonic resolution still lands (enforcement is still
+non-negotiable); only the *manifestation* changed. Three coupled edits:
+
+1. **Cadences overwrite only the final TWO BEATS** (`cadence-formulas.js`). Previously the
+   authentic-style cadences (PAC/IAC/plagal/modal_iv_i/phrygian_ii_i) overwrote the WHOLE
+   final bar with an approach→resolution block, hard-stopping the melody; half/deceptive
+   already used two beats. Now ALL seven use the final-two-beats window, so the first part
+   of the final bar keeps the lead's motif + the harmony/bass texture, which play INTO the
+   cadence. `stage-8-cadence.js` needed no change — the splice window auto-narrows from the
+   formulas' beats. The 7 formulas were refactored to a single `cadence(macroParams,
+   section, voiceTracks, spec)` builder where `spec` names the per-voice
+   [approach, resolution] degrees/chords (identical degree specs to before, so the cadence
+   identities are unchanged).
+
+2. **Register follows the approaching melody** (`cadence-formulas.js`). The lead resolution
+   (and harmony, one octave below it) is voiced in the octave NEAREST the last lead pitch
+   sounding before the cadence window (`approachLeadPitch` + `octaveNearestMidi`, bounded
+   to ±1 octave around the register centre), instead of always snapping to the register
+   centre. So the resolution continues from where the line was — no teleport — and cadences
+   in different registers differ (verified: in Wanderer's, B's plagal followed the line up
+   to octave 6 while A/A''s modal_iv_i stayed at octave 5). When there is no approaching
+   lead pitch (a section opening on the cadence, or a formula called in isolation) it falls
+   back to the register-centre octave — the pre-revision voicing, which is why
+   verify-stage8's pure-formula anchors keep their pitches (only their beats moved to the
+   final two beats).
+
+3. **Stage 5a rule (e) relaxed** (`stage-5a-phrase.js`). The Session-9 rule "a cadenced
+   section's final bar MUST be cadential_gesture" existed only because Stage 8 used to wipe
+   the whole bar. Now that Stage 8 claims only the final two beats, a motif on the final bar
+   leads INTO the cadence (its tail resolves) and is the PREFERRED, more-melodic choice —
+   so the rule is removed, the prompt now steers toward leading a motif in (with
+   cadential_gesture as an optional "rest into the cadence"), and `validatePhrasePlan` drops
+   its (now-unused) 4th harmonicPlan argument. cadential_gesture stays a valid recognized
+   transform.
+
+**Honest limit (a finding for the listening pass).** For two same-type cadences whose
+approaching melodies sit in the SAME register (e.g. Wanderer's hand-supplied A and A', both
+modal_iv_i ending near octave 5), the two-beat resolution gesture itself is still identical
+(G5→F5) — that descent IS the cadence type's identity, and identical contexts yield
+identical cadences (which is what "predetermined in the abstract sense" implies). What
+differs is the lead-IN (each section's motif now flows in differently) and the register
+(when the melody sits elsewhere). For the FULLY-GENERATED case, Stage 5a gives A and A'
+different motif placements, so their final bars differ audibly via the lead-ins. If Steven
+finds same-register same-type cadences still too alike by ear, the next lever is varying the
+resolution gesture itself (approach-tone side / inner-voice / rhythm) — deferred pending his
+listen, since it risks eroding each cadence's characteristic sound.
+
+**Verification.** verify-stage8 updated (final-two-beats timing on the seven pure-formula
+anchors; the splice test now checks the PAC resolves to the tonic C in any octave AND that
+lead material survives in the final bar before the cadence window — the flow-in). verify-
+stage5a updated (the old cadence-bar rejection is replaced by a positive test: a motif
+leading into a cadenced final bar validates OK; the 4th validator arg dropped). All nine
+verifiers PASS offline. Steven evaluates the Stage-5a phrase work and this Stage-8 cadence
+revision together in the (still-open) human checkpoint.
