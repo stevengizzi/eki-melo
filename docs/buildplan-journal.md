@@ -2835,3 +2835,32 @@ still validates). All eleven verifiers pass offline.
 Same recurring lesson as the contour relaxation: a validator should catch the wildly-wrong and let the
 merely-imperfect through — hard-failing cosmetic or stylistic choices fights the model and aborts runs.
 Anomaly schema (malformed) = hard; anomaly accuracy (cosmetic) = soft.
+
+### Checkpoint finding (2026-05-22) — motif-length cap + contour consistency (un-blocked)
+
+A run aborted on two motif-"b" errors at once: rhythm summed to 4.0 ("must be between 1.5 and 3.5")
+and a peak_descend whose peak wasn't interior. Both are the same over-strict pattern again:
+
+1. **Rhythm cap 3.5 → 4.0.** The model wrote a one-bar motif (4 beats), which is a natural, singable
+   phrase length; the 3.5 ceiling was arbitrary. A 4-beat motif placed in a 4-beat bar fills it exactly
+   (no overlap with the next bar's assignment), so one bar is the right max. The cap STAYS hard (motif
+   length affects placement — a motif longer than its bar would overlap the next entry and break
+   sequencing), just set to the musically-correct bound. RHYTHM_SUM_MAX is 4.0; the prompt's stated
+   range and the validator message both read from the constant, so they updated together.
+
+2. **Contour consistency → SOFT warning.** The model labeled a from-the-top descent as peak_descend (a
+   real mislabel — that's a falling_arc). But contour is INERT: Stage 6 realizes pitches from the
+   degrees, never the label; contour is only descriptive metadata + a hint in the 5a/5b prompts. So a
+   wrong label changes nothing audible — exactly as cosmetic as anomaly accuracy. The contour-trajectory
+   match moved from a hard failure to a soft warning (`contourMismatchWarnings`); the contour VALUE (one
+   of the six) stays a hard schema check. This is the THIRD contour-related abort (after the strict-
+   monotonic arcs and this one), so making it non-fatal closes the class.
+
+verify-stage4 updated: a 4.0-beat motif validates; a 4.5 still fails; contour mismatches now validate +
+emit a soft warning (the bad-contour-VALUE case stays a hard failure). All eleven verifiers pass offline.
+
+The recurring lesson is now firmly applied across the whole Stage-4 validator: SCHEMA (degree range,
+rhythm length, sum within the placement-safe bound, value ∈ closed set, key set, anomaly shape) is hard;
+ACCURACY / STYLE (contour-shape match, anomaly reality, chord-tone ending, rhythm sameness) is a soft
+warning. Hard checks are reserved for "this would break realization or violate the schema"; everything
+that only affects taste or metadata honesty warns instead of aborting.

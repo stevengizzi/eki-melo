@@ -82,7 +82,7 @@ const EPSILON = 1e-9;
 // (~32-beat) arrival-jingle context. Below it the motif is a fragment; above it
 // the motif eats too much of the jingle. (See [[jingle-length-cap-32-beats]].)
 const RHYTHM_SUM_MIN = 1.5;
-const RHYTHM_SUM_MAX = 3.5;
+const RHYTHM_SUM_MAX = 4.0; // one bar in 4/4 — the natural max for a motif placed per bar
 const DEGREES_MIN = 4;
 const DEGREES_MAX = 8;
 
@@ -514,12 +514,12 @@ function validateOneMotif(motif, name, push) {
     }
   }
 
-  // contour — one of CONTOURS, and consistent with the trajectory
+  // contour — must be one of CONTOURS (schema, hard). Whether the LABEL matches the
+  // degree trajectory is a SOFT warning (contourMismatchWarnings): contour is
+  // descriptive metadata — Stage 6 realizes pitches from the degrees, not the label
+  // — so a mislabel is cosmetic and must not abort a run.
   if (!CONTOURS.includes(contour)) {
     push(`Motif "${name}" contour ${JSON.stringify(contour)} is not one of: ${CONTOURS.join(', ')}.`);
-  } else if (degreesOk) {
-    const contourError = contourConsistencyError(degrees, contour, name);
-    if (contourError) push(contourError);
   }
 
   // register — one of REGISTERS
@@ -698,6 +698,21 @@ function anomalyRealityWarnings(flatMotifs) {
   return warnings;
 }
 
+// Soft warnings when a motif's contour LABEL doesn't match its degree trajectory.
+// Contour is descriptive metadata (Stage 6 realizes pitches from the degrees, not
+// the label), so a mismatch is cosmetic — flag it, never reject it. Reuses the same
+// net-directional shape rules as contourConsistencyError.
+function contourMismatchWarnings(flatMotifs) {
+  const warnings = [];
+  for (const [name, motif] of Object.entries(flatMotifs)) {
+    if (!CONTOURS.includes(motif?.contour) || !Array.isArray(motif.degrees)) continue;
+    if (!motif.degrees.every((d) => Number.isInteger(d) && d >= 1 && d <= 7)) continue;
+    const message = contourConsistencyError(motif.degrees, motif.contour, name);
+    if (message) warnings.push(`${message} (soft note — the degrees are the melody; the label is only a hint.)`);
+  }
+  return warnings;
+}
+
 // A soft warning when 2+ motifs share the exact same rhythm array. Distinct
 // rhythms are what let two motifs read as different ideas rather than the same
 // idea re-pitched (the spec allows shared rhythm, so this is a note, not a
@@ -810,6 +825,7 @@ export async function generateMotifs({
       ...chordToneWarnings(flatMotifs, macroParams, harmonicPlan),
       ...rhythmSamenessWarnings(flatMotifs),
       ...anomalyRealityWarnings(flatMotifs),
+      ...contourMismatchWarnings(flatMotifs),
     ];
     if (warnings.length > 0) {
       trace({ attempt: 'soft-note', raw: null, ok: true, errors: [], warnings });

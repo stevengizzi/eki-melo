@@ -160,12 +160,17 @@ rhythmLenMismatch.motifs.a.rhythm = [0.5, 0.5];
 expectInvalid('a:rhythm-length', validateMotifs(rhythmLenMismatch, MACRO), 'length');
 
 const rhythmTooLong = clone(VALID);
-rhythmTooLong.motifs.a.rhythm = [1, 1, 1, 0.5, 0.5, 0.5]; // sum 4.5
-expectInvalid('a:rhythm-sum-high', validateMotifs(rhythmTooLong, MACRO), 'between 1.5 and 3.5');
+rhythmTooLong.motifs.a.rhythm = [1, 1, 1, 0.5, 0.5, 0.5]; // sum 4.5 (> one bar)
+expectInvalid('a:rhythm-sum-high', validateMotifs(rhythmTooLong, MACRO), 'between 1.5 and 4');
+
+// exactly one bar (4.0) is allowed — a natural one-bar motif.
+const rhythmOneBar = clone(VALID);
+rhythmOneBar.motifs.a.rhythm = [0.5, 0.5, 1, 0.5, 0.5, 1]; // sum 4.0
+expectOk('a:rhythm-sum-one-bar', validateMotifs(rhythmOneBar, MACRO));
 
 const rhythmTooShort = clone(VALID);
 rhythmTooShort.motifs.a.rhythm = [0.2, 0.2, 0.2, 0.2, 0.2, 0.2]; // sum 1.2
-expectInvalid('a:rhythm-sum-low', validateMotifs(rhythmTooShort, MACRO), 'between 1.5 and 3.5');
+expectInvalid('a:rhythm-sum-low', validateMotifs(rhythmTooShort, MACRO), 'between 1.5 and 4');
 
 const rhythmNonPositive = clone(VALID);
 rhythmNonPositive.motifs.a.rhythm = [0.5, 0, 1, 0.5, 0.5, 0.5];
@@ -176,36 +181,18 @@ const badContourValue = clone(VALID);
 badContourValue.motifs.a.contour = 'zigzag';
 expectInvalid('a:bad-contour-value', validateMotifs(badContourValue, MACRO), 'not one of');
 
-// a = [1,3,5,4,3,1] ends equal to its start → cannot be rising_arc (must net-rise)
+// A contour LABEL that doesn't match the trajectory is now a SOFT warning, not a
+// hard failure — contour is inert metadata (Stage 6 realizes the degrees, not the
+// label). validateMotifs ACCEPTS these; generateMotifs warns (section b below).
+// a = [1,3,5,4,3,1] ends equal to its start → not really rising_arc.
 const contourMismatch = clone(VALID);
 contourMismatch.motifs.a.contour = 'rising_arc';
-expectInvalid('a:contour-mismatch', validateMotifs(contourMismatch, MACRO), 'rising_arc');
+expectOk('a:contour-mismatch-accepted', validateMotifs(contourMismatch, MACRO));
 
-// b = [5,4,3,1] labeled peak_descend → its max (5) is at index 0, not interior
+// b = [5,4,3,1] labeled peak_descend (max at index 0, not interior) — also accepted.
 const contourPeakMismatch = clone(VALID);
 contourPeakMismatch.motifs.b.contour = 'peak_descend';
-expectInvalid('a:contour-peak-mismatch', validateMotifs(contourPeakMismatch, MACRO), 'peak_descend');
-
-// Contour arcs are NET-directional, not strict monotonic — a melody may wiggle
-// on the way out of the turn (the validator must not fight natural shapes).
-const wiggleValley = clone(VALID);
-wiggleValley.motifs.a.degrees = [5, 3, 1, 4, 2, 5]; // trough 1 at idx2; rises 1->4, dips 4->2, ends 5
-wiggleValley.motifs.a.rhythm = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5];
-wiggleValley.motifs.a.contour = 'valley_ascend';
-expectOk('a:valley-ascend-wiggle', validateMotifs(wiggleValley, MACRO));
-
-const wigglePeak = clone(VALID);
-wigglePeak.motifs.a.degrees = [1, 6, 4, 5, 2]; // peak 6 at idx1; dips 4, lifts 5, ends 2
-wigglePeak.motifs.a.rhythm = [0.5, 0.5, 0.5, 0.5, 0.5];
-wigglePeak.motifs.a.contour = 'peak_descend';
-expectOk('a:peak-descend-wiggle', validateMotifs(wigglePeak, MACRO));
-
-// ...but a trough at the very start is still not a valley_ascend (no descent into it).
-const noTrough = clone(VALID);
-noTrough.motifs.a.degrees = [1, 2, 3, 5, 4, 3]; // min 1 at idx0 — a rise, not a valley
-noTrough.motifs.a.rhythm = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5];
-noTrough.motifs.a.contour = 'valley_ascend';
-expectInvalid('a:valley-ascend-no-trough', validateMotifs(noTrough, MACRO), 'valley_ascend');
+expectOk('a:contour-peak-mismatch-accepted', validateMotifs(contourPeakMismatch, MACRO));
 
 // --- register ---
 const badRegister = clone(VALID);
@@ -268,7 +255,7 @@ for (const needle of [
   'at_position',                                 // the anomaly key the realizer reads
   'COMPOSITIONAL GUIDANCE',                       // the explicit coaching block
   'wild',                                        // active adventurousness directive
-  '1.5', '3.5',                                  // the rhythm-sum window
+  '1.5', 'and 4 beats',                          // the rhythm-sum window (1.5–4.0)
   'triumphant',                                  // the mood signal
 ]) {
   if (!prompt.user.includes(needle)) fail('c:user', `user prompt does not mention ${needle}`);
@@ -391,9 +378,10 @@ semOOR.motifs.a.degrees = [1, 3, 9, 4, 3, 1];
 await expectThrows('b4:out-of-range', () => generateMotifs({ macroParams: MACRO, harmonicPlan: HARMONIC, __mockResponse: JSON.stringify(semOOR) }));
 
 // (b5) semantically invalid motif mock (contour inconsistent) → throws.
-const semContour = clone(VALID);
-semContour.motifs.a.contour = 'rising_arc';
-await expectThrows('b5:contour', () => generateMotifs({ macroParams: MACRO, harmonicPlan: HARMONIC, __mockResponse: JSON.stringify(semContour) }));
+// (contour MISMATCH is now soft — see b9. A bad contour VALUE is still hard.)
+const semBadContour = clone(VALID);
+semBadContour.motifs.a.contour = 'zigzag'; // not one of the six → hard failure
+await expectThrows('b5:bad-contour-value', () => generateMotifs({ macroParams: MACRO, harmonicPlan: HARMONIC, __mockResponse: JSON.stringify(semBadContour) }));
 
 // (b6) soft end-on-chord-tone check: a valid motif that ends OFF a chord tone
 // does NOT fail — it returns and emits a warning via onTrace.
@@ -453,6 +441,24 @@ if (fakeLeapResult) {
   const warnings = leapTraces.flatMap((t) => t.warnings ?? []);
   if (!warnings.some((w) => w.toLowerCase().includes('large_leap'))) {
     fail('b8:large-leap-warning', `expected a large_leap soft warning, got ${JSON.stringify(warnings)}`);
+  }
+}
+
+// (b9) contour-mismatch SOFT warning: a label that doesn't match the degree
+// trajectory validates and returns, with a warning (contour is inert metadata).
+const contourMock = clone(VALID);
+contourMock.motifs.a.contour = 'rising_arc'; // a = [1,3,5,4,3,1] ends where it started
+const contourTraces = [];
+const contourResult = await generateMotifs({
+  macroParams: MACRO,
+  harmonicPlan: HARMONIC,
+  __mockResponse: JSON.stringify(contourMock),
+  onTrace: (t) => contourTraces.push(t),
+});
+if (contourResult) {
+  const warnings = contourTraces.flatMap((t) => t.warnings ?? []);
+  if (!warnings.some((w) => w.toLowerCase().includes('rising_arc'))) {
+    fail('b9:contour-warning', `expected a contour-mismatch soft warning, got ${JSON.stringify(warnings)}`);
   }
 }
 
