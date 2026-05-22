@@ -65,7 +65,7 @@
    does NOT modify api.js (read-only this session) — it mimics its patterns.
    ================================================================= */
 import { postMessages } from './llm-call.js';
-import { CONTOURS, REGISTERS } from '../theory/motif.js';
+import { CONTOURS, REGISTERS, degreeToLinear } from '../theory/motif.js';
 import { computeSectionPlan } from './stage-6-voice.js';
 
 // The /api/generate allow-list only permits this model (see
@@ -85,6 +85,16 @@ const RHYTHM_SUM_MIN = 1.5;
 const RHYTHM_SUM_MAX = 4.0; // one bar in 4/4 — the natural max for a motif placed per bar
 const DEGREES_MIN = 4;
 const DEGREES_MAX = 8;
+// Degree VALUES use the buildplan §3 octave-displacement convention: 1–7 are
+// in-octave; 8 is the tonic an OCTAVE above (9 the ninth above, …); negatives are
+// below the tonic (−2 the leading tone below, −3 the sixth below). 0 is not a
+// degree. Bounded so a motif stays singable and realizes in a sane register (~an
+// octave below the tonic to ~a twelfth above). This restores the §3 range the
+// Session-10 prompt wrongly narrowed to [1, 7] — the hand-supplied motifs (e.g.
+// Wanderer's b = [5,7,8,7,5]) already reach the octave, so generated motifs were
+// MORE restricted than the fixtures.
+const DEGREE_VALUE_MIN = -8;
+const DEGREE_VALUE_MAX = 14;
 
 // The three declared rule-breakers a motif may carry (buildplan §3 anomaly
 // slot). Kept as a Set so the listing the prompt shows and what validation
@@ -105,7 +115,8 @@ const MOTIF_ADVENTUROUSNESS_DIRECTIVE = {
   adventurous:
     'Use larger intervals — at least one real leap of a fourth or fifth somewhere in the set (this is good '
     + 'melodic writing, NOT an anomaly: leave anomaly null for it). At least one motif must have a clear arc '
-    + '(rising_arc or peak_descend) with a genuine high point. Do NOT let a motif be merely a triad arpeggiated up '
+    + '(rising_arc or peak_descend) with a genuine high point — reaching up to the octave (degree 8) or just beyond '
+    + 'for a soaring peak is welcome. Do NOT let a motif be merely a triad arpeggiated up '
     + 'or down: give at least one a memorable hook — a stepwise non-chord passing tone between chord tones, a '
     + 'distinctive leap, or a syncopated rhythm. Differentiate the motifs in contour AND rhythm (do not reuse one '
     + 'rhythm for every motif). Anomalies are optional and at most ONE across the set — prefer none unless a '
@@ -298,8 +309,10 @@ function schemaBlock(letters) {
     '',
     'REQUIREMENTS:',
     `- Use these EXACT keys under "motifs": ${keyList} — one motif object each, nothing more, nothing less.`,
-    `- "degrees": an array of ${DEGREES_MIN}–${DEGREES_MAX} integers, each in [1, 7]. Octaves are NOT encoded here `
-      + '(the realizer places the octave from contour + register) — work in plain scale degrees.',
+    `- "degrees": an array of ${DEGREES_MIN}–${DEGREES_MAX} non-zero integers (scale degrees). 1–7 are in-octave; `
+      + '8 is the tonic an OCTAVE above (9 the ninth above, …); NEGATIVE degrees are below the tonic (−2 the leading '
+      + 'tone below, −3 the sixth below). Reaching up to the octave (8) or just beyond — or dipping below the tonic — '
+      + `is welcome for a soaring or expansive hook. Stay within [${DEGREE_VALUE_MIN}, ${DEGREE_VALUE_MAX}].`,
     `- "rhythm": an array of positive numbers (beats), the SAME LENGTH as "degrees". Its sum MUST be between `
       + `${RHYTHM_SUM_MIN} and ${RHYTHM_SUM_MAX} beats (a singable motif for a short ~32-beat jingle).`,
     '- "contour": one of the six shape names — and it MUST match the degree trajectory.',
@@ -478,8 +491,11 @@ function validateOneMotif(motif, name, push) {
     degreesOk = false;
   } else {
     degrees.forEach((d, i) => {
-      if (!Number.isInteger(d) || d < 1 || d > 7) {
-        push(`Motif "${name}" degrees[${i}] must be an integer in [1, 7], got ${JSON.stringify(d)}.`);
+      if (!Number.isInteger(d) || d === 0 || d < DEGREE_VALUE_MIN || d > DEGREE_VALUE_MAX) {
+        push(
+          `Motif "${name}" degrees[${i}] must be a non-zero integer in [${DEGREE_VALUE_MIN}, ${DEGREE_VALUE_MAX}] `
+            + `(1–7 in-octave; 8 the octave above the tonic, negatives below it), got ${JSON.stringify(d)}.`
+        );
         degreesOk = false;
       }
     });
@@ -656,6 +672,11 @@ function chordToneDegrees(root) {
   return [wrap(root - 1), wrap(root + 1), wrap(root + 3)];
 }
 
+// Fold any degree (incl. octave displacement / negatives) to its in-octave 1..7,
+// so the chord-tone check treats degree 8 (the octave) as the tonic, −3 as the
+// sixth, etc.
+const inOctaveDegree = (degree) => (((degreeToLinear(degree) % 7) + 7) % 7) + 1;
+
 // Soft warnings when a declared large_leap / rhythmic_displacement isn't real —
 // "anomaly theater," a label on ordinary material. These two anomaly types have no
 // audible realization (Stage 6 only bends a chromatic_neighbor), so a mislabel is
@@ -706,7 +727,7 @@ function contourMismatchWarnings(flatMotifs) {
   const warnings = [];
   for (const [name, motif] of Object.entries(flatMotifs)) {
     if (!CONTOURS.includes(motif?.contour) || !Array.isArray(motif.degrees)) continue;
-    if (!motif.degrees.every((d) => Number.isInteger(d) && d >= 1 && d <= 7)) continue;
+    if (!motif.degrees.every((d) => Number.isInteger(d) && d !== 0)) continue;
     const message = contourConsistencyError(motif.degrees, motif.contour, name);
     if (message) warnings.push(`${message} (soft note — the degrees are the melody; the label is only a hint.)`);
   }
@@ -766,10 +787,11 @@ function chordToneWarnings(flatMotifs, macroParams, harmonicPlan) {
     if (root == null) continue;
 
     const tones = chordToneDegrees(root);
-    const lastDegree = motif.degrees[motif.degrees.length - 1];
+    const rawLast = motif.degrees[motif.degrees.length - 1];
+    const lastDegree = inOctaveDegree(rawLast);
     if (!tones.includes(lastDegree)) {
       warnings.push(
-        `motif "${letter}" ends on degree ${lastDegree}, not a chord tone (${tones.join('/')}) of section `
+        `motif "${letter}" ends on degree ${rawLast}, not a chord tone (${tones.join('/')}) of section `
           + `"${section.label}"'s starting chord ${progression[0]} — it may sit oddly over the harmony `
           + '(soft note, not a failure).'
       );

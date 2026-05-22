@@ -137,12 +137,30 @@ expectInvalid('a:extra-motif', validateMotifs(extra, MACRO), 'unexpected motif')
 
 // --- degrees ---
 const outOfRange = clone(VALID);
-outOfRange.motifs.a.degrees = [1, 3, 9, 4, 3, 1];
-expectInvalid('a:degree-out-of-range', validateMotifs(outOfRange, MACRO), '[1, 7]');
+outOfRange.motifs.a.degrees = [1, 3, 99, 4, 3, 1]; // far above the bounded range
+expectInvalid('a:degree-out-of-range', validateMotifs(outOfRange, MACRO), 'non-zero integer in');
 
 const nonInteger = clone(VALID);
 nonInteger.motifs.a.degrees = [1, 3, 2.5, 4, 3, 1];
-expectInvalid('a:degree-non-integer', validateMotifs(nonInteger, MACRO), '[1, 7]');
+expectInvalid('a:degree-non-integer', validateMotifs(nonInteger, MACRO), 'non-zero integer in');
+
+const zeroDegree = clone(VALID);
+zeroDegree.motifs.a.degrees = [1, 0, 5, 4, 3, 1]; // 0 is not a degree
+expectInvalid('a:degree-zero', validateMotifs(zeroDegree, MACRO), 'non-zero integer in');
+
+// The octave (8) and negative (below-tonic) degrees are now valid (the §3
+// octave-displacement convention the kickoff had wrongly narrowed to [1, 7]).
+const octaveReach = clone(VALID);
+octaveReach.motifs.a.degrees = [1, 3, 5, 8, 5, 3]; // reaches the octave
+octaveReach.motifs.a.rhythm = [0.5, 0.5, 0.5, 1, 0.5, 0.5];
+octaveReach.motifs.a.contour = 'peak_descend';
+expectOk('a:octave-reach', validateMotifs(octaveReach, MACRO));
+
+const belowTonic = clone(VALID);
+belowTonic.motifs.b.degrees = [5, 3, 1, -2, 1]; // dips below the tonic to the leading tone
+belowTonic.motifs.b.rhythm = [0.5, 0.5, 1, 0.5, 0.5];
+belowTonic.motifs.b.contour = 'valley_ascend';
+expectOk('a:below-tonic', validateMotifs(belowTonic, MACRO));
 
 const tooFew = clone(VALID);
 tooFew.motifs.a.degrees = [1, 3, 5];
@@ -374,7 +392,7 @@ await expectThrows('b3:bad-json', () => generateMotifs({ macroParams: MACRO, har
 
 // (b4) semantically invalid motif mock (out-of-range degree) → throws.
 const semOOR = clone(VALID);
-semOOR.motifs.a.degrees = [1, 3, 9, 4, 3, 1];
+semOOR.motifs.a.degrees = [1, 3, 99, 4, 3, 1]; // 99 is far outside the bounded range
 await expectThrows('b4:out-of-range', () => generateMotifs({ macroParams: MACRO, harmonicPlan: HARMONIC, __mockResponse: JSON.stringify(semOOR) }));
 
 // (b5) semantically invalid motif mock (contour inconsistent) → throws.
@@ -460,6 +478,24 @@ if (contourResult) {
   if (!warnings.some((w) => w.toLowerCase().includes('rising_arc'))) {
     fail('b9:contour-warning', `expected a contour-mismatch soft warning, got ${JSON.stringify(warnings)}`);
   }
+}
+
+// (b10) the chord-tone soft check folds octave degrees: a motif ending on the
+// octave (8 = tonic) over its I chord IS a chord tone — no spurious warning.
+const octaveEnding = clone(VALID);
+octaveEnding.motifs.a.degrees = [1, 3, 5, 8]; // ends on the octave (the tonic, up high)
+octaveEnding.motifs.a.rhythm = [0.5, 0.5, 0.5, 1];
+octaveEnding.motifs.a.contour = 'rising_arc'; // 8 > 1
+const octaveTraces = [];
+await generateMotifs({
+  macroParams: MACRO,
+  harmonicPlan: HARMONIC,
+  __mockResponse: JSON.stringify(octaveEnding),
+  onTrace: (t) => octaveTraces.push(t),
+});
+const octaveWarnings = octaveTraces.flatMap((t) => t.warnings ?? []);
+if (octaveWarnings.some((w) => w.includes('"a"') && w.includes('chord tone'))) {
+  fail('b10:octave-fold', `octave ending (8 = tonic) should fold to a chord tone, not warn: ${JSON.stringify(octaveWarnings)}`);
 }
 
 // Sanity: hand-supplied CASES still carry motifs + phrasePlan + texturePlan
