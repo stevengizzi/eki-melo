@@ -237,6 +237,68 @@ expectInvalid('a:bad-length', validatePhrasePlan(badLength, MACRO, MOTIFS), 'len
 expectInvalid('a:not-object', validatePhrasePlan(null, MACRO, MOTIFS), 'object');
 expectInvalid('a:no-sections', validatePhrasePlan({ A: {} }, MACRO, MOTIFS), 'sections');
 
+// --- chord-fit guard (Session 11): a TRANSPOSING transform that shifts a motif
+// ENTIRELY off its bar's chord (zero chord tones) is rejected WHEN a harmonicPlan
+// is supplied (4-arg); a partial fit passes; the 3-arg form skips the guard. ---
+const GUARD_MACRO = {
+  ...MACRO, tonic: 'C', mode: 'major', form: 'binary', total_bars: 4,
+  sections: [{ label: 'A', bars: 2 }, { label: 'B', bars: 2 }],
+};
+const GUARD_MOTIFS = {
+  a: { degrees: [1, 3, 5, 8, 5, 3], rhythm: [0.5, 0.5, 1, 1, 0.5, 0.5], contour: 'peak_descend', register: 'mid', anomaly: null },
+  b: { degrees: [1, 3, 5, 3], rhythm: [1, 0.5, 0.5, 1], contour: 'peak_descend', register: 'mid', anomaly: null },
+};
+const GUARD_HARMONY = {
+  sections: [
+    { label: 'A', progression: ['I', 'V'], cadence: 'PAC' },
+    { label: 'B', progression: ['I', 'V'], cadence: 'PAC' },
+  ],
+};
+// sequence_up_step on a=[1,3,5,8,5,3] over I (bar 1) → [2,4,6,9,6,4] = degree classes
+// {2,4,6}, none of which are chord tones of I (1,3,5) → wholesale clash.
+const offChord = {
+  sections: {
+    A: {
+      phrase_structure: 'period',
+      lead: [
+        { motif: 'a', transform: 'sequence_up_step', start_bar: 1, length_bars: 1 },
+        { motif: 'a', transform: 'literal', start_bar: 2, length_bars: 1 },
+      ],
+    },
+    B: {
+      phrase_structure: 'period',
+      lead: [
+        { motif: 'b', transform: 'literal', start_bar: 1, length_bars: 1 },
+        { motif: 'b', transform: 'invert', start_bar: 2, length_bars: 1 },
+      ],
+    },
+  },
+};
+expectInvalid('a:guard-off-chord', validatePhrasePlan(offChord, GUARD_MACRO, GUARD_MOTIFS, GUARD_HARMONY), 'wholesale clash');
+// The 3-arg form (no harmonicPlan) skips the guard — the plan is otherwise valid.
+expectOk('a:guard-skipped-no-harmony', validatePhrasePlan(offChord, GUARD_MACRO, GUARD_MOTIFS));
+// A partial fit (≥1 chord tone) passes even with the harmonicPlan supplied: the same
+// sequence_up_step over V (bar 2) lands degree 2, which IS a chord tone of V (5,7,2).
+const partialFit = {
+  sections: {
+    A: {
+      phrase_structure: 'period',
+      lead: [
+        { motif: 'a', transform: 'literal', start_bar: 1, length_bars: 1 },
+        { motif: 'a', transform: 'sequence_up_step', start_bar: 2, length_bars: 1 },
+      ],
+    },
+    B: {
+      phrase_structure: 'period',
+      lead: [
+        { motif: 'b', transform: 'literal', start_bar: 1, length_bars: 1 },
+        { motif: 'b', transform: 'invert', start_bar: 2, length_bars: 1 },
+      ],
+    },
+  },
+};
+expectOk('a:guard-partial-fit', validatePhrasePlan(partialFit, GUARD_MACRO, GUARD_MOTIFS, GUARD_HARMONY));
+
 // =================================================================
 // c. buildPhrasePlanPrompt — pure { system, user }, names labels + vocab
 // =================================================================

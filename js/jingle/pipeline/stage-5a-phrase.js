@@ -56,6 +56,7 @@
    ================================================================= */
 import { postMessages } from './llm-call.js';
 import * as Transforms from '../theory/transformations.js';
+import { degreeToLinear } from '../theory/motif.js';
 import { getForm, deriveSectionRelationships } from '../theory/form-engine.js';
 import { computeSectionPlan } from './stage-6-voice.js';
 
@@ -303,6 +304,44 @@ function chordToneDegreesOf(roman) {
   return [wrap(root), wrap(root + 2), wrap(root + 4)];
 }
 
+// Fold any degree (octave displacement / negatives) to its in-octave 1..7 class,
+// matching the realizer (degree 8 → tonic, −3 → the sixth, …).
+const inOctaveDegree = (degree) => (((degreeToLinear(degree) % 7) + 7) % 7) + 1;
+
+// The transforms that shift the WHOLE motif by a constant number of scale steps,
+// so a motif that fit its home chord can land entirely off a different bar's
+// chord (the demonstrated A3-reprise clash: sequence_up_step put a ii-arpeggio
+// over the I chord). Other transforms (literal/retrograde/fragment/invert/
+// ornament/augment/diminute) keep the motif on or near its authored pitches, so
+// they're exempt from the chord-fit guard below.
+const TRANSPOSING_TRANSFORMS = new Set([
+  'sequence_up_step', 'sequence_down_step', 'transpose_step', 'transpose_third',
+]);
+
+// How many of a transformed motif's notes are chord tones of `roman` (its bar's
+// chord), counted as in-octave degree classes. Returns null when it can't be
+// computed (unparseable chord, bad motif, unknown/throwing transform) — the guard
+// then skips. Applies the real transform from transformations.js so the check
+// matches what Stage 6 will realize.
+function chordToneHitCount(motif, name, params, roman) {
+  const tones = chordToneDegreesOf(roman);
+  if (!tones || !motif || !Array.isArray(motif.degrees) || motif.degrees.length === 0) return null;
+  const fn = Transforms[name];
+  if (typeof fn !== 'function') return null;
+  let transformed;
+  try {
+    transformed = fn(motif, params ?? {});
+  } catch {
+    return null;
+  }
+  if (!transformed || !Array.isArray(transformed.degrees)) return null;
+  const toneSet = new Set(tones);
+  return transformed.degrees.reduce(
+    (count, d) => (Number.isInteger(d) && d !== 0 && toneSet.has(inOctaveDegree(d)) ? count + 1 : count),
+    0
+  );
+}
+
 // Show the chord under EACH BAR (the progression is one chord per bar), with its
 // chord-tone degrees, so the model can land a placed motif's strong beats on the
 // harmony actually sounding in that bar — not only the section's opening chord.
@@ -545,7 +584,7 @@ function parsePhrasePlanResponse(raw) {
  * the final bar and lead INTO the cadence (only its tail resolves) — that is a
  * valid, preferred shape, not a defect.
  */
-function validateLead(lead, label, bars, motifNames, push) {
+function validateLead(lead, label, bars, motifNames, push, harmonyContext) {
   const summary = { motifSet: new Set(), hasDevelopment: false };
   if (!Array.isArray(lead)) {
     push(`Section "${label}" "lead" must be an array of assignments.`);
@@ -624,6 +663,31 @@ function validateLead(lead, label, bars, motifNames, push) {
       });
     }
 
+    // CHORD-FIT GUARD (Session-11 checkpoint, HARD). A TRANSPOSING transform that
+    // shifts the motif ENTIRELY off the bar's chord (zero of its notes are chord
+    // tones) is a wholesale clash — the A3-reprise case where sequence_up_step put
+    // a ii-arpeggio over the I chord. Reject it (retry-actionable). Only the gross
+    // mismatch is caught: a partial fit (≥1 chord tone, i.e. passing/colour tones
+    // over real chord tones) passes, and only when the harmonic context is supplied.
+    if (
+      harmonyContext
+      && rangeOk
+      && TRANSPOSING_TRANSFORMS.has(parsed.name)
+      && typeof motif === 'string'
+      && harmonyContext.motifs?.[motif]
+    ) {
+      const roman = harmonyContext.progression?.[start - 1];
+      const hits = chordToneHitCount(harmonyContext.motifs[motif], parsed.name, parsed.params, roman);
+      if (hits === 0) {
+        push(
+          `Section "${label}" bar ${start}: ${transformLabel(parsed)} shifts motif "${motif}" entirely off bar `
+            + `${start}'s chord ${roman} (chord tones: degrees ${chordToneDegreesOf(roman).join(', ')}) — none of the `
+            + 'transposed notes are chord tones, a wholesale clash. Use "literal" (keep the motif on its home chord), '
+            + 'a different transform, or place this where the chord fits the shifted motif.'
+        );
+      }
+    }
+
     if (typeof motif === 'string' && motifNames.has(motif)) {
       summary.motifSet.add(motif);
       if (isRecognizedTransform(parsed.name) && parsed.name !== 'literal' && parsed.name !== CADENTIAL_GESTURE) {
@@ -671,8 +735,12 @@ function validateLead(lead, label, bars, motifNames, push) {
  * Validate the WRAPPED PhrasePlan envelope `{ sections: { <label>: {
  * phrase_structure, lead } } }` against `macroParams` + `motifs`. Returns
  * { ok, errors: [] }; `ok` is true only when `errors` is empty.
+ *
+ * `harmonicPlan` (optional, the §3 array) enables the chord-fit guard: a
+ * transposing transform that shifts a motif entirely off its bar's chord is
+ * rejected. Absent it (the 3-arg form), the guard is skipped — back-compatible.
  */
-export function validatePhrasePlan(wrappedPlan, macroParams, motifs) {
+export function validatePhrasePlan(wrappedPlan, macroParams, motifs, harmonicPlan = undefined) {
   const errors = [];
   const push = (message) => errors.push(message);
 
@@ -693,6 +761,8 @@ export function validatePhrasePlan(wrappedPlan, macroParams, motifs) {
   const expectedLabels = plan.map((s) => s.label);
   const barsByLabel = new Map(plan.map((s) => [s.label, s.bars]));
   const motifNames = motifs && typeof motifs === 'object' ? new Set(Object.keys(motifs)) : new Set();
+  const motifMap = motifs && typeof motifs === 'object' ? motifs : {};
+  const progressionByLabel = new Map((harmonicPlan?.sections ?? []).map((s) => [s.label, s.progression]));
   const relationships = sectionRelationshipsForPlan(macroParams, plan);
 
   // (f) the section-label set must match exactly — none missing, none extra.
@@ -727,7 +797,10 @@ export function validatePhrasePlan(wrappedPlan, macroParams, motifs) {
           + `${[...PHRASE_STRUCTURES].join(', ')}.`
       );
     }
-    const summary = validateLead(sectionPlan.lead, label, bars, motifNames, push);
+    const harmonyContext = harmonicPlan
+      ? { motifs: motifMap, progression: progressionByLabel.get(label) }
+      : null;
+    const summary = validateLead(sectionPlan.lead, label, bars, motifNames, push, harmonyContext);
     summaryByLabel.set(label, summary);
   }
 
@@ -803,7 +876,7 @@ export async function generatePhrasePlan({
   // --- Offline / deterministic fallback: same parse + validate, no network. ---
   if (__mockResponse !== undefined) {
     const parsed = parsePhrasePlanResponse(__mockResponse); // throws clearly on bad JSON
-    const result = validatePhrasePlan(parsed, macroParams, motifs);
+    const result = validatePhrasePlan(parsed, macroParams, motifs, harmonicPlan);
     trace({ attempt: 0, raw: __mockResponse, ok: result.ok, errors: result.errors });
     if (!result.ok) {
       console.error('Stage 5a: mock response failed validation. Raw:\n', __mockResponse);
@@ -819,7 +892,7 @@ export async function generatePhrasePlan({
   let parsed;
   try {
     parsed = parsePhrasePlanResponse(raw);
-    result = validatePhrasePlan(parsed, macroParams, motifs);
+    result = validatePhrasePlan(parsed, macroParams, motifs, harmonicPlan);
   } catch (parseError) {
     // Treat an unparseable first response like a validation failure so the single
     // retry gets a chance to return clean JSON.
@@ -832,7 +905,7 @@ export async function generatePhrasePlan({
     messages.push({ role: 'user', content: buildRetryPrompt(result.errors) });
     raw = await callPhraseLLM(system, messages);
     parsed = parsePhrasePlanResponse(raw); // throws clearly if still unparseable
-    result = validatePhrasePlan(parsed, macroParams, motifs);
+    result = validatePhrasePlan(parsed, macroParams, motifs, harmonicPlan);
     trace({ attempt: 2, raw, ok: result.ok, errors: result.errors });
     if (!result.ok) {
       console.error('Stage 5a: PhrasePlan failed validation after one retry. Raw:\n', raw);
