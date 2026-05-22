@@ -2130,7 +2130,8 @@ Stage 5a phrase structure + motif placement.**
   inspector panel to reuse.
 - `verify-stage5a.mjs` runs with the throwaway-package.json dance like the others.
 
-**HUMAN CHECKPOINT — NOT YET RUN (substantial — the melodic-creativity pressure point).**
+**HUMAN CHECKPOINT — SUBSEQUENTLY RUN; see the CLEARED block at the end of this entry.**
+The original pre-pass instructions are kept below as the historical record of what was asked.
 The session is NOT closed until Steven completes the listening pass: open the inspector,
 run "Wanderer's Path — fully generated" (live LLM for BOTH Stage 5a and 5b), A/B it against
 the hand-supplied Wanderer's and the Stage-5b-only-generated Wanderer's from Session 8,
@@ -2294,3 +2295,41 @@ lives precisely in those two unbuilt stages. Steven's instinct ("trust the proce
 for us to see it through") is the right call — the creative-melody engine comes online in
 S10/S11, wielded through the freedom knobs + anomaly slots + the 47-scale palette. Carrying
 the aesthetic-bar memory ([[aesthetic-bar-creative-melodies]]) forward to those sessions.
+
+**HUMAN CHECKPOINT — CLEARED (2026-05-21, substantial — the melodic-creativity pressure
+point).** Steven ran the fully-generated case live, A/B'd against the hand-supplied and
+Stage-5b-only twins, tried the phrase_adventurousness knob, and read the generated PhrasePlan.
+Verdict, verbatim:
+
+> Sigh...I don't know...this isn't necessarily working super well. It's pretty hit or miss
+> whether it sounds good or not...and even at its best, it's still not as memorable as the
+> original v1 before we embarked on this whole multi-session journey of refactoring
+> composition. Maybe I should just trust the process and wait for us to see it through.
+
+That clears Session 9's bar in the sense that matters here: the LLM phrase stage works
+end-to-end, produces audibly different motivic development per case, the knob varies it, and
+no *blocking* defect remains open. Everything concrete he surfaced was fixed in-pass:
+- the `transpose_step` validator gap (a real bug) — fixed at the seam;
+- cadences feeling "painted over" / identical — the Stage 8 manifestation revision (flow-in
+  + register-following);
+- `phrase_structure` ill-fitting the section length — prompt fixed;
+- jingles too long — capped at 32 beats.
+
+The headline reservation ("hit or miss / not as memorable as v1") is **not a Session-9 defect
+and not a regression** — it is the expected shape of the curve. v1 had the LLM compose the
+actual melody + harmony freely (the memorable part); the rebuild has so far shipped the
+deterministic back-half + texture (5b) + phrase placement (5a), while the melodic DNA (motif
+shapes, Stage 4 / Session 10) and harmonic content (progressions, Stage 3 / Session 11) are
+STILL hand-written plain test fixtures. "Memorable" lives in those two unbuilt stages. Steven's
+own read — "trust the process and wait for us to see it through" — is the correct call; the
+creative-melody engine comes online in S10/S11. Standing aesthetic bar
+([[aesthetic-bar-creative-melodies]]) and the 32-beat cap ([[jingle-length-cap-32-beats]])
+carried forward.
+
+**Verdict: Session 9 complete and confirmed by ear. The second LLM stage (phrase structure +
+motivic development) is wired end-to-end with strict schema + music-theory validation, a
+one-shot retry, an offline fallback, and the phrase_adventurousness knob; the Stage 8 cadence
+manifestation now flows in and varies by register; the transform-param bug is closed; jingles
+are capped at 32 beats. All nine verifiers pass offline. Cleared to proceed to Session 10
+(Stage 4 — motivic material, where the melodies themselves start being generated) when Steven
+kicks it off. Do NOT start Session 10 automatically.**
