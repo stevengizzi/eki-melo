@@ -1214,7 +1214,9 @@ These don't block any session; flagging them for later attention:
    melody against the whole progression (framing B) fixes both at once. Steven
    committed to this as the next session in place of further coherence patching.
    The Session-11 chord-fit guard + harmony-aware Stage-5a prompt remain as the
-   interim floor until then.
+   interim floor until then. **Consolidated design brief** (framings A/B, the
+   mechanics, and the open questions to settle in discussion) is at the end of the
+   Session-11 journal entry ("Phrase-motif session — consolidated design brief").
 
 ---
 

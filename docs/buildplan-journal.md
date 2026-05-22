@@ -3048,8 +3048,8 @@ response.**
   -stage5b / -stage5a / -stage4 / -llm-call — twelve total, all exit 0).
 - [x] This journal entry (covering the prompt-design choices, esp. the
   memorable-progressions exemplars + the cadence-compatibility table).
-- [ ] **Human checkpoint** — SUBSTANTIAL; NOT yet run. Added after Steven's
-  listening pass.
+- [x] **Human checkpoint** — SUBSTANTIAL; COMPLETE (2026-05-22, multi-pass). See
+  the checkpoint-findings subsections below and the CLOSE-OUT at the end.
 
 **THE SHAPE DECISION (the load-bearing call this session).** The kickoff's OUTPUT
 sketch wrote the unwrapped HarmonicPlan as a flat `{ <label>: { progression:
@@ -3440,3 +3440,123 @@ session's actual deliverable) works end-to-end, validates robustly, exposes the
 harmonic_adventurousness knob, and produces audibly varied progressions when section length
 allows. The melody/harmony coherence gap is now correctly diagnosed as a pre-existing
 architectural ceiling and routed to its own committed session, not a Stage-3 defect.
+
+### Session 11 — CLOSE-OUT (2026-05-22)
+
+**Exit criteria — all met** (the implementation checklist above is fully checked, including
+the human checkpoint). Stage 3 (harmonic plan) is the fourth and final back-half LLM stage:
+it generates per-section Roman-numeral progressions + a cadence under the active mode's
+grammar, validates them (Roman validity, bar coverage, cadence/final-chord + mode
+compatibility), retries once, runs offline via `__mockResponse`, and exposes
+`harmonic_adventurousness`. With it in, the ENTIRE back-half creative content (harmony →
+motifs → phrase → texture) is LLM-generated; only macroParams remain hand-supplied until
+Session 12.
+
+**What the multi-pass checkpoint established:**
+- The harmony stage WORKS and reads as intentional. Some runs are solid end-to-end; the
+  knob range produces audibly different harmony.
+- Generated harmony is only as rich as the section length allows: at 2 bars/section a PAC
+  section can hold just I→V (bland); at 4 bars/section it blooms (`I-vi-ii-V`, deceptive,
+  `bVII` borrows). → richer harmony is a SECTION-LENGTH lever (Session 2/12 + form choice),
+  not a Stage-3 prompt gap. Confirmed with the 16-bar diagnostic case.
+- The melody/HARMONY coherence gap (a fixed motif cell scattered over moving harmony) is
+  NOT a Stage-3 defect — it is the cell+development architecture's ceiling, and richer
+  harmony exposes it MORE. Cheap patches (the harmony-aware Stage-5a prompt, the chord-fit
+  guard) raised the floor but can't close it; the enforce-fit-vs-abort tension is the model
+  hitting its limit. → committed to the phrase-motif rework (below).
+
+**In-pass fixes that landed (all with verifier coverage; twelve verifiers green offline):**
+single-bar `[n]` accepted in Stage 3 (no more wasted retry); the harmony-aware Stage-5a
+placement prompt (per-bar chord + chord-tone degrees + FIT THE HARMONY block); the
+deterministic chord-fit guard (reject a transposing transform that lands a motif entirely
+off its bar's chord); the 16-bar harmony-room diagnostic case; and the adjacent-identical
+development rule demoted to a soft warning (stops aborting 3-call runs over a cosmetic repeat).
+Also flipped `balanced.allow_modal_interchange` true (first consumer) and added the
+`harmonic_adventurousness` knob to all presets.
+
+**Deferred / not done here (by design):** live prompt aesthetic tuning beyond what the
+checkpoint surfaced; two-chords-per-bar harmonic rhythm (the integer-bar model caps at one
+chord per bar); `degreeToPitchInBorrowedMode` for borrowed-chord melody realization;
+cross-stage anomaly-budget accounting; and — the headline — the phrase-motif rework, now its
+own committed session.
+
+**Verdict: Session 11 COMPLETE.** Stage 3 is live, schema-hard / style-soft validation
+working, theory-grounded (Roman validity + cadence/mode compatibility), with a deterministic
+offline fallback and the harmonic_adventurousness knob. The back-half is now fully
+LLM-driven. The standing melody/harmony coherence ceiling is diagnosed and routed to the
+committed phrase-motif session. Cleared for the Claude.ai-side review. Do NOT auto-start the
+next session.
+
+---
+
+## Phrase-motif session — consolidated design brief (as of Session 11 close, 2026-05-22)
+
+> This is the forward-looking design note Steven ports to the Claude.ai discussion thread to
+> finalize the paste-able session prompt. It supersedes/absorbs the Session-10 recommendation
+> (this journal, 2026-05-22) and buildplan §7.7. It is a BRIEF, not a final prompt — the
+> framing-A-vs-B decision and the exact contracts get settled in discussion first.
+
+**Why this session exists — TWO independent motivations now:**
+1. **Memorability (Session 10).** A tiny cell mechanically developed (sequence / invert /
+   fragment) reads as "composed but forgettable." A memorable tune has a longer authored arc
+   (antecedent–consequent, a hook with a peak and a resolution). v1 let the LLM write that arc
+   directly; the rebuild's reliability (harmony / voice-leading / cadence) does not depend on
+   the motif being tiny.
+2. **Melody/harmony coherence (Session 11 — NEW).** A fixed cell only fits the one chord it
+   was written for; over a moving progression (`I-vi-ii-V`) it clashes on the other bars.
+   Developing in degree-space is chord-blind. The Session-11 chord-fit guard catches the gross
+   case but the general fit problem is unsolvable in the cell model — and richer harmony makes
+   it WORSE. Authoring the melody AGAINST the progression fixes coherence and memorability at
+   once, because the author (LLM) sees all the chords while writing the line.
+
+**The core reframe.** Today: Stage 4 writes 2–3 micro-cells (≤ 1 bar, chord-blind to anything
+but the section's first chord); Stage 5a develops them across the bars in degree-space. The
+rework: the LLM authors a melodic PHRASE per section (or per A/B group) directly over that
+section's progression, with the chords in front of it, so strong beats land on chord tones by
+construction.
+
+**Two framings (decide in discussion):**
+- **(A) Longer cells, same model.** Raise the motif length cap from one bar to section-relative;
+  keep Stage 5a developing. Lowest risk, but it does NOT fix coherence — a longer cell sequenced
+  over a different chord still clashes. Given the Session-11 finding, A alone is insufficient.
+- **(B) Full phrase-motifs (RECOMMENDED).** The "motif" becomes the section's actual melodic
+  phrase, authored over that section's full progression. Stage 5a shrinks to ARRANGING /
+  VARYING phrases across the form (the reprise restates with variation; the contrast section
+  gets its own phrase) rather than developing a cell. The Stage-3 transform library + Stage-5a
+  development rules demote to optional variation tools. Highest reward (closest to v1, fixes
+  both motivations), biggest change. Session-11's evidence points to B.
+
+**Mechanics to work out (mostly shared; B is the assumed target):**
+- **A new "melody" stage (or a re-scoped Stage 4) authors per-section phrases over the harmony.**
+  Its prompt gets the per-section progression WITH per-bar chord-tone degrees — the exact
+  HARMONIC PLAN block Session 11 already built for Stage 5a (`bar 2 = V (chord tones: degrees
+  5, 7, 2)`). The coaching: write a singable phrase with a clear arc (antecedent–consequent, a
+  peak, a cadential resolution) whose strong beats sit on each bar's chord tones; passing /
+  neighbor tones between them are fine. Seed exemplars carry over but at PHRASE scale.
+- **Length cap → section-relative.** A phrase may span its whole section; don't hard-code 4.0
+  beats. Interacts with the ~32-beat arrival-jingle cap ([[jingle-length-cap-32-beats]]) and
+  the 4-section-AABA-at-32-beats = 2-bars-each squeeze (Session-11 finding): once Stage 2
+  (Session 12) sets total_bars + section sizes, phrases scale with the section. Short forms may
+  want fewer/longer sections (AB at 4 bars each) rather than a cramped 4-section AABA.
+- **Deterministic beat-length / overflow check.** The phrase's realized beats (apply any
+  variation, sum the rhythm) must fit its section and not overflow the next assignment. This is
+  the "gap/overflow detector" flagged since Session 10; it ALSO structurally fixes the
+  hollow-reprise + per-bar-gap findings (same root: short material in a bar-sized slot).
+- **Stage 5a re-thought as arranging.** Development/distinctness rules for PHRASES: a reprise =
+  "restate with variation," not "reuse the cell"; the contrast section authors its own phrase;
+  no two sections identical. The Session-11 chord-fit guard and the schema-hard / style-soft
+  discipline carry over to whatever validators the new stage needs (schema + overflow hard;
+  taste soft).
+- **What the Session-11 interim work becomes.** The harmony-aware Stage-5a prompt + the chord-fit
+  guard are the FLOOR until this lands; under framing B they are largely SUPERSEDED (the phrase
+  is authored chord-aware from the start, so there is little chord-blind transposition left to
+  guard). Keep them until the rework proves out, then prune.
+
+**Open questions for the discussion thread:**
+- A vs B (recommend B).
+- Does the phrase stage REPLACE Stage 4, or sit beside it (cells still useful for the
+  arranging/variation layer)?
+- How much of the transform library survives as variation tooling vs. retires?
+- Sequencing in `runPipelineGenerating`: the phrase stage still runs after Stage 3 (it needs the
+  harmony) and before texture; Stage 5a's role/placement shifts.
+- Is this "Session 10b" (slot before Session 12 wire-up) or does it reorder with Session 12?
