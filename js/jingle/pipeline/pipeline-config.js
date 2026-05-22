@@ -24,6 +24,12 @@
    the sibling knob the second LLM stage (Stage 5a phrase structure + motif
    placement) reads — how boldly the motifs develop (literal/sequence vs.
    retrograde/inversion/ornament). Modeled on texture_adventurousness; additive.
+
+   SESSION 10 ADDITION. `motif_adventurousness` ({ tame | adventurous | wild }) is
+   the knob the third LLM stage (Stage 4 motivic material) reads — how bold the
+   motif SHAPES themselves are (conjunct stepwise cells vs. wide leaps, byzantine
+   flourishes, colour degrees, chromatic anomalies). Modeled on the two
+   adventurousness knobs above; additive — no other stage reads it.
    ================================================================= */
 
 // Preset knob bundles. `balanced` is the default; the others widen or narrow
@@ -38,6 +44,7 @@ export const PRESETS = {
     texture_change_rate: 'low',
     texture_adventurousness: 'tame',
     phrase_adventurousness: 'tame',
+    motif_adventurousness: 'tame',
     voice_leading_strictness: 'cpp_strict',
     anomaly_budget_per_motif: 0,
     anomaly_budget_per_section: 0,
@@ -51,6 +58,7 @@ export const PRESETS = {
     texture_change_rate: 'medium',
     texture_adventurousness: 'adventurous',
     phrase_adventurousness: 'adventurous',
+    motif_adventurousness: 'adventurous',
     voice_leading_strictness: 'chiptune_idiomatic',
     anomaly_budget_per_motif: 1,
     anomaly_budget_per_section: 1,
@@ -64,6 +72,7 @@ export const PRESETS = {
     texture_change_rate: 'high',
     texture_adventurousness: 'adventurous',
     phrase_adventurousness: 'adventurous',
+    motif_adventurousness: 'adventurous',
     voice_leading_strictness: 'chiptune_idiomatic',
     anomaly_budget_per_motif: 1,
     anomaly_budget_per_section: 2,
@@ -77,6 +86,7 @@ export const PRESETS = {
     texture_change_rate: 'high',
     texture_adventurousness: 'wild',
     phrase_adventurousness: 'wild',
+    motif_adventurousness: 'wild',
     voice_leading_strictness: 'chiptune_idiomatic',
     anomaly_budget_per_motif: 2,
     anomaly_budget_per_section: 3,
