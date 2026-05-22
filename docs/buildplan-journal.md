@@ -3301,3 +3301,48 @@ content (harmony → motifs → phrase → texture) is LLM-generated; only macro
 hand-supplied until Session 12. The session closes after Steven's listening pass confirms
 the generated harmony works end-to-end and produces audibly different progressions across
 the knob range. Do NOT start Session 12 or the phrase-motif session automatically.**
+
+### Checkpoint findings (2026-05-22, mid-pass — Steven's first live run on the incl.-harmony case)
+
+Steven ran "Sunrise Fanfare — fully LLM (incl. harmony)" live (all knobs adventurous) and
+flagged two things. Both fixed in-pass; the checkpoint stays OPEN for the re-listen.
+
+1. **Stage 3 burned a retry on EVERY run (FIXED — `155bf6f`).** The trace showed attempt 1
+   always failing with `"bars" must be a [start, end] tuple of integers, got [1]`: the model
+   writes the one-element shorthand `[1]` for a single bar instead of `[1, 1]`, and the
+   validator rejected it, so a wasted LLM round-trip preceded every success. A bare `[n]`
+   unambiguously means bar n, so the validator now ACCEPTS it (via a `normalizeBarRange`
+   helper used by both the bars check and the unwrap/expand path) and the prompt clarifies
+   single-bar = `[n, n]` while noting `[n]` is accepted. No more systematic first-attempt
+   failure; generations succeed on attempt 1. verify-stage3 gains a `[n]`-shorthand accept +
+   expand assertion.
+
+2. **Melody and harmony read as mismatched, esp. A2 + B (FIXED — `cb85e58`, Stage 5a prompt).**
+   Steven: "a section's melody often seems meant to be played over different chords than what
+   I'm hearing." The trace pinned it to TWO mechanisms, both in how the melody met the per-bar
+   harmony:
+   - **Degree-space development blind to the bar's chord.** A2 bar 1 was motif a =
+     `[1,5,8,6,5]` (C-G-C-A-G, fits I) with `sequence_up_step` → `[2,6,9,7,6]` = D-A-D-B-A
+     played over the I chord (C-E-G): the transpose shoved every note onto non-chord-tones.
+     Nothing checked that a transform's RESULT still lands on the chord.
+   - **Motifs fit only the section's FIRST chord, but are placed over later bars.** With one
+     chord per bar, the bar-2 motif plays over a different chord (V) it was never fit to — and
+     Stage 5a dropped motif b (written for B's vi/IV) into the A-section bar 2 over V, so
+     A-F-D-F-A-C landed over G major. That was the B-section clash.
+   Root cause: no stage reconciled the melody's strong beats with the chord actually sounding
+   at that beat — Stage 4 fits only the opening chord, Stage 5a moved things chord-blind, and
+   6/7/8 don't touch it. Per Steven's steer (chose the Stage-5a-prompt option over a
+   deterministic align pass / slowing the harmonic rhythm / deferring), the fix is prompt-only:
+   Stage 5a's HARMONIC PLAN block now shows the chord under EACH BAR with its chord-tone
+   degrees (e.g. "bar 2 = V (chord tones: degrees 5, 7, 2)"), and a new FIT THE HARMONY block
+   tells the model to use each section's HOME motif (letter matches the section), land a
+   motif's downbeat + long notes on the bar's chord tones, and re-check that any
+   transpose/sequence still fits the target chord (passing/neighbor tones between strong beats
+   are fine). It is a SOFT steer — the validator can't measure chord-tone fit from bar indices,
+   and the deterministic / phrase-motif-rework fixes remain the deeper options if the steer
+   proves insufficient. The development encouragement is preserved ("develop it CHORD-AWARE",
+   not "play it literal").
+
+All twelve verifiers still pass offline after both fixes. Checkpoint OPEN pending Steven's
+re-listen on whether the melody now sits on the harmony and whether the generated harmony
+A/Bs favorably against the Session-10 hand-supplied harmony.
