@@ -20,16 +20,26 @@
    deterministic side); 5b honors texture_adventurousness directly in its prompt.
    Additive — no existing stage reads it.
 
-   SESSION 9 ADDITION. `phrase_adventurousness` ({ tame | adventurous | wild }) is
-   the sibling knob the second LLM stage (Stage 5a phrase structure + motif
-   placement) reads — how boldly the motifs develop (literal/sequence vs.
-   retrograde/inversion/ornament). Modeled on texture_adventurousness; additive.
+   SESSION 9 ADDITION. `phrase_adventurousness` ({ tame | adventurous | wild }) —
+   originally the Stage-5a (cell-development) knob. SESSION 12 REPURPOSED it to
+   drive the phrase-motif Stage 4 (melodic PHRASES): how bold the phrase SHAPES
+   themselves are (conjunct/stepwise vs. wide leaps, peak-descend hooks, colour
+   degrees, chromatic anomalies). Same name, new scope — the phrase-motif rework
+   moved melody authorship into Stage 4.
 
-   SESSION 10 ADDITION. `motif_adventurousness` ({ tame | adventurous | wild }) is
-   the knob the third LLM stage (Stage 4 motivic material) reads — how bold the
-   motif SHAPES themselves are (conjunct stepwise cells vs. wide leaps, byzantine
-   flourishes, colour degrees, chromatic anomalies). Modeled on the two
-   adventurousness knobs above; additive — no other stage reads it.
+   SESSION 10 ADDITION. `motif_adventurousness` ({ tame | adventurous | wild }) —
+   the Session-10 cell-shape knob. After the Session-12 phrase-motif pivot it is
+   read ONLY by the LEGACY cell Stage 4 (stage-4-cells-LEGACY.js), reached for the
+   A/B audition (motif_architecture === 'cell'). Kept so the cell path still
+   honors a freedom knob; the default phrase path ignores it.
+
+   SESSION 12 ADDITIONS (the phrase-motif rework). `arrangement_adventurousness`
+   ({ tame | adventurous | wild }) is the knob the re-scoped Stage 5a (ARRANGEMENT)
+   reads — whether each section's phrase is placed literally or with a small
+   length-preserving variation. `motif_architecture` ({ phrase | cell }) selects
+   the melody pipeline: 'phrase' (default) runs the new per-section phrase Stage 4
+   + arrangement Stage 5a; 'cell' runs the preserved legacy cell+development pair
+   for the A/B audition. Both additive.
 
    SESSION 11 ADDITION. `harmonic_adventurousness` ({ tame | adventurous | wild })
    is the knob the fourth LLM stage (Stage 3 harmonic plan) reads — how bold the
@@ -54,7 +64,9 @@ export const PRESETS = {
     texture_change_rate: 'low',
     texture_adventurousness: 'tame',
     phrase_adventurousness: 'tame',
+    arrangement_adventurousness: 'tame',
     motif_adventurousness: 'tame',
+    motif_architecture: 'phrase',
     harmonic_adventurousness: 'tame',
     voice_leading_strictness: 'cpp_strict',
     anomaly_budget_per_motif: 0,
@@ -69,7 +81,9 @@ export const PRESETS = {
     texture_change_rate: 'medium',
     texture_adventurousness: 'adventurous',
     phrase_adventurousness: 'adventurous',
+    arrangement_adventurousness: 'adventurous',
     motif_adventurousness: 'adventurous',
+    motif_architecture: 'phrase',
     harmonic_adventurousness: 'adventurous',
     voice_leading_strictness: 'chiptune_idiomatic',
     anomaly_budget_per_motif: 1,
@@ -84,7 +98,9 @@ export const PRESETS = {
     texture_change_rate: 'high',
     texture_adventurousness: 'adventurous',
     phrase_adventurousness: 'adventurous',
+    arrangement_adventurousness: 'adventurous',
     motif_adventurousness: 'adventurous',
+    motif_architecture: 'phrase',
     harmonic_adventurousness: 'adventurous',
     voice_leading_strictness: 'chiptune_idiomatic',
     anomaly_budget_per_motif: 1,
@@ -99,7 +115,9 @@ export const PRESETS = {
     texture_change_rate: 'high',
     texture_adventurousness: 'wild',
     phrase_adventurousness: 'wild',
+    arrangement_adventurousness: 'wild',
     motif_adventurousness: 'wild',
+    motif_architecture: 'phrase',
     harmonic_adventurousness: 'wild',
     voice_leading_strictness: 'chiptune_idiomatic',
     anomaly_budget_per_motif: 2,

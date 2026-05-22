@@ -3560,3 +3560,348 @@ construction.
 - Sequencing in `runPipelineGenerating`: the phrase stage still runs after Stage 3 (it needs the
   harmony) and before texture; Stage 5a's role/placement shifts.
 - Is this "Session 10b" (slot before Session 12 wire-up) or does it reorder with Session 12?
+
+**Claude.ai-side verification (Steven + Claude Opus 4.7):**
+- All twelve verify scripts re-run independently — PASSED:
+  verify-spelling, verify-forms, verify-motif, verify-stage6,
+  verify-stage8, verify-textures, verify-stage7, verify-stage5b,
+  verify-stage5a, verify-stage4, verify-stage3, verify-llm-call
+  (all exit 0, all offline).
+- The single-bar [n] shorthand normalization (155bf6f) is a small
+  but real iteration-loop win: an LLM systematically writing [1]
+  for one-bar chords previously cost a wasted round-trip per
+  generation. Accept-both with [n,n] preferred in the prompt is
+  the right fix.
+- The chord-fit guard (70eb130) is architecturally sharp:
+  realize the transformed motif, intersect with chord tones,
+  hard-fail on empty intersection. The literal/retrograde/
+  fragment/invert/ornament exemption is correct (they preserve
+  authored pitches, no new chord-blind arithmetic). The guard
+  does NOT become obsolete under framing B — Stage 5a's
+  variation layer still applies transposes that could land
+  off-chord; keep it.
+- The 16-bar diagnostic case (bcc1825) cleanly isolated the
+  2-bar-section cage as the cause of "bland harmony" — the
+  32-beat cap × 4-section AABA = 2-bar sections is too cramped
+  for harmonic variety. This is a finding Stage 2 (the
+  front-end wire-up session) needs to reason about: short
+  total_bars budgets may prefer fewer / longer sections
+  (AB at 8 bars each over AABA at 2 bars each).
+- The adjacent-identical demotion to soft warning (ce384d4)
+  continues the schema-hard / style-soft discipline that
+  emerged in Session 10. The journal's catalog of what stays
+  hard (overlap/overflow, contrast-must-develop,
+  reprise-must-reuse) and what softens (adjacent-identical,
+  rhythm-sameness, contour-trajectory match) is the right
+  shape.
+- The diagnostic outcome is the headline: richer harmony made
+  coherence WORSE under cell+development, not better. The
+  cell-vs-moving-harmony mismatch is structural, not
+  parameterizable. This is the evidence the motif-architecture
+  decision needed; committing to framing B on this basis is
+  right.
+
+**Verdict: Session 11 complete and verified. Stage 3 (harmonic
+plan) is live, the back-half of the pipeline is fully
+LLM-driven, the in-pass fixes (chord-fit guard, harmony-aware
+prompt, adjacent-identical demotion, 16-bar diagnostic case)
+are sound. The phrase-motif rework is correctly routed to its
+own session with strong architectural evidence behind the
+framing-B choice. Discussion-thread input on the consolidated
+brief's open questions appears in the chat response.**
+
+---
+
+## Session 12 — 2026-05-22 — The phrase-motif rework (Stage 4 → phrases, Stage 5a → arrangement)
+
+This session implements the framing-B pivot the Session-11 close-out committed to:
+the melody is now authored as ONE PHRASE PER SECTION over that section's full
+harmony, rather than as 2–3 micro-cells mechanically developed across the bars.
+It REPLACES Stage 4's content shape and RESHAPES Stage 5a's role. The
+deterministic back-half (Stage 6 realize / 7 voice-lead / 8 cadence) and the
+theory layer are untouched — they consume `{degrees, rhythm, contour, register,
+anomaly}` dicts by name-keyed lookup, and whether the key is `"a"` (cell) or
+`"A1"` (phrase) is opaque to them.
+
+**The architectural rationale (two diagnosed ceilings, one fix).** Session 10's
+checkpoint found cells cap MEMORABILITY (a tiny cell developed mechanically reads
+"composed but forgettable"); Session 11's found they also cap HARMONY COHERENCE
+(a fixed cell only fits the one chord it was written for, and richer *moving*
+harmony made the clash WORSE — the enforce-fit-vs-abort tension was the model
+hitting its limit). Authoring the melody against the whole progression fixes both
+at once, because the author (the LLM) sees all the chords while writing the line.
+
+**Stage 4 — `stage-4-motifs.js` rewritten (exports unchanged: `generateMotifs`,
+`validateMotifs`, `buildMotifsPrompt`; contract changed).**
+- OUTPUT is now a flat map keyed by SECTION LABEL (A1/A2/B/A3, or A/B/A′), each
+  value a full phrase: `degrees` (8–32 ints in [-8, 14]), `rhythm` (same length;
+  sum EQUALS `section.bars × beatsPerBar` exactly — the phrase fills its section),
+  `contour`, `register`, `anomaly` (≤ 1). Wrapped envelope `{ phrases: {…} }`
+  unwrapped to flat at the seam (the §8/9/10/11 idiom).
+- PROMPT: a per-section HARMONY block with PER-BAR chord-tone degrees (the
+  Session-11 block, re-formatted per section) + a "(cadence approach)" annotation
+  on each section's final bar (Stage 8 overwrites only its last two beats, so the
+  phrase's first beats of that bar should lead toward the resolution); the
+  CROSS-SECTION INTENT block (statement / repetition-of / contrast / reprise-of —
+  the conditioning that protects against "three disconnected phrases stitched
+  together"); phrase-scale shape vocabulary; three phrase-scale seed exemplars
+  (each reconciled so its rhythm sums to its 4-bar length, with strong beats on
+  the bar's chord tones); compositional guidance at phrase scale; and the freedom
+  knob `phrase_adventurousness` (REPURPOSED from the old Stage-5a knob to drive
+  phrase shape).
+- VALIDATOR: schema + per-section coverage + the EXACT rhythm-sum check are HARD
+  (a phrase that doesn't fill its section breaks Stage 6). The strong-beat
+  chord-fit check, the cross-section relationship checks (same-letter sections that
+  share no degrees; different-letter sections that are identical), contour-trajectory
+  match, and anomaly-reality are all SOFT (warnings via `onTrace`) — the
+  schema-hard / style-soft discipline from Sessions 9–11. Hard chord-fitting every
+  strong beat was deliberately NOT adopted: it caused systematic retry-burn in
+  Session 11, Stage 5a's guard catches the gross case, and appoggiaturas on strong
+  beats are legitimate.
+
+**Stage 5a — `stage-5a-phrase.js` reshaped to ARRANGEMENT (exports unchanged).**
+Its LLM call is preserved (the LLM-stages-chained architecture stays — going
+deterministic is a later option). Its job shrank to: for each section, place its
+phrase LITERALLY (the default, usually right) or with a small variation. The
+Session-3 transform library survives as variation tooling; its role demoted from
+required-for-development to optional-flavor.
+- The CROSS-SECTION DEVELOPMENT RULES (contrast-must-develop, reprise-must-reuse)
+  were DROPPED — relationship integrity is now Stage 4's responsibility (each
+  section has its own phrase keyed by its own label; "reprise reuses the source's
+  motif" no longer applies). `phrase_structure` demoted to optional metadata
+  (present-and-invalid is now a soft note, not a failure).
+- THE DETERMINISTIC BEAT-LENGTH / OVERFLOW CHECK (the structural fix flagged since
+  Session 10) is the new HARD gate: for each lead assignment, apply its transform
+  to the referenced phrase, sum the REALIZED rhythm (the same math the transforms
+  encode — `literal`/`transpose`/`sequence`/`invert`/`retrograde`/ornaments
+  preserve length; `augment_2x` doubles; `diminute_2x`/`fragment_*` halve), and
+  assert it fills the bar-slot EXACTLY — no overflow, no internal gap. Plus a
+  bar-coverage check (assignments tile bars 1..N, no gaps/overlaps). This closes
+  the hollow-reprise + per-bar-gap findings AT THE SOURCE (their shared root was
+  short realized content in a bar-sized slot) and makes "one literal assignment per
+  section" the natural, correct shape.
+- THE CHORD-FIT GUARD (Session 11) STAYS, scope reduced to a SAFETY NET: a
+  TRANSPOSING variation (sequence/transpose) that shifts the phrase entirely off
+  its bar's chord (zero chord tones) is still rejected. It fires RARELY now — the
+  phrase was authored chord-fit at Stage 4, so primary chord-fit moved upstream;
+  the guard's remaining job is to catch a Stage-5a *variation* that transposes the
+  already-fit phrase off-chord. Adjacent-identical placement stays a soft note.
+
+**The A/B/v1 audition + the preserved-legacy debt.** Because this is a
+decision-quality, pre-committed-to-revertible test, the OLD cell+development pair
+is preserved verbatim (with banners) as `stage-4-cells-LEGACY.js` +
+`stage-5a-development-LEGACY.js`. A new `motif_architecture` config knob
+(`'phrase'` default | `'cell'`) selects the pair in `runPipelineGenerating` via
+`motifStagesFor`; a present-supplied artifact always wins, so the switch only
+matters when motifs/phrasePlan are generated (i.e. the fully-LLM cases). The
+inspector grows an "A / B / v1 audition" cluster — ▶ Phrase-motif (new pair), ▶
+Cell+development (legacy pair), ▶ v1 (the deployed `composition.js` generator via
+`api.js`'s `generateJingle`, fed the case's title + a mood-derived description) —
+so Steven can hear the same case across all three architectures and reach a
+verdict. **This legacy code is TEMPORARY DEBT, scheduled for removal after the
+verdict: kept if the pivot is reverted (cells become default again), DELETED if
+the pivot proves out.** Both files say so in their banners.
+
+**Config knobs.** `phrase_adventurousness` repurposed → Stage 4 (phrase shape).
+`arrangement_adventurousness` ADDED → Stage 5a (literal vs varied placement).
+`motif_adventurousness` retained → read ONLY by the legacy cell Stage 4.
+`motif_architecture` ADDED → the runner's pair selector. All four presets updated.
+
+**Fixtures + verifiers.** The inspector's hand-supplied cases (Sunrise / Wanderer's
+/ Desert — identities, macroParams, harmony, and textures all PRESERVED) were
+rewritten to phrase shape: per-section phrases that fill each section with strong
+beats on the bar's chord tones, plus one literal `lead` assignment per section.
+`verify-stage4` (phrase contract: per-section keys, exact rhythm-sum, degree
+range/count, the soft checks) and `verify-stage5a` (the beat-length/overflow check,
+bar-coverage, the chord-fit guard, soft phrase_structure/adjacent notes) were
+rewritten. `verify-stage3`'s inline e2e motif/phrase mocks were updated to phrase
+shape. **All twelve verifiers pass offline.** The
+chiptune_idiomatic ZERO-REPAIR gate (verify-stage7 §a) still holds on the new
+phrases — that inviolable approved-audio rule was NOT relaxed; only the
+fixture-derived cpp_strict regression anchors were re-pinned to the deliberately
+changed melody content (sunrise 6→3, desert 8→4, desert A′ uncross 6→1; wanderer
+stayed 0) with a comment recording the re-baseline. End-to-end smoke through the
+runner confirms BOTH architectures realize a valid 32-beat jingle.
+
+**Conventions / scope.** Theory layer untouched; `composition.js` / `render.js` /
+`synth.js` / `index.html` / `api.js` all stayed read-only; the model pin, the
+sync-core / async-sibling split, validate-then-retry-once, the wrapped-envelope-at-
+the-seam pattern, and `__mockResponse` all carried over. The wire-up session (was
+originally Session 12) becomes Session 13 — NOT started here. The buildplan's
+deferred item 7 ("Phrase-length motifs") is now implemented (framing B); its §5
+session-list "Session 12 = Stages 1+2+wire-up" shifts to Session 13.
+
+**Verdict: Session 12 implementation COMPLETE; all twelve verifiers pass offline.
+The phrase-motif pair is the default; the cell+development pair is preserved as
+scheduled-for-removal debt behind the A/B/v1 audition. THE HUMAN CHECKPOINT IS
+DECISIVE and PENDING** — Steven opens the inspector, runs the fully-LLM phrase-motif
+case, A/Bs it against cell+development and against v1 for the same mood, exercises
+the `phrase_adventurousness` + `arrangement_adventurousness` knobs, and records an
+HONEST verdict: did phrase-motifs lift memorability and fix/regress coherence vs
+cells, did they close the gap to v1, did they introduce the "three disconnected
+phrases" failure mode? Three outcomes are pre-committed (keep the pivot + schedule
+legacy removal / comparable → revert default but keep the path / regress → revert +
+prune the cross-section conditioning as a learning). In-pass prompt fixes commit as
+they happen with their own addenda; the close-out records the verdict + any debt.
+Do NOT auto-start Session 13 (the wire-up).
+
+### Checkpoint findings (2026-05-22, Steven's first A/B/v1 listening pass)
+
+**THE VERDICT — KEEP THE PIVOT.** Steven A/B/v1'd the fully-LLM cases live: the
+**phrase-motif and v1 outputs are both clearly better than cell+development.** That
+is the pre-committed "keep" outcome — phrase-motifs lift memorability over cells AND
+reach v1's level (the standing aesthetic bar). The cell+development path is now
+confirmed inferior; its legacy code is scheduled for removal once the quality
+iterations below settle (kept for now only so Steven can keep A/B-ing while we
+iterate).
+
+**Fix landed — counting-slip rhythm-sum fixup (Stage 4).** Steven hit a hard abort:
+all four phrases came back summing to 15 beats in a 16-beat section, failed the
+exact rhythm-sum check, and the retry repeated the same off-by-one — the whole
+3-call run thrown away over ONE beat. Fixed deterministically: `normalizePhraseSums`
+snaps a SMALL miss (≤ 2 beats) to the exact section length by adjusting the final
+note's duration (whose last beats the cadence overwrites anyway — musically
+harmless), emitting a soft note; a GROSS miss still fails (the model misread the
+length). Same spirit as Stage 3's single-bar `[n]` normalization. verify-stage4
+covers both the near-miss-fixed and gross-miss-throws cases. Twelve verifiers green.
+
+**Open finding A — phrases never rest (always wall-to-wall notes).** The phrase
+representation has no rest token, and the exact-fill rule (which fixed the
+hollow-reprise/per-bar-gap bug) forces every beat to carry a note — so the melody is
+always nonstop, beginning to end. Steven: "It shouldn't be like that always." This
+is a representation gap, not a prompt gap: real internal rests need a rest sentinel
+in the phrase + Stage 6 to realize it as a gap (toSequence already pads gaps to
+rests) + the transforms to skip rests — a small but real theory-layer touch
+(deferred this session by scope). Routed to Steven for a now-or-next decision.
+
+**Open finding B — audible melody/accompaniment dissonances.** Multi-source: (1)
+the strong-beat chord-fit check is SOFT, so some downbeats/beat-3s sit off-chord
+(the soft notes fired on the very run Steven flagged — "A1 bar 2 beat 3 is degree 3
+over V"); (2) Stage 5b texture choices over MOVING harmony clash (an
+imitation_one_beat_delay canon echoes a note into the next bar's chord; oblique_held
+on the 5th holds a tone across changing chords); (3) parallel_thirds_below doubles a
+non-chord-tone, compounding it. The melody contribution is tunable (harden the
+downbeat, or a deterministic nudge); the texture interaction is Stage 5b's axis.
+Routed to Steven for a direction. Both findings A + B are the next in-pass
+iteration; the KEEP verdict itself is settled.
+
+### Checkpoint iteration (2026-05-22) — rests + the deterministic chord-fit nudge
+
+Steven's directions on findings A + B, both now implemented (twelve verifiers
+green; the theory layer was deliberately extended per his direction — the
+"untouched" scope was a session default, not a hard constraint).
+
+**A — RESTS, authored as phrasing (not random).** Steven was explicit: rests must
+carry compositional logic — they are PUNCTUATION between sub-statements (a longer
+rest = a period/semicolon between phrase lines; a short rest = a comma between
+iterations of a sequence, e.g. "fragment A, B, C" each transposed a step, separated
+by quick breaths). So the LLM authors WHERE the line breathes; the representation
+just lets it express that. Implementation:
+- A rest is `null` in the phrase's `degrees` array (0 stays "not a degree", so
+  existing semantics/tests are untouched). The rhythm slot still has a duration, so
+  the exact-fill rule is unchanged — a rest fills its beats with silence.
+- THEORY LAYER: `motif.js` `validateMotif` accepts null; `contourOfDegrees` is
+  computed over the SOUNDED notes (rests filtered); `renderMotifToDegreeEvents`
+  emits a rest event (`{degree:null, …, rest:true}`) that advances the beat.
+  `transformations.js` `shiftDegree` + `invert` pass rests through (transposition-
+  invariant). `stage-6-voice.js` `realizeLeadAssignment` emits NOTHING for a rest —
+  the beat gap becomes a `null` rest at `toSequence` time (the gap-padding that
+  already existed). The chromatic-neighbor bend now uses the nearest SOUNDED neighbor.
+- STAGE 4: a `restGuidance()` prompt block teaches the period/comma logic + the
+  sequence-with-commas example; the schema documents `null`; the validator allows
+  null degrees but HARD-requires ≥ 5 sounded notes (a phrase is a melody, not
+  silence). verify-stage4 covers a rest-bearing phrase (valid + realizes to an
+  actual 'rest') and a too-few-sounded phrase (rejected).
+
+**B — DETERMINISTIC STRONG-BEAT NUDGE (Steven's chosen lever).** A new pass in
+`stage-6-voice.js` (`alignLeadStrongBeatsToChords`) snaps any lead note that ONSETS
+on a bar's strong beat (downbeat, and beat 3 in 4/4 — NOT the final bar's beat 3,
+which the cadence overwrites) to the NEAREST chord tone of that bar's chord, when it
+isn't already one. It runs BEFORE harmony realization, so parallel-thirds (etc.)
+shadow the corrected line. The snap is computed in degree-space (stays in mode) and
+is a NO-OP when the strong beat already fits — so phrases authored chord-fit upstream
+(including all hand-supplied cases) pass through unchanged, and verify-stage6/7/8
+pins hold without re-pinning. verify-stage6 pins the snap (an off-chord downbeat
+becomes a chord tone). NOTE: this fixes the MELODY source of the dissonance Steven
+heard; the TEXTURE source he also flagged (an imitation canon echoing a note into
+the next chord, oblique-held holding a tone across changes) is Stage 5b's axis and
+is untouched here — he picked only the nudge lever, so that remains available if the
+texture clashes still bother him.
+
+**Also landed earlier this pass:** the counting-slip rhythm-sum fixup (above).
+Twelve verifiers green offline throughout.
+
+### Checkpoint iteration (2026-05-22) — second listening pass on generated output
+
+Steven A/B'd several generated phrase-motif jingles. Verdict holds: "phrase-motif
+composition is sounding pretty good — the melodies blend well with the
+accompaniment" (the deterministic nudge is working). Five findings, all addressed:
+
+- **Crash: rhythm over-shoot the fixup couldn't absorb (FIXED).** A phrase summed
+  to 9 in an 8-beat section with `[1,1,2,1,1,1,1,1]`; the counting-slip fixup tried
+  to trim the FINAL note (only 1 beat) by 1 → 0 (invalid) → gave up → run aborted.
+  Fixed: when the final note can't absorb an over-shoot, trim the LONGEST note
+  instead (the `2` → `1`). verify-stage4 covers the over-shoot case now.
+- **Rests authored but inaudible (FIXED via prompt).** The model DID emit rests —
+  but at the phrase's LAST slot, which Stage 8's cadence overwrites, so they were
+  never heard. restGuidance now steers rests into the INTERIOR (between
+  sub-statements), explicitly says NOT to rest at the phrase end (the cadence eats
+  it), and asks for 1–2 interior breaths in most phrases.
+- **Low rhythmic variety (FIXED via prompt).** Two of three runs were nearly all
+  quarter notes. The "adventurous" directive now explicitly forbids an all-quarter
+  phrase and requires mixed durations + an interior rest.
+- **Exposed unresolved leading tone (prompt steer).** A high, unresolved degree 7
+  on strong beats in a B section sounded harsh (the nudge correctly leaves it when
+  it IS a chord tone, e.g. of V). Added a tendency-tone rule to the compositional
+  guidance: 7 resolves up to 1, the 4th down to 3; don't hang on an exposed 7.
+- **Deceptive cadence on the FINAL section (Stage 3 prompt steer).** Stage 3 put
+  the required non-PAC cadence on A3 (the finale), ending the piece on vi — unearned
+  after a tonic-rooted piece. Stage 3's guidance now requires the FINAL section to
+  close with an authentic (PAC/IAC) cadence and routes the non-PAC to an earlier
+  section (typically B).
+
+The last four are PROMPT steers (stochastic, not guaranteed) — matching the
+Sessions 9–11 prompt-first discipline. If rests/variety still resist after a few
+runs, the next lever is a soft validation nudge or a deterministic pass. Twelve
+verifiers green offline.
+
+### Session 12 — CLOSE-OUT (2026-05-22)
+
+**Verdict: KEEP the phrase-motif pivot.** Across Steven's A/B/v1 listening passes,
+phrase-motif and v1 both clearly beat cell+development, and phrase-motif's melodies
+"blend well with the accompaniment" once the deterministic strong-beat nudge landed.
+That is the pre-committed "keep" outcome (phrase-motifs lift memorability over cells
+and reach v1's level). The phrase-motif pair is the DEFAULT (`motif_architecture:
+'phrase'`).
+
+**Legacy debt — RETAINED for now, not pruned.** Steven's call: "good for now, not
+perfect — worth sitting with before making other changes." So `stage-4-cells-LEGACY.js`
++ `stage-5a-development-LEGACY.js` (and the A/B audition path) STAY this session; the
+scheduled removal is deferred until he's confident after living with the output. They
+remain reachable only via the inspector's Cell+development audition button. Prune them
+in a follow-up once the pivot is fully settled.
+
+**What shipped (all twelve verifiers green offline; nothing wired into the deployed
+app yet — the engine stays dormant until the Session-13 front-end wire-up):**
+- Stage 4 re-scoped to per-section PHRASES; Stage 5a to ARRANGEMENT with the
+  deterministic beat-length/overflow check; the chord-fit guard kept as a safety net.
+- Knobs: `phrase_adventurousness` (Stage 4), `arrangement_adventurousness` (Stage 5a),
+  `motif_architecture` (runner switch). Legacy cells read `motif_adventurousness`.
+- Rests as first-class phrasing (`null` in degrees; motif.js + transformations.js +
+  Stage 6), the deterministic strong-beat chord-fit nudge, the counting-slip rhythm
+  fixup (incl. the over-shoot trim-the-longest-note case).
+- Inspector A/B/v1 audition cluster (force-generates the full pipeline per click).
+- Prompt steers from the listening passes: interior rests (not end-of-phrase),
+  rhythmic variety, tendency-tone resolution, authentic cadence on the final section.
+
+**Open / deferred (the "sit with it" list — not blocking, revisit next session):**
+- Rests + rhythmic variety + leading-tone + final-cadence are PROMPT steers; if they
+  resist over more runs, escalate to a soft-validation nudge or a deterministic pass.
+- Texture-vs-moving-harmony dissonance (imitation canon / oblique held) — Stage 5b's
+  axis, untouched (Steven picked only the melody nudge lever).
+- Legacy-code removal once the pivot is confirmed.
+- Session 13 (front-end wire-up) — NOT started.
+
+**Verdict: Session 12 COMPLETE.** Phrase-motif rework shipped and kept; quality is
+good-not-perfect and intentionally left to settle before further tuning; legacy A/B
+path retained; twelve verifiers green offline.

@@ -1,51 +1,55 @@
 /* =================================================================
-   PIPELINE INSPECTOR — hand-written test cases (buildplan Session 4).
+   PIPELINE INSPECTOR — hand-written test cases (buildplan Session 4;
+   rewritten to PHRASE-SHAPE in Session 12).
 
    A pure-data module (zero imports) of complete pipeline inputs, so both the
-   debug page (pipeline-inspector.html) and the Node regression check
-   (theory/verify-stage6.mjs) consume the same fixtures. Each case is a full
+   debug page (pipeline-inspector.html) and the Node regression checks
+   (theory/verify-stage6/7/8.mjs) consume the same fixtures. Each case is a full
    { macroParams, motifs, harmonicPlan, phrasePlan, texturePlan } plus a title
-   and mood passthrough — exactly the shape runPipeline expects this session.
+   and mood passthrough — exactly the shape runPipeline expects.
+
+   SESSION 12 — THE PHRASE-MOTIF SHAPE. The cell-shape fixtures are gone. Each
+   case's `motifs` is now keyed by SECTION LABEL (A1/A2/B/A3, or A/B/A'), and each
+   value is a full PHRASE that FILLS its section: its rhythm sums to exactly
+   section.bars × beatsPerBar, and its strong beats (downbeat + beat 3 in 4/4)
+   sit on that bar's chord tones. The `phrasePlan` is correspondingly simple —
+   ONE literal assignment per section placing that section's phrase across all its
+   bars. The macroParams + harmonicPlan + texturePlan are UNCHANGED from the
+   Session-4–11 cell fixtures (the brief's instruction: preserve the case
+   identities so verify-stage6/7/8's pins are disturbed as little as possible —
+   only the melody content changed).
+
+   Anomaly coverage. The chromatic-passing-tone path is exercised by the
+   verifiers' OWN inline fixtures (verify-stage6 §3, verify-stage7 §c, verify-stage8),
+   not by these listening cases — so the hand-supplied phrases stay clean (no
+   anomaly), keeping the chiptune_idiomatic zero-repair gate predictable.
 
    Coverage: one major (C major, AABA), one minor (D dorian, ABA), one exotic
-   (E phrygian-dominant, ABA — with a chromatic passing tone to exercise the
-   anomaly path). All in 4/4 to keep the audio legible at the human checkpoint;
-   bass-patterns' 3/4 and 6/8 support is covered by the regression check, not by
-   these listening fixtures. Between them the cases exercise all five bass
-   patterns and three harmony textures (Session 6): the parallel_thirds_below
-   default, oblique_held (Wanderer's B section, a held drone), and
-   imitation_one_beat_delay (Desert Caravan's A' recap, a delayed canon).
+   (E phrygian-dominant, ABA). All 4/4. Between them the cases exercise the five
+   bass patterns and three harmony textures (parallel_thirds_below default,
+   oblique_held drone, imitation_one_beat_delay canon).
 
    CADENCE COVERAGE (Session 5). The three cases between them declare all seven
    cadence types so Stage 8 is audibly exercised end-to-end:
      Sunrise Fanfare — A1 IAC, A2 deceptive, B half, A3 PAC
      Wanderer's Path — A modal_iv_i, B plagal, A' modal_iv_i
      Desert Caravan  — A phrygian_ii_i, B half, A' phrygian_ii_i
-   Sunrise A3 should land a strong PAC (lead on C, bass V→I); Desert A/A' should
-   end on the phrygian half-step descent (bass F→E under a lead F→E).
 
-   Bar indices in phrasePlan/texturePlan are 1-indexed and SECTION-RELATIVE
-   (bar 1 is the first bar of the section). Transforms are given as the
-   "name@k=v" string form or the { name, params } object form interchangeably.
+   Bar indices in phrasePlan/texturePlan are 1-indexed and SECTION-RELATIVE.
+   Transforms are given as the "name@k=v" string form or the { name, params }
+   object form interchangeably.
 
-   SESSION 8. `CASES` (below) is the hand-supplied set, UNCHANGED — every prior
-   verifier iterates over it and runs it synchronously, so it must keep its
-   texturePlan. `GENERATED_CASES` (at the bottom) is a separate export: the same
-   upstream context as Sunrise and Wanderer's but with the texturePlan OMITTED,
-   so the inspector calls Stage 5b (the LLM) to choreograph one live. Kept out of
-   `CASES` on purpose — a case with no texturePlan would crash the Stage-6/7/8
-   verifiers, which trust the hand-supplied plan.
-
-   SESSION 10. `GENERATED_CASES` gains the FULLY-LLM case "Sunrise Fanfare — fully
-   LLM" (motifs + phrasePlan + texturePlan all omitted): the whole creative
-   content is generated (Stage 4 → 5a → 5b), only macroParams + harmonicPlan are
-   hand-supplied. This is the Session-10 human-checkpoint case.
-
-   SESSION 11. `GENERATED_CASES` gains "Sunrise Fanfare — fully LLM (incl. harmony)"
-   (harmonicPlan + motifs + phrasePlan + texturePlan ALL omitted): now the harmony
-   itself is generated too (Stage 3 → 4 → 5a → 5b), only macroParams hand-supplied.
-   This is the Session-11 human-checkpoint case, A/B'd against the Session-10
-   fully-LLM case (hand-supplied harmony) to judge the generated harmony.
+   GENERATED_CASES (at the bottom) is a separate export of cases that OMIT one or
+   more upstream artifacts so the inspector calls the live LLM for them. The ids
+   are stable (the verifiers find cases by id):
+     - sunrise-generated / wanderer-generated     — texture only (Stage 5b)
+     - wanderer-fully-generated                   — arrangement + texture (5a + 5b)
+     - sunrise-fully-llm                          — phrases + arrangement + texture
+                                                    (Stage 4 phrases + 5a + 5b)
+     - sunrise-fully-llm-harmony                  — harmony + everything (Stage 3→5b)
+     - sunrise-16bar-fully-llm-harmony            — the 16-bar harmony-room diagnostic
+   Kept OUT of `CASES` so the synchronous Stage-6/7/8 verifiers (which trust a
+   complete hand-supplied plan) are unaffected.
    ================================================================= */
 
 export const CASES = [
@@ -70,21 +74,15 @@ export const CASES = [
         { label: 'A3', bars: 2 },
       ],
     },
+    // Per-section phrases (each fills its 2-bar / 8-beat section). Strong beats
+    // land on chord tones: A1/A2 over I→V, B over IV→I, A3 over I→IV (PAC).
+    // A2 echoes A1 (a repetition); B contrasts (high, falling); A3 reprises A1's
+    // opening and steps down toward the PAC.
     motifs: {
-      a: {
-        degrees: [1, 3, 5, 3, 2, 1],
-        rhythm: [0.5, 0.5, 1, 0.5, 0.5, 1],
-        contour: 'peak_descend',
-        register: 'mid',
-        anomaly: null,
-      },
-      b: {
-        degrees: [5, 4, 3, 2],
-        rhythm: [1, 1, 1, 1],
-        contour: 'falling_arc',
-        register: 'mid',
-        anomaly: null,
-      },
+      A1: { degrees: [1, 3, 5, 3, 5, 4, 3, 2], rhythm: [1, 0.5, 0.5, 2, 1, 1, 1, 1], contour: 'peak_descend', register: 'mid', anomaly: null },
+      A2: { degrees: [1, 3, 5, 3, 5, 4, 3, 1], rhythm: [1, 0.5, 0.5, 2, 1, 1, 1, 1], contour: 'peak_descend', register: 'mid', anomaly: null },
+      B: { degrees: [8, 6, 4, 6, 5, 3, 2, 1], rhythm: [1, 1, 1, 1, 1, 1, 1, 1], contour: 'falling_arc', register: 'high', anomaly: null },
+      A3: { degrees: [1, 3, 5, 3, 4, 3, 2, 1], rhythm: [1, 0.5, 0.5, 2, 1, 1, 1, 1], contour: 'peak_descend', register: 'mid', anomaly: null },
     },
     harmonicPlan: {
       sections: [
@@ -95,34 +93,10 @@ export const CASES = [
       ],
     },
     phrasePlan: {
-      A1: {
-        phrase_structure: 'period',
-        lead: [
-          { motif: 'a', transform: 'literal', start_bar: 1, length_bars: 1 },
-          { motif: 'a', transform: 'sequence_up_step', start_bar: 2, length_bars: 1 },
-        ],
-      },
-      A2: {
-        phrase_structure: 'period',
-        lead: [
-          { motif: 'a', transform: 'literal', start_bar: 1, length_bars: 1 },
-          { motif: 'a', transform: 'invert', start_bar: 2, length_bars: 1 },
-        ],
-      },
-      B: {
-        phrase_structure: 'sentence',
-        lead: [
-          { motif: 'b', transform: 'literal', start_bar: 1, length_bars: 1 },
-          { motif: 'b', transform: 'sequence_down_step', start_bar: 2, length_bars: 1 },
-        ],
-      },
-      A3: {
-        phrase_structure: 'period',
-        lead: [
-          { motif: 'a', transform: 'literal', start_bar: 1, length_bars: 1 },
-          { motif: 'a', transform: { name: 'transpose_third', params: { direction: 'up' } }, start_bar: 2, length_bars: 1 },
-        ],
-      },
+      A1: { phrase_structure: 'period', lead: [{ motif: 'A1', transform: 'literal', start_bar: 1, length_bars: 2 }] },
+      A2: { phrase_structure: 'period', lead: [{ motif: 'A2', transform: 'literal', start_bar: 1, length_bars: 2 }] },
+      B: { phrase_structure: 'period', lead: [{ motif: 'B', transform: 'literal', start_bar: 1, length_bars: 2 }] },
+      A3: { phrase_structure: 'period', lead: [{ motif: 'A3', transform: 'literal', start_bar: 1, length_bars: 2 }] },
     },
     texturePlan: {
       A1: {
@@ -167,21 +141,13 @@ export const CASES = [
         { label: "A'", bars: 3 },
       ],
     },
+    // A (12 beats) climbs to the dorian natural 7 then settles; B (8 beats) is the
+    // high contrast; A' (12 beats) reprises A's opening and adapts its tail toward
+    // the modal cadence. Strong beats fit i/VII/IV (A), v/IV (B), i/IV/VII (A').
     motifs: {
-      a: {
-        degrees: [1, 2, 3, 5, 3, 2],
-        rhythm: [0.5, 0.5, 0.5, 1, 0.5, 1],
-        contour: 'rising_arc',
-        register: 'mid',
-        anomaly: null,
-      },
-      b: {
-        degrees: [5, 7, 8, 7, 5],
-        rhythm: [0.5, 0.5, 1, 0.5, 1.5],
-        contour: 'peak_descend',
-        register: 'high',
-        anomaly: null,
-      },
+      A: { degrees: [1, 2, 3, 5, 4, 6, 7, 4, 6, 5, 4, 1], rhythm: [1, 0.5, 0.5, 2, 1, 0.5, 0.5, 2, 1, 1, 1, 1], contour: 'peak_descend', register: 'mid', anomaly: null },
+      B: { degrees: [5, 7, 8, 7, 6, 5, 4, 6], rhythm: [1, 0.5, 0.5, 2, 1, 1, 1, 1], contour: 'peak_descend', register: 'high', anomaly: null },
+      "A'": { degrees: [1, 2, 3, 5, 6, 5, 4, 6, 4, 3, 2, 1], rhythm: [1, 0.5, 0.5, 2, 1, 0.5, 0.5, 2, 1, 1, 1, 1], contour: 'peak_descend', register: 'mid', anomaly: null },
     },
     harmonicPlan: {
       sections: [
@@ -191,29 +157,9 @@ export const CASES = [
       ],
     },
     phrasePlan: {
-      A: {
-        phrase_structure: 'period',
-        lead: [
-          { motif: 'a', transform: 'literal', start_bar: 1, length_bars: 1 },
-          { motif: 'a', transform: 'sequence_up_step', start_bar: 2, length_bars: 1 },
-          { motif: 'a', transform: { name: 'transpose_third', params: { direction: 'up' } }, start_bar: 3, length_bars: 1 },
-        ],
-      },
-      B: {
-        phrase_structure: 'sentence',
-        lead: [
-          { motif: 'b', transform: 'literal', start_bar: 1, length_bars: 1 },
-          { motif: 'b', transform: 'invert', start_bar: 2, length_bars: 1 },
-        ],
-      },
-      "A'": {
-        phrase_structure: 'period',
-        lead: [
-          { motif: 'a', transform: 'literal', start_bar: 1, length_bars: 1 },
-          { motif: 'a', transform: 'sequence_up_step', start_bar: 2, length_bars: 1 },
-          { motif: 'a', transform: 'ornament_lower_neighbor', start_bar: 3, length_bars: 1 },
-        ],
-      },
+      A: { phrase_structure: 'period', lead: [{ motif: 'A', transform: 'literal', start_bar: 1, length_bars: 3 }] },
+      B: { phrase_structure: 'sentence', lead: [{ motif: 'B', transform: 'literal', start_bar: 1, length_bars: 2 }] },
+      "A'": { phrase_structure: 'period', lead: [{ motif: "A'", transform: 'literal', start_bar: 1, length_bars: 3 }] },
     },
     texturePlan: {
       A: {
@@ -224,8 +170,8 @@ export const CASES = [
         ],
       },
       B: {
-        // Session 6: a held drone over the B section (chord root, rearticulated
-        // per bar) to audition oblique_held end-to-end through the pipeline.
+        // A held drone over the B section (chord root, rearticulated per bar) to
+        // audition oblique_held end-to-end through the pipeline.
         harmony: [{ bars: [1, 2], mode: 'oblique_held' }],
         bass: [{ bars: [1, 2], pattern: 'pedal', degree: 1 }],
       },
@@ -256,21 +202,14 @@ export const CASES = [
         { label: "A'", bars: 3 },
       ],
     },
+    // The b2 (degree 2 = F) on weak beats is the phrygian-dominant colour. A (12)
+    // over I→II→iv leads b2→1 into the phrygian cadence; B (8) is the lower
+    // contrast over iv→II; A' (12) reprises A's head over I→iv→II. Strong beats
+    // fit each bar's chord (I {1,3,5}, II {2,4,6}, iv {4,6,1}).
     motifs: {
-      a: {
-        degrees: [1, 2, 3, 2, 1],
-        rhythm: [0.5, 0.5, 1, 0.5, 1.5],
-        contour: 'peak_descend',
-        register: 'mid',
-        anomaly: null,
-      },
-      b: {
-        degrees: [5, 4, 3, 2, 1],
-        rhythm: [0.5, 0.5, 0.5, 0.5, 2],
-        contour: 'falling_arc',
-        register: 'mid',
-        anomaly: null,
-      },
+      A: { degrees: [1, 2, 3, 5, 4, 5, 6, 4, 6, 4, 2, 1], rhythm: [1, 0.5, 0.5, 2, 1, 0.5, 0.5, 2, 1, 1, 1, 1], contour: 'peak_descend', register: 'mid', anomaly: null },
+      B: { degrees: [6, 5, 4, 1, 4, 6, 4, 2], rhythm: [1, 0.5, 0.5, 2, 1, 1, 1, 1], contour: 'falling_arc', register: 'low', anomaly: null },
+      "A'": { degrees: [1, 2, 3, 5, 6, 5, 4, 6, 4, 6, 2, 1], rhythm: [1, 0.5, 0.5, 2, 1, 0.5, 0.5, 2, 1, 1, 1, 1], contour: 'peak_descend', register: 'mid', anomaly: null },
     },
     harmonicPlan: {
       sections: [
@@ -280,29 +219,9 @@ export const CASES = [
       ],
     },
     phrasePlan: {
-      A: {
-        phrase_structure: 'period',
-        lead: [
-          { motif: 'a', transform: 'literal', start_bar: 1, length_bars: 1 },
-          { motif: 'a', transform: 'sequence_up_step', start_bar: 2, length_bars: 1 },
-          { motif: 'a', transform: { name: 'transpose_third', params: { direction: 'up' } }, start_bar: 3, length_bars: 1 },
-        ],
-      },
-      B: {
-        phrase_structure: 'sentence',
-        lead: [
-          { motif: 'b', transform: 'literal', start_bar: 1, length_bars: 1 },
-          { motif: 'b', transform: 'invert', start_bar: 2, length_bars: 1 },
-        ],
-      },
-      "A'": {
-        phrase_structure: 'period',
-        lead: [
-          { motif: 'a', transform: 'literal', start_bar: 1, length_bars: 1 },
-          { motif: 'a', transform: { name: 'ornament_chromatic_passing', params: { at_position: 1 } }, start_bar: 2, length_bars: 1 },
-          { motif: 'a', transform: 'ornament_upper_neighbor', start_bar: 3, length_bars: 1 },
-        ],
-      },
+      A: { phrase_structure: 'period', lead: [{ motif: 'A', transform: 'literal', start_bar: 1, length_bars: 3 }] },
+      B: { phrase_structure: 'sentence', lead: [{ motif: 'B', transform: 'literal', start_bar: 1, length_bars: 2 }] },
+      "A'": { phrase_structure: 'period', lead: [{ motif: "A'", transform: 'literal', start_bar: 1, length_bars: 3 }] },
     },
     texturePlan: {
       A: {
@@ -317,8 +236,8 @@ export const CASES = [
         bass: [{ bars: [1, 2], pattern: 'pedal', degree: 1 }],
       },
       "A'": {
-        // Session 6: a one-beat-delay canon over the recap, transposed to the
-        // chord tone — auditions imitation_one_beat_delay end-to-end.
+        // A one-beat-delay canon over the recap, transposed to the chord tone —
+        // auditions imitation_one_beat_delay end-to-end.
         harmony: [{ bars: [1, 3], mode: 'imitation_one_beat_delay' }],
         bass: [{ bars: [1, 3], pattern: 'root_fifth' }],
       },
@@ -330,41 +249,31 @@ export const CASES = [
 // Generated cases: the same macroParams / motifs / harmonicPlan / phrasePlan as
 // the matching hand-supplied case, but with `texturePlan` OMITTED so the
 // inspector calls Stage 5b (generateTexturePlan) to produce one via the LLM.
-// `generated: true` lets the inspector route these through the async path and
-// the Stage-5b debug panel. Kept OUT of `CASES` so the prior verifiers (which
-// trust a hand-supplied texturePlan) are unaffected.
+// `generated: true` routes these through the async path. Kept OUT of `CASES`.
 function withoutTexturePlan(base, overrides) {
   const { texturePlan, ...rest } = base;
   return { ...rest, generated: true, ...overrides };
 }
 
 // ---------------------------------------------------------------- Session 9
-// Fully-generated case: the same upstream context as the matching hand-supplied
-// case, but with BOTH `phrasePlan` AND `texturePlan` OMITTED. The inspector calls
-// Stage 5a (generatePhrasePlan) to shape the motifs, then Stage 5b
-// (generateTexturePlan) to choreograph textures over that phrasePlan — both via
-// the live LLM. This is the case the Session-9 human checkpoint A/Bs against the
-// hand-supplied and Stage-5b-only-generated twins. `generated: true` still routes
-// the texture path; the absent phrasePlan triggers the Stage-5a path.
+// Fully-generated case: the matching hand-supplied case with BOTH `phrasePlan`
+// AND `texturePlan` OMITTED. The inspector calls Stage 5a (now ARRANGEMENT — it
+// places the hand-supplied per-section phrases) then Stage 5b, both live.
 function withoutPhraseAndTexturePlan(base, overrides) {
   const { phrasePlan, texturePlan, ...rest } = base;
   return { ...rest, generated: true, ...overrides };
 }
 
-// ---------------------------------------------------------------- Session 10
-// FULLY-LLM case: the same macroParams + harmonicPlan as the matching hand-
-// supplied case, but with motifs, phrasePlan, AND texturePlan all OMITTED. The
-// inspector calls Stage 4 (generateMotifs) to write the melodic cells, then
-// Stage 5a (generatePhrasePlan) to shape their development, then Stage 5b
-// (generateTexturePlan) to choreograph textures — the ENTIRE creative content is
-// LLM-generated; only the macro params and the harmonic progression are hand-
-// supplied. This is the case the Session-10 human checkpoint A/Bs against the
-// hand-supplied Sunrise and the partial-generated twins.
+// ---------------------------------------------------------------- Session 10/12
+// FULLY-LLM case: motifs, phrasePlan, AND texturePlan all OMITTED. After the
+// Session-12 phrase-motif pivot, omitting motifs means Stage 4 generates the
+// per-section PHRASES (not cells); Stage 5a then arranges them and Stage 5b
+// choreographs textures — the ENTIRE creative content is LLM-generated; only
+// macroParams + harmonicPlan are hand-supplied. The headline A/B audition case.
 //
-// Stage 4 reads `macroParams.mood` (its single most important shape signal), so
-// the case's mood is surfaced INTO macroParams (forward-looking: Stage 2 will set
-// it from the AestheticBrief). The top-level `mood` is kept for FinalJingle
-// metadata, exactly as the runner reads it.
+// Stage 4 reads `macroParams.mood` (its strongest shape signal), so the case's
+// mood is surfaced INTO macroParams (forward-looking: Stage 2 will set it from the
+// AestheticBrief). The top-level `mood` is kept for FinalJingle metadata.
 function fullyLLMCase(base, overrides) {
   const { motifs, phrasePlan, texturePlan, ...rest } = base;
   return {
@@ -376,19 +285,11 @@ function fullyLLMCase(base, overrides) {
 }
 
 // ---------------------------------------------------------------- Session 11
-// FULLY-LLM-INCLUDING-HARMONY case: the same macroParams as the matching hand-
-// supplied case, but with harmonicPlan, motifs, phrasePlan, AND texturePlan all
-// OMITTED. The inspector calls Stage 3 (generateHarmonicPlan) to write the chords
-// + cadences, then Stage 4 (motifs), Stage 5a (phrase), Stage 5b (texture) — the
-// ENTIRE creative content, harmony included, is LLM-generated; only the macro
-// params are hand-supplied. This is the case the Session-11 human checkpoint A/Bs
-// against the Session-10 fully-LLM case (which had hand-supplied harmony), to hear
-// whether the generated harmony reads as functionally clearer / more memorable.
-//
-// Stage 3 reads `macroParams.mood` (its strongest harmonic-language signal) — and
-// Stages 4/5a/5b read it downstream — so the case's mood is surfaced INTO
-// macroParams (forward-looking: Stage 2 will set it from the AestheticBrief). The
-// top-level `mood` is kept for FinalJingle metadata, exactly as the runner reads it.
+// FULLY-LLM-INCLUDING-HARMONY case: harmonicPlan, motifs, phrasePlan, AND
+// texturePlan all OMITTED. The inspector calls Stage 3 (harmony) → Stage 4
+// (phrases) → Stage 5a (arrangement) → Stage 5b (texture) — the entire creative
+// content, harmony included, is LLM-generated; only the macro params are
+// hand-supplied. Stage 3/4/5a/5b read `macroParams.mood`, so it is surfaced in.
 function fullyLLMWithHarmonyCase(base, overrides) {
   const { harmonicPlan, motifs, phrasePlan, texturePlan, ...rest } = base;
   return {
@@ -402,19 +303,19 @@ function fullyLLMWithHarmonyCase(base, overrides) {
 export const GENERATED_CASES = [
   withoutTexturePlan(CASES[0], {
     id: 'sunrise-generated',
-    title: 'Sunrise Fanfare — generated',
+    title: 'Sunrise Fanfare — generated texture',
   }),
   withoutTexturePlan(CASES[1], {
     id: 'wanderer-generated',
-    title: "Wanderer's Path — generated",
+    title: "Wanderer's Path — generated texture",
   }),
   withoutPhraseAndTexturePlan(CASES[1], {
     id: 'wanderer-fully-generated',
-    title: "Wanderer's Path — fully generated",
+    title: "Wanderer's Path — generated arrangement + texture",
   }),
   fullyLLMCase(CASES[0], {
     id: 'sunrise-fully-llm',
-    title: 'Sunrise Fanfare — fully LLM',
+    title: 'Sunrise Fanfare — fully LLM (phrases + arrangement + texture)',
   }),
   fullyLLMWithHarmonyCase(CASES[0], {
     id: 'sunrise-fully-llm-harmony',
@@ -422,14 +323,11 @@ export const GENERATED_CASES = [
   }),
   // ---------------------------------------------------------------- Session 11
   // HARMONY-ROOM DIAGNOSTIC: a 16-bar AABA with 4-bar sections (vs. the 8-bar
-  // case's 2-bar sections), fully LLM incl. harmony. Surfaced at the Session-11
-  // checkpoint: the 8-bar case's harmony came out bland (I–V every A section),
-  // but with 2-bar sections a PAC section can only hold two chords (I→V) — there
-  // is no room for I–V–vi–IV. This case gives Stage 3 four bars per section to
-  // test whether the richer, named progressions actually appear when there's
-  // space. NOTE: 16 bars (64 beats) deliberately EXCEEDS the ~32-beat arrival
-  // jingle cap ([[jingle-length-cap-32-beats]]); it is a diagnostic to isolate
-  // "is the blandness the 2-bar cage or the prompt?", not a production length.
+  // case's 2-bar sections), fully LLM incl. harmony. With 4 bars per section
+  // Stage 3 has room for richer progressions AND Stage 4 has room for a longer
+  // phrase arc. NOTE: 16 bars (64 beats) deliberately EXCEEDS the ~32-beat
+  // arrival-jingle cap ([[jingle-length-cap-32-beats]]); it is a diagnostic, not
+  // a production length.
   {
     id: 'sunrise-16bar-fully-llm-harmony',
     title: 'Sunrise (16-bar, 4-bar sections) — fully LLM (incl. harmony)',

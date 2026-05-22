@@ -1076,7 +1076,18 @@ conventions from prior sessions.)
 
 ---
 
-### Session 12 — Stages 1 + 2 + full wire-up
+### Session 12 — Phrase-motif rework (Stage 4 → phrases, Stage 5a → arrangement)
+
+**Done (2026-05-22).** Implemented framing B from the Session-11-close consolidated
+brief (and deferred item 7 below): Stage 4 now authors ONE PHRASE PER SECTION over
+the section's harmony; Stage 5a shrank to ARRANGEMENT (place literal / vary) with a
+deterministic beat-length/overflow check; the legacy cell+development pair is
+preserved behind a `motif_architecture` knob for the A/B/v1 audition (temporary
+debt). All twelve verifiers green offline. See the Session-12 journal entry. The
+human checkpoint (keep / revert) is the decisive gate. This session took the
+"Session 12" slot; the front-end wire-up below shifts to Session 13.
+
+### Session 13 — Stages 1 + 2 + full wire-up
 
 **Goal:** Wire the front-end through the new pipeline end-to-end. Old
 generator becomes a fallback.
@@ -1187,7 +1198,12 @@ These don't block any session; flagging them for later attention:
    pipeline's output? Lightweight, useful for regression detection.
    Defer to Session 12 close-out.
 
-7. **Phrase-length motifs (COMMITTED dedicated session — e.g. "10b").**
+7. **Phrase-length motifs (IMPLEMENTED — Session 12, 2026-05-22, framing B).**
+   The phrase-motif rework shipped: Stage 4 authors one phrase per section over the
+   harmony, Stage 5a arranges them with a deterministic beat-length/overflow check,
+   and the legacy cell+development pair is preserved behind `motif_architecture` for
+   the A/B/v1 audition. The keep-or-revert decision is the Session-12 human
+   checkpoint. Original note retained below for context.
    Surfaced at the Session-10 human checkpoint. Today a motif is a MICRO cell
    (≤ 1 bar) and the macro melody is built by Stage 5a developing it; this is
    coherent and reliable but is plausibly the ceiling on *memorability* (v1's

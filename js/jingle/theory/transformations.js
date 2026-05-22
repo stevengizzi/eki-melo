@@ -59,8 +59,10 @@ function carryAnomaly(motif) {
 }
 
 // Add `steps` scale steps to a degree, in linear space, so the result keeps
-// correct octave bookkeeping (degree 7 + 1 step → degree 8).
+// correct octave bookkeeping (degree 7 + 1 step → degree 8). A rest (null) is
+// transposition-invariant — it stays a rest.
 function shiftDegree(degree, steps) {
+  if (degree === null) return null;
   return linearToDegree(degreeToLinear(degree) + steps);
 }
 
@@ -129,14 +131,16 @@ export function sequence_down_step(motif) {
  */
 export function invert(motif, { pivot } = {}) {
   validateMotif(motif);
-  const pivotDegree = pivot === undefined ? motif.degrees[0] : pivot;
+  // Default pivot = the first SOUNDED degree (skip leading rests).
+  const firstSounded = motif.degrees.find((d) => d !== null);
+  const pivotDegree = pivot === undefined ? firstSounded : pivot;
   requireInteger(pivotDegree, 'invert pivot');
   if (pivotDegree === 0) {
     throw new Error('invert pivot must be a non-zero degree (there is no degree 0).');
   }
   const pivotHeight = degreeToLinear(pivotDegree);
   const degrees = motif.degrees.map((degree) =>
-    linearToDegree(2 * pivotHeight - degreeToLinear(degree))
+    degree === null ? null : linearToDegree(2 * pivotHeight - degreeToLinear(degree))
   );
   return buildMotif(motif, degrees, [...motif.rhythm], carryAnomaly(motif));
 }

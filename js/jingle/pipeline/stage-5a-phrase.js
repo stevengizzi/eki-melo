@@ -1,58 +1,64 @@
 /* =================================================================
-   STAGE 5a — PHRASE STRUCTURE + MOTIF PLACEMENT (buildplan Session 9 —
-   SECOND LLM STAGE).
+   STAGE 5a — ARRANGEMENT (buildplan Session 12 — the phrase-motif rework, §7.7).
 
-   Sibling of Stage 5b (texture choreography, Session 8). Where 5b chooses
-   textures and bass patterns, 5a chooses each section's phrase structure and
-   shapes how the motifs develop across the bars: which motif lands where, under
-   which transformation, for how long. It is the stage that turns 2–3 raw motifs
-   into a phrased, developing line. The architecture is deliberately identical to
-   5b — prompt-building separated from the fetch, a wrapped LLM envelope unwrapped
-   to a flat plan at the seam, all-defects-in-one-pass validation, a
-   validate-then-retry-once loop, and a `__mockResponse` offline fallback the
-   verifier uses. The differences are the prompt content (musical, not textural)
-   and the validator rules (music-theoretical, not geometric).
+   THE RE-SCOPE. Sessions 9–11 made Stage 5a the DEVELOPMENT stage: it took 2–3
+   micro-cells and developed them across a section's bars (sequence / invert /
+   fragment / ornament), turning tiny cells into a phrased line. The phrase-motif
+   rework moved melody authorship UPSTREAM: Stage 4 now writes ONE full PHRASE per
+   section (filling the section, chord-aware by construction). So Stage 5a shrinks
+   to ARRANGEMENT — for each section, decide whether to place its phrase LITERALLY
+   (the default, which is usually right) or with a small VARIATION (a length-
+   preserving transform for emphasis or colour). The Session-3 transform library
+   survives intact as variation tooling; its ROLE demotes from required-for-
+   development to optional-flavor.
 
      generatePhrasePlan({ macroParams, motifs, harmonicPlan, config,
                           __mockResponse?, onTrace? }) → PhrasePlan
 
-   THE TWO SHAPES (and why they differ). The LLM emits — and validatePhrasePlan
-   checks — the WRAPPED envelope `{ sections: { <label>: { phrase_structure,
-   lead } } }`. A top-level `sections` key is clearer for the model (and matches
-   the Session-8 envelope). But the canonical inter-stage PhrasePlan (buildplan
-   §3, what Stage 6 / Stage 5b consume, what the hand-supplied inspector cases
-   use) is FLAT: `{ <label>: { phrase_structure, lead } }`. So generatePhrasePlan
-   validates the wrapped envelope, then UNWRAPS `.sections` and returns the flat
-   plan. The wrapped form is purely Stage 5a's LLM I/O envelope.
-
-   OUTPUT (flat PhrasePlan, exactly what Sessions 4–8 already consume):
+   The LLM-stages-chained architecture is preserved (this stage still calls the
+   model; it could go deterministic later if warranted). The OUTPUT SHAPE is
+   UNCHANGED from Session 9 — Stage 5b / Stage 6 consume the same flat PhrasePlan:
      {
        <label>: {
-         phrase_structure: "period" | "sentence" | "phrase_group" | "hybrid",
+         phrase_structure: <metadata only — optional now>,
          lead: [
-           { motif: <name|null>, transform: <string|object>,
+           { motif: <section_label|null>, transform: <string|object>,
              start_bar: <1-indexed>, length_bars: <int> },
            …
          ]
        },
        …
      }
-   where `start_bar` is 1-indexed and section-relative, `length_bars` is
-   inclusive, ranges may have gaps (silences) but never overlaps, and `transform`
-   is a key from theory/transformations.js, the reserved "cadential_gesture" slot
-   (Stage 8 fills it), or a `{ name, params }` object for parameterized transforms.
+   In the phrase-motif model each section's `lead` is TYPICALLY ONE entry with
+   start_bar=1, length_bars=section.bars, transform="literal" (or a chosen
+   variation). The `motif` references a key in `input.motifs` — now a SECTION
+   LABEL (the per-section phrase), where it used to be a short cell letter; the
+   lookup mechanic is identical.
 
-   OFFLINE / DETERMINISTIC FALLBACK. Pass `__mockResponse` (a JSON string) to skip
-   the network and run that string through the SAME parse + validate path as a real
-   response. This is how verify-stage5a.mjs exercises the stage without an API call.
+   THE TWO SHAPES. The LLM emits the WRAPPED envelope `{ sections: { <label>: {
+   phrase_structure, lead } } }`; generatePhrasePlan validates it, then UNWRAPS
+   `.sections` and returns the flat plan.
 
-   API. Same call shape as Stage 5b / js/jingle/api.js: POST the Anthropic Messages
-   body to API_ENDPOINT, force JSON-only by instruction, strip code fences, parse
-   with a brace-match fallback. The model is pinned to the one /api/generate's
-   allow-list permits, so both runtime modes work without a server change.
+   THE NEW HARD CHECK — DETERMINISTIC BEAT-LENGTH / OVERFLOW. For each lead
+   assignment, apply its transform to the referenced phrase, sum the realized
+   rhythm, and assert it FILLS its bar-slot exactly (no overflow, no internal gap).
+   This structurally closes the hollow-reprise + per-bar-gap findings (same root:
+   short realized content in a bar-sized slot) — and, because Stage 4 authors each
+   phrase to fill its whole section, it means a single literal assignment per
+   section is the natural, correct shape.
 
-   PORTABILITY. This is pipeline/ code: it may import theory/ and js/env.js. It
-   does NOT modify api.js (read-only this session) — it mimics its patterns.
+   THE CHORD-FIT GUARD (Session 11) STAYS as a reduced-scope SAFETY NET: a
+   TRANSPOSING variation that shifts the phrase entirely off its bar's chord is
+   rejected. It fires rarely now (the phrase was authored chord-fit at Stage 4); it
+   catches the case where Stage 5a's own variation transposes it off-chord.
+
+   OFFLINE / DETERMINISTIC FALLBACK. `__mockResponse` (a JSON string) skips the
+   network and runs the same parse + validate path — how verify-stage5a.mjs
+   exercises the stage. PORTABILITY: pipeline/ code; may import theory/ + env.js.
+
+   LEGACY. The Session-9/10/11 cell-development stage is preserved verbatim as
+   stage-5a-development-LEGACY.js for the A/B audition (config.knobs.
+   motif_architecture === 'cell'); see that file's banner + the Session-12 journal.
    ================================================================= */
 import { postMessages } from './llm-call.js';
 import * as Transforms from '../theory/transformations.js';
@@ -60,47 +66,43 @@ import { degreeToLinear } from '../theory/motif.js';
 import { getForm, deriveSectionRelationships } from '../theory/form-engine.js';
 import { computeSectionPlan } from './stage-6-voice.js';
 
-// The /api/generate allow-list only permits this model (see
-// functions/api/generate.js ALLOWED_MODELS); api.js + Stage 5b use the same one.
-// Pinning it keeps the deployed proxy path AND the artifact direct path working
-// without a server change. A model upgrade is a coordinated allow-list change.
+// The /api/generate allow-list only permits this model; api.js + Stages 3/4/5b
+// use the same one. Pinning it keeps both runtime modes working without a server
+// change. A model upgrade is a coordinated allow-list change.
 const STAGE_5A_MODEL = 'claude-sonnet-4-20250514';
-const STAGE_5A_MAX_TOKENS = 2500;
+const STAGE_5A_MAX_TOKENS = 2000;
+
+const BEATS_EPSILON = 0.01;
 
 // =================================================================
-// VOCABULARY — the strict choice sets, with one-line descriptions for the
-// prompt. The transform set is built off transformations.js's own exports so the
-// listing (and what validation accepts) can never drift from the library.
+// VOCABULARY — the transform set, built off transformations.js's own exports so
+// the listing (and what validation accepts) can never drift from the library.
 // =================================================================
 
-// Descriptions express each structure's internal SHAPE as proportions, not fixed
-// bar counts, so the model can fit one to a section of any length (a 4-bar
-// section compresses an 8-bar model). See phraseStructureVocabulary().
-const PHRASE_STRUCTURE_DESCRIPTIONS = {
-  period: 'antecedent–consequent (a 1:1 split): an opening phrase that ends open, answered by a parallel phrase that closes',
-  sentence: 'statement → varied repetition → continuation (a 1:1:2 feel): short ideas that accelerate into the cadence',
-  phrase_group: 'two complementary phrases of roughly equal length (a 1:1 split), not strict antecedent–consequent',
-  hybrid: 'a sentence-like opening (short, accelerating ideas) closed by a period-like cadence',
-};
-const PHRASE_STRUCTURES = new Set(Object.keys(PHRASE_STRUCTURE_DESCRIPTIONS));
+// The phrase-structure names, kept ONLY for back-compat metadata. The field is
+// optional in the arrangement model; if present-and-unrecognized it warns (soft),
+// never fails (it is descriptive metadata, consumed by nothing downstream).
+const PHRASE_STRUCTURES = new Set(['period', 'sentence', 'phrase_group', 'hybrid']);
 
-// One-line descriptions keyed by the transformation library's export names.
-// cadential_gesture is the reserved end-slot, NOT a transformations.js export.
+// One-line descriptions keyed by the transformation library's export names, at
+// PHRASE scale. Length-preserving transforms suit a single full-section
+// assignment; length-changing ones (augment/diminute/fragment) need a matching
+// length_bars or the section split into sub-slots (the beat-length check enforces it).
 const TRANSFORM_DESCRIPTIONS = {
-  literal: 'play the motif as written',
-  transpose_step: 'transpose by params.steps scale steps — REQUIRED non-zero integer (+ up, − down); for ±1 prefer sequence_up_step / sequence_down_step',
-  transpose_third: 'up or down a third (params.direction = "up" | "down", default "up")',
-  sequence_up_step: 'repeat the motif a step higher — a typical phrase-extension move',
-  sequence_down_step: 'repeat the motif a step lower',
-  invert: "mirror the motif's contour around a pivot (params.pivot = a degree 1–7)",
-  retrograde: 'play the motif backward',
-  augment_2x: 'double the durations (twice as slow)',
-  diminute_2x: 'halve the durations (twice as fast)',
-  fragment_head: 'keep only the first half',
-  fragment_tail: 'keep only the last half',
-  ornament_upper_neighbor: "decorate a note with the scale step above it — prefer an INTERIOR note via params.at_position (e.g. {\"name\":\"ornament_upper_neighbor\",\"params\":{\"at_position\":1}}); decorating the motif's LAST note flicks a fast ornament straight into the following rest, which sounds awkward",
-  ornament_lower_neighbor: 'decorate a note with the scale step below it — prefer an INTERIOR note via params.at_position (decorating the last note flicks into the following rest)',
-  ornament_chromatic_passing: 'insert a chromatic passing tone (CONSUMES the anomaly budget — use sparingly)',
+  literal: 'play the phrase as written (the DEFAULT — usually right) — preserves length',
+  transpose_step: 'transpose by params.steps scale steps — REQUIRED non-zero integer (+ up, − down) — preserves length',
+  transpose_third: 'up or down a third (params.direction = "up" | "down", default "up") — preserves length',
+  sequence_up_step: 'restate the phrase a step higher — preserves length',
+  sequence_down_step: 'restate the phrase a step lower — preserves length',
+  invert: 'mirror the contour around a pivot (params.pivot) — preserves length; rarely musical at full-phrase scale (discouraged)',
+  retrograde: 'play the phrase backward — preserves length; rarely musical at full-phrase scale (discouraged)',
+  augment_2x: 'DOUBLE the durations — DOUBLES total length (only valid in a slot twice the phrase\'s natural length)',
+  diminute_2x: 'HALVE the durations — HALVES total length',
+  fragment_head: 'keep only the first half of the notes — roughly HALVES length',
+  fragment_tail: 'keep only the last half of the notes — roughly HALVES length',
+  ornament_upper_neighbor: 'decorate a note with the step above (params.at_position; prefer an INTERIOR note) — preserves length',
+  ornament_lower_neighbor: 'decorate a note with the step below (params.at_position; prefer an INTERIOR note) — preserves length',
+  ornament_chromatic_passing: 'insert a chromatic passing tone (params.at_position) — preserves length; consumes the anomaly budget',
 };
 
 // The names validation accepts: every transformations.js export, plus the
@@ -111,24 +113,25 @@ const RECOGNIZED_TRANSFORMS = new Set(
 const CADENTIAL_GESTURE = 'cadential_gesture';
 const isRecognizedTransform = (name) => RECOGNIZED_TRANSFORMS.has(name) || name === CADENTIAL_GESTURE;
 
-const PHRASE_ADVENTUROUSNESS_DIRECTIVE = {
+const ARRANGEMENT_ADVENTUROUSNESS_DIRECTIVE = {
   tame:
-    'Keep development conservative and legible — mostly literal statements with step/third sequences. '
-    + 'Favor period structures. Use ornaments rarely; avoid retrograde and inversion.',
+    'Every section is its phrase, LITERAL. The phrases themselves carry the piece; add no variation at the '
+    + 'arrangement layer. (transform "literal", start_bar 1, length_bars = the section\'s bar count.)',
   adventurous:
-    'Give each section a distinct developmental identity. Bring retrograde and inversion into the contrast '
-    + '(B/C) sections, use fragmentation to build momentum toward cadences, and ornament tastefully. Do not '
-    + 'just sequence the same motif everywhere.',
+    'Place the STATEMENT, any REPETITION, and the CONTRAST section LITERALLY. The REPRISE (the returning A '
+    + 'section) MAY take a small LENGTH-PRESERVING variation for emphasis or colour — an ornament_* or a '
+    + 'transpose_third — but only if it genuinely improves the closing restatement. Variation is per-section, not '
+    + 'bar-by-bar.',
   wild:
-    'Develop boldly throughout. In addition, EXACTLY ONE section should reach for a striking gesture — at '
-    + 'least one ornament_chromatic_passing, retrograde, or invert (the anomaly slot) that the other sections '
-    + 'do not match; the rest of the piece stays otherwise adventurous. Surprise is welcome.',
+    'Any A-type section may take a LENGTH-PRESERVING variation (transpose_third, sequence, ornament_*). B-type '
+    + '(contrast) sections stay LITERAL — their contrast comes from the phrase itself, not from an applied '
+    + 'transform. Keep it musical: a variation should serve the restatement, not just decorate for its own sake.',
 };
-const DEFAULT_PHRASE_ADVENTUROUSNESS = 'adventurous';
+const DEFAULT_ARRANGEMENT_ADVENTUROUSNESS = 'tame';
 
-function phraseAdventurousnessOf(config) {
-  const value = config?.knobs?.phrase_adventurousness;
-  return value in PHRASE_ADVENTUROUSNESS_DIRECTIVE ? value : DEFAULT_PHRASE_ADVENTUROUSNESS;
+function arrangementAdventurousnessOf(config) {
+  const value = config?.knobs?.arrangement_adventurousness;
+  return value in ARRANGEMENT_ADVENTUROUSNESS_DIRECTIVE ? value : DEFAULT_ARRANGEMENT_ADVENTUROUSNESS;
 }
 
 // =================================================================
@@ -169,12 +172,9 @@ function transformCanonical({ name, params }) {
   return `${name}@${keys.map((k) => `${k}=${params[k]}`).join(',')}`;
 }
 
-// Catch a transform whose params would crash the theory-layer realization
-// (theory/transformations.js validates them at apply time and throws), so the
-// defect is caught at the seam — and fed to the retry — instead of blowing up in
-// Stage 6. Returns an error string, or null when the params are fine. Only the
-// params that are REQUIRED or type-constrained are checked; everything optional
-// with a sensible default (pivot, count, at_position) is validated for type only.
+// Catch a transform whose params would crash the theory-layer realization, so the
+// defect is caught at the seam (and fed to the retry) instead of blowing up in
+// Stage 6. Returns an error string, or null when the params are fine.
 function transformParamError(name, params = {}) {
   switch (name) {
     case 'transpose_step':
@@ -214,13 +214,82 @@ function transformParamError(name, params = {}) {
 
 const motifDisplay = (motif) => (motif === null ? 'null' : `"${motif}"`);
 
+function beatsPerBarOf(meter) {
+  return meter?.numerator ?? 4;
+}
+
 // =================================================================
-// SECTION RELATIONSHIPS — which sections are contrast / reprise, so the
-// development rules can be enforced. Prefers the curated form metadata
-// (getForm(...).relationships) remapped onto the actual section labels by
-// position; falls back to deriving from the label letter-pattern when there is
-// no matching form (e.g. a piece that overrode the form's labels). The fallback
-// helper lives in form-engine.js.
+// REALIZED-BEATS — apply a transform to the referenced phrase and sum the
+// resulting rhythm. This is the SAME realization-math the transforms encode (it
+// applies the real transform fn), so the beat-length check matches what Stage 6
+// will lay down. Returns null when it can't be computed (so the check skips
+// rather than throwing): a null motif / cadential_gesture realizes nothing, and a
+// throwing transform can't be measured here.
+// =================================================================
+
+function realizedBeatsOf(motif, name, params) {
+  if (!motif || !Array.isArray(motif.rhythm)) return null;
+  if (name === CADENTIAL_GESTURE) return null;
+  const fn = Transforms[name];
+  if (typeof fn !== 'function') return null;
+  let transformed;
+  try {
+    transformed = fn(motif, params ?? {});
+  } catch {
+    return null;
+  }
+  if (!transformed || !Array.isArray(transformed.rhythm)) return null;
+  return transformed.rhythm.reduce((total, b) => total + (typeof b === 'number' && Number.isFinite(b) ? b : 0), 0);
+}
+
+// =================================================================
+// CHORD-FIT GUARD HELPERS (Session 11, reduced scope). The transforms that shift
+// the WHOLE phrase by a constant interval, so a phrase that fit its chords can
+// land off a bar's chord. literal/retrograde/fragment/invert/ornament/augment/
+// diminute keep the phrase on/near its authored pitches, so they're exempt.
+// =================================================================
+
+const TRANSPOSING_TRANSFORMS = new Set([
+  'sequence_up_step', 'sequence_down_step', 'transpose_step', 'transpose_third',
+]);
+
+const ROMAN_DEGREE = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7 };
+function chordToneDegreesOf(roman) {
+  if (typeof roman !== 'string') return null;
+  const core = roman.replace(/^[b#]+/, '').match(/^[ivxIVX]+/);
+  if (!core) return null;
+  const root = ROMAN_DEGREE[core[0].toLowerCase()];
+  if (!root) return null;
+  const wrap = (step) => (((step - 1) % 7) + 7) % 7 + 1;
+  return [wrap(root), wrap(root + 2), wrap(root + 4)];
+}
+
+const inOctaveDegree = (degree) => (((degreeToLinear(degree) % 7) + 7) % 7) + 1;
+
+// How many of a transformed phrase's notes are chord tones of `roman`. Returns
+// null when it can't be computed (unparseable chord, bad phrase, throwing transform).
+function chordToneHitCount(motif, name, params, roman) {
+  const tones = chordToneDegreesOf(roman);
+  if (!tones || !motif || !Array.isArray(motif.degrees) || motif.degrees.length === 0) return null;
+  const fn = Transforms[name];
+  if (typeof fn !== 'function') return null;
+  let transformed;
+  try {
+    transformed = fn(motif, params ?? {});
+  } catch {
+    return null;
+  }
+  if (!transformed || !Array.isArray(transformed.degrees)) return null;
+  const toneSet = new Set(tones);
+  return transformed.degrees.reduce(
+    (count, d) => (Number.isInteger(d) && d !== 0 && toneSet.has(inOctaveDegree(d)) ? count + 1 : count),
+    0
+  );
+}
+
+// =================================================================
+// SECTION RELATIONSHIPS — prefer the curated form metadata remapped onto the
+// actual labels by position; fall back to deriving from the label letter-pattern.
 // =================================================================
 
 function sectionRelationshipsForPlan(macroParams, plan) {
@@ -260,112 +329,34 @@ function sectionRelationshipsForPlan(macroParams, plan) {
 function pieceSummary(macroParams, plan) {
   const meter = macroParams.meter ?? { numerator: 4, denominator: 4 };
   const sectionList = plan.map((s) => `${s.label} (${s.bars} bars)`).join(', ');
-  const harmonicRhythm = Array.isArray(macroParams.harmonic_rhythm)
-    ? macroParams.harmonic_rhythm.join(', ')
-    : String(macroParams.harmonic_rhythm ?? 1);
   return [
     'PIECE',
     `- key: ${String(macroParams.tonic)} ${macroParams.mode}`,
     `- form: ${macroParams.form ?? 'n/a'}`,
     `- tempo: ${macroParams.tempo ?? 'n/a'} BPM, meter ${meter.numerator}/${meter.denominator}`,
-    `- register center: ${macroParams.register_center ?? 'n/a'}`,
-    `- harmonic rhythm: ${harmonicRhythm} chord(s) per bar`,
     `- sections in order: ${sectionList}`,
+    `- MOOD: ${macroParams.mood ?? '(unspecified)'}`,
   ].join('\n');
 }
 
-function motifsSummary(motifs) {
-  if (!motifs || Object.keys(motifs).length === 0) return 'MOTIFS\n- (none supplied)';
-  const lines = Object.entries(motifs).map(([name, m]) => {
-    const anomaly = m.anomaly
-      ? `, anomaly: ${m.anomaly.type}${m.anomaly.at_position != null ? `@${m.anomaly.at_position}` : ''}`
-      : '';
-    return (
-      `- ${name}: degrees [${(m.degrees ?? []).join(', ')}], rhythm [${(m.rhythm ?? []).join(', ')}], `
-      + `contour ${m.contour ?? '?'}, register ${m.register ?? '?'}${anomaly}`
-    );
-  });
-  return ['MOTIFS (melodic cells, in scale degrees — reference each by its name)', ...lines].join('\n');
-}
-
-// The three chord-tone scale degrees (1..7) of a Roman numeral, stacked in
-// diatonic thirds from its root degree (root, root+2, root+4 mod 7). Exact for
-// diatonic triads (the common case) and a good-enough hint for borrows. Used to
-// tell Stage 5a which degrees a placed motif should land its strong beats on, so
-// the melody fits the chord under each bar rather than just the section's first.
-const ROMAN_DEGREE = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7 };
-function chordToneDegreesOf(roman) {
-  if (typeof roman !== 'string') return null;
-  const core = roman.replace(/^[b#]+/, '').match(/^[ivxIVX]+/);
-  if (!core) return null;
-  const root = ROMAN_DEGREE[core[0].toLowerCase()];
-  if (!root) return null;
-  const wrap = (step) => (((step - 1) % 7) + 7) % 7 + 1;
-  return [wrap(root), wrap(root + 2), wrap(root + 4)];
-}
-
-// Fold any degree (octave displacement / negatives) to its in-octave 1..7 class,
-// matching the realizer (degree 8 → tonic, −3 → the sixth, …).
-const inOctaveDegree = (degree) => (((degreeToLinear(degree) % 7) + 7) % 7) + 1;
-
-// The transforms that shift the WHOLE motif by a constant number of scale steps,
-// so a motif that fit its home chord can land entirely off a different bar's
-// chord (the demonstrated A3-reprise clash: sequence_up_step put a ii-arpeggio
-// over the I chord). Other transforms (literal/retrograde/fragment/invert/
-// ornament/augment/diminute) keep the motif on or near its authored pitches, so
-// they're exempt from the chord-fit guard below.
-const TRANSPOSING_TRANSFORMS = new Set([
-  'sequence_up_step', 'sequence_down_step', 'transpose_step', 'transpose_third',
-]);
-
-// How many of a transformed motif's notes are chord tones of `roman` (its bar's
-// chord), counted as in-octave degree classes. Returns null when it can't be
-// computed (unparseable chord, bad motif, unknown/throwing transform) — the guard
-// then skips. Applies the real transform from transformations.js so the check
-// matches what Stage 6 will realize.
-function chordToneHitCount(motif, name, params, roman) {
-  const tones = chordToneDegreesOf(roman);
-  if (!tones || !motif || !Array.isArray(motif.degrees) || motif.degrees.length === 0) return null;
-  const fn = Transforms[name];
-  if (typeof fn !== 'function') return null;
-  let transformed;
-  try {
-    transformed = fn(motif, params ?? {});
-  } catch {
-    return null;
-  }
-  if (!transformed || !Array.isArray(transformed.degrees)) return null;
-  const toneSet = new Set(tones);
-  return transformed.degrees.reduce(
-    (count, d) => (Number.isInteger(d) && d !== 0 && toneSet.has(inOctaveDegree(d)) ? count + 1 : count),
-    0
-  );
-}
-
-// Show the chord under EACH BAR (the progression is one chord per bar), with its
-// chord-tone degrees, so the model can land a placed motif's strong beats on the
-// harmony actually sounding in that bar — not only the section's opening chord.
-function harmonySummary(harmonicPlan) {
-  const sections = harmonicPlan?.sections ?? [];
-  if (sections.length === 0) return 'HARMONIC PLAN\n- (none supplied)';
-  const lines = sections.map((s) => {
-    const perBar = (s.progression ?? [])
-      .map((roman, i) => {
-        const tones = chordToneDegreesOf(roman);
-        return `bar ${i + 1} = ${roman}${tones ? ` (chord tones: degrees ${tones.join(', ')})` : ''}`;
-      })
-      .join('; ');
-    return `- ${s.label} (cadence: ${s.cadence ?? 'none'}): ${perBar}`;
+// Each section's PHRASE, summarized one line: enough to recognize it (first few
+// degrees + length + contour), not the whole array. The phrases were written by
+// Stage 4; the arranger places them.
+function phrasesSummary(motifs) {
+  if (!motifs || Object.keys(motifs).length === 0) return 'PHRASES\n- (none supplied)';
+  const lines = Object.entries(motifs).map(([label, m]) => {
+    const degrees = Array.isArray(m.degrees) ? m.degrees : [];
+    const head = degrees.slice(0, 6).join(', ');
+    const tail = degrees.length > 6 ? ', …' : '';
+    return `- ${label}: degrees [${head}${tail}] (${degrees.length} notes), contour ${m.contour ?? '?'}, register ${m.register ?? '?'}`;
   });
   return [
-    'HARMONIC PLAN — the chord under EACH BAR (bars are section-relative; a motif you place in a bar plays '
-      + 'OVER that bar\'s chord):',
+    'PHRASES (one per section, already written — keyed by section label). Each phrase FILLS its section. You '
+      + 'place each one; you do not rewrite them:',
     ...lines,
   ].join('\n');
 }
 
-// Per-section role / reprise-source / contrast, so the model honors the
-// development rules the validator enforces.
 function formMetadataSummary(relationships, plan) {
   const lines = plan.map((s) => {
     const rel = relationships[s.label] ?? {};
@@ -373,100 +364,44 @@ function formMetadataSummary(relationships, plan) {
     if (rel.of) parts.push(`of ${rel.of}`);
     if (rel.variation) parts.push(`(${rel.variation})`);
     if (rel.contrast_from) parts.push(`vs ${rel.contrast_from}`);
-    let note = '';
-    if (rel.role === 'contrast' || rel.role === 'variation') {
-      note = ' — MUST contain non-literal motivic development';
-    } else if (rel.role === 'reprise' || rel.role === 'varied_reprise') {
-      note = `${rel.of ? ` — MUST bring back a motif from ${rel.of}` : ''}`;
-    }
-    return `- ${s.label}: ${parts.join(' ')}${note}`;
+    return `- ${s.label}: ${parts.join(' ')}`;
   });
-  return ['FORM ROLES (how each section relates — honor these in your development)', ...lines].join('\n');
-}
-
-function phraseStructureVocabulary() {
-  const lines = Object.entries(PHRASE_STRUCTURE_DESCRIPTIONS).map(([name, desc]) => `  - ${name}: ${desc}`);
-  return [
-    'PHRASE STRUCTURES (choose one per section for "phrase_structure"). These name the section\'s '
-      + 'internal SHAPE as proportions, not fixed bar counts — they scale to the section\'s length, so a '
-      + 'short (e.g. 4-bar) section compresses the model (a period becomes 2+2, a sentence 1+1+2). Pick the '
-      + 'shape that best fits the section\'s bar count and role:',
-    ...lines,
-  ].join('\n');
+  return ['FORM ROLES (how each section relates — informs whether a variation suits it)', ...lines].join('\n');
 }
 
 function transformVocabulary() {
   const lines = [...RECOGNIZED_TRANSFORMS].map((name) => `  - ${name}: ${TRANSFORM_DESCRIPTIONS[name] ?? ''}`);
-  lines.push(
-    `  - ${CADENTIAL_GESTURE}: an OPTIONAL reserved end-slot (with motif null) — a rest into the cadence. Use it `
-    + 'only when you want the melody to pause before a section\'s close; otherwise let a motif lead into the '
-    + 'cadence (see below).'
-  );
-  return [`TRANSFORMS (use ONLY these names for "transform"):`, ...lines].join('\n');
-}
-
-function developmentRules() {
   return [
-    'DEVELOPMENT RULES (these are enforced — a plan that breaks them is rejected):',
-    '- A contrast section (role "contrast"/"variation") must contain at least one non-literal motivic '
-      + 'transform (not just "literal").',
-    '- A reprise section (role "reprise") must bring back at least one motif used by the section it reprises.',
-    '- Assignments within a section may NOT overlap (a gap/rest is fine); none may run past the section\'s last bar.',
-    'PREFER VARIETY (advisory, not rejected): avoid placing the IDENTICAL { motif, transform } pair in two '
-      + 'adjacent bars — repeating a bar back-to-back sounds static. Vary the transform between adjacent bars.',
-    'CADENCES: a section that declares a cadence (see HARMONIC PLAN) closes with one — but Stage 8 enforces only '
-      + 'the section\'s final TWO BEATS. So you may let a motif occupy the FINAL bar and lead INTO the cadence '
-      + '(its tail resolves into the close) — that is the preferred, more melodic choice — OR use the reserved '
-      + `"${CADENTIAL_GESTURE}" slot if you want the melody to rest into the cadence. Either is valid.`,
+    'TRANSFORMS (use ONLY these names for "transform"; "literal" is the default and the right choice for most '
+      + 'sections):',
+    ...lines,
+    'NOTE: a phrase already fills its whole section, so a LENGTH-PRESERVING transform on a single full-section '
+      + 'assignment is the safe choice. The LENGTH-CHANGING transforms (augment_2x, diminute_2x, fragment_head, '
+      + 'fragment_tail) only fit if you also size length_bars to the realized length (or split the section into '
+      + 'matching sub-assignments) — otherwise the arrangement leaves a gap or overflows and is rejected.',
   ].join('\n');
 }
 
-// Non-enforced guidance steering the melody to FIT the per-bar harmony — a
-// Session-11 checkpoint finding. The motifs were being developed in pure
-// degree-space (e.g. sequence_up_step shifting a motif off the chord it fit) and
-// the wrong section's motif dropped into a bar, so the melody clashed with the
-// chord actually sounding. This is a soft steer (the validator can't measure
-// chord-tone fit from bar indices); it works with the per-bar HARMONIC PLAN above.
-function harmonyFitGuidance() {
+function placementRules(plan) {
+  const example = plan.length ? plan[0] : { label: 'A1', bars: 4 };
   return [
-    'FIT THE HARMONY (each placed motif plays OVER its bar\'s chord — see the per-bar HARMONIC PLAN above):',
-    '- Use each section\'s HOME motif as its primary material — the motif whose letter matches the section '
-      + '(A-sections → motif "a", B → "b", C → "c"). The home motif was written to sit on that section\'s '
-      + 'harmony; dropping a different section\'s motif into a bar usually clashes with the chord there.',
-    '- Land a motif\'s DOWNBEAT and any LONG note on a CHORD TONE of that bar\'s chord (the degrees listed '
-      + 'above). Strong beats on non-chord-tones fight the harmony; passing/neighbor tones between them are fine.',
-    '- TRANSPOSING/SEQUENCING SHIFTS THE WHOLE MOTIF. sequence_up_step / sequence_down_step / transpose_step / '
-      + 'transpose_third move every note by the same interval, so a motif that fit its home chord will NOT fit a '
-      + 'different chord unless that chord sits the same interval away. When you transpose or sequence a motif into '
-      + 'a bar, CHECK that the result\'s strong notes are chord tones of THAT bar\'s chord — if not, choose a '
-      + 'different transform or place it where the chord fits. Develop the material, but develop it CHORD-AWARE.',
+    'PLACEMENT RULES (enforced — a plan that breaks them is rejected):',
+    '- Each section\'s `lead` assignments together must COVER bars 1..section.bars with NO gaps and NO overlaps.',
+    '- The TYPICAL section is ONE assignment: { "motif": "<that section\'s label>", "transform": "literal", '
+      + `"start_bar": 1, "length_bars": <the section's bar count> } (e.g. ${example.label} → length_bars ${example.bars}).`,
+    '- A placed phrase\'s REALIZED length (after the transform) must fill its bar-slot exactly — not shorter (a '
+      + 'gap) and not longer (an overflow).',
+    '- Use each section\'s OWN phrase as its material (motif = the section\'s label). You MAY reference another '
+      + 'section\'s phrase to literally restate it (e.g. a repetition section replaying the statement\'s phrase).',
   ].join('\n');
 }
 
-// Non-enforced guidance against hollow sections — a Session-10 checkpoint finding
-// (a reprise stacked fragment_tail + diminute_2x and came out sparse, with a long
-// mid-section rest). The model places motifs in BAR units and can't see the
-// sub-bar gap a short transform leaves, so this steers the transform CHOICE.
-function phrasingGuidance() {
-  return [
-    'PHRASING (make each section sound full, not hollow):',
-    '- The SHORTENING transforms — fragment_head, fragment_tail, diminute_2x — produce material well under a '
-      + 'bar. Do NOT make one the sole content of a bar you want to feel full: alone in a bar it leaves a long '
-      + 'rest. Pair it with a second entry in the same bar, or use a fuller transform there.',
-    '- Do NOT stack two shortening transforms back-to-back (e.g. fragment_tail then diminute_2x) — together they '
-      + 'hollow the section out.',
-    '- The REPRISE (the returning A section) should restate the theme with enough material to feel conclusive '
-      + 'into its cadence — keep it fuller than the development.',
-  ].join('\n');
-}
-
-// The JSON skeleton the model fills in, listing each section with its bar count
-// so placements land in range.
 function schemaSkeleton(plan) {
   const sectionLines = plan
     .map(
       (s) =>
-        `    ${JSON.stringify(s.label)}: { "phrase_structure": "…", "lead": [ /* place motifs across bars 1..${s.bars} */ ] }`
+        `    ${JSON.stringify(s.label)}: { "lead": [ { "motif": ${JSON.stringify(s.label)}, "transform": "literal", `
+        + `"start_bar": 1, "length_bars": ${s.bars} } ] }`
     )
     .join(',\n');
   return `{\n  "sections": {\n${sectionLines}\n  }\n}`;
@@ -481,14 +416,11 @@ function schemaBlock(plan) {
     '',
     'REQUIREMENTS:',
     `- Use these EXACT section labels as the keys of "sections": ${labels}.`,
-    '- Each section is { "phrase_structure": one of the four names, "lead": [ assignments ] }.',
-    '- Each assignment is { "motif": <a motif name or null>, "transform": <a transform name, or a '
-      + '{"name": …, "params": {…}} object for parameterized transforms>, "start_bar": <1-indexed, '
-      + 'section-relative>, "length_bars": <integer >= 1, inclusive> }.',
-    '- A bar is one assignment by default; make an assignment longer only when a motif genuinely spans more '
-      + 'than one bar. Leaving bars empty (a rest/breath) is allowed; overlaps are NOT.',
-    '- Choose motif placements and transforms that READ AS COMPOSITION — develop the material, do not just '
-      + 'tile literal copies. Obey the DEVELOPMENT RULES above.',
+    '- Each section is { "lead": [ assignments ] } (an optional "phrase_structure" string may be included but is '
+      + 'ignored).',
+    '- Each assignment is { "motif": <a section label or null>, "transform": <a transform name, or a '
+      + '{"name": …, "params": {…}} object>, "start_bar": <1-indexed>, "length_bars": <integer >= 1> }.',
+    '- Cover every bar of each section; do not overlap. When in doubt, ONE literal assignment per section is correct.',
   ].join('\n');
 }
 
@@ -499,23 +431,20 @@ function schemaBlock(plan) {
 export function buildPhrasePlanPrompt({ macroParams, motifs, harmonicPlan, config }) {
   const plan = computeSectionPlan(macroParams);
   const relationships = sectionRelationshipsForPlan(macroParams, plan);
-  const adventurousness = phraseAdventurousnessOf(config);
+  const adventurousness = arrangementAdventurousnessOf(config);
 
   const system =
-    'You are a composer choosing phrase structure and shaping motivic development for a chiptune piece. '
-    + 'Your output is a strict JSON object matching the given schema; no commentary.';
+    'You are arranging melodic phrases across the form of a chiptune piece. You decide whether each section '
+    + 'plays its phrase literally or with a small variation. Your output is a strict JSON object matching the '
+    + 'given schema; no commentary.';
 
   const user = [
     pieceSummary(macroParams, plan),
-    motifsSummary(motifs),
-    harmonySummary(harmonicPlan),
+    phrasesSummary(motifs),
     formMetadataSummary(relationships, plan),
-    phraseStructureVocabulary(),
     transformVocabulary(),
-    developmentRules(),
-    harmonyFitGuidance(),
-    phrasingGuidance(),
-    `PHRASE ADVENTUROUSNESS — ${adventurousness}:\n  ${PHRASE_ADVENTUROUSNESS_DIRECTIVE[adventurousness]}`,
+    placementRules(plan),
+    `ARRANGEMENT ADVENTUROUSNESS — ${adventurousness}:\n  ${ARRANGEMENT_ADVENTUROUSNESS_DIRECTIVE[adventurousness]}`,
     schemaBlock(plan),
   ].join('\n\n');
 
@@ -524,8 +453,8 @@ export function buildPhrasePlanPrompt({ macroParams, motifs, harmonicPlan, confi
 
 function buildRetryPrompt(errors) {
   return [
-    'The JSON you returned did not pass validation. Fix these specific problems and return the '
-      + 'corrected JSON object — the full PhrasePlan, same schema, no commentary:',
+    'The JSON you returned did not pass validation. Fix these specific problems and return the corrected JSON '
+      + 'object — the full PhrasePlan, same schema, no commentary:',
     '',
     errors.map((e) => `- ${e}`).join('\n'),
     '',
@@ -534,7 +463,7 @@ function buildRetryPrompt(errors) {
 }
 
 // =================================================================
-// LLM CALL — mimics js/jingle/api.js's fetch / headers / error-handling shape.
+// LLM CALL
 // =================================================================
 
 async function callPhraseLLM(system, messages) {
@@ -544,8 +473,6 @@ async function callPhraseLLM(system, messages) {
   );
 }
 
-// Strip code fences (if the model wrapped the JSON) and parse, with a brace-match
-// fallback. Logs the raw response and throws clearly on failure.
 function parsePhrasePlanResponse(raw) {
   const cleaned = String(raw)
     .replace(/^```json\s*/i, '')
@@ -569,52 +496,48 @@ function parsePhrasePlanResponse(raw) {
 }
 
 // =================================================================
-// VALIDATION — validatePhrasePlan checks the WRAPPED LLM envelope. Exported so
-// verify-stage5a.mjs can stress-test it without re-deriving the logic. Collects
-// ALL defects (does not stop at the first) so a retry can address them together.
+// VALIDATION — validatePhrasePlan checks the WRAPPED LLM envelope. Returns
+// { ok, errors, warnings }; ok is true only when errors is empty. Collects ALL
+// hard defects in one pass so the single retry sees them together.
 // =================================================================
 
 /**
- * Validate one section's `lead` array: each assignment well-formed (rule f),
- * no adjacent-identical pair (c), and no overlap / no overflow (d). Pushes every
- * defect via `push` and returns `{ motifSet, hasDevelopment }` for the
- * cross-section rules (a)/(b).
- *
- * NOTE: there is intentionally no "final bar must be cadential_gesture" rule.
- * Stage 8 now enforces only a section's final two beats, so a motif may occupy
- * the final bar and lead INTO the cadence (only its tail resolves) — that is a
- * valid, preferred shape, not a defect.
+ * Validate one section's `lead` array: each assignment well-formed, the bar
+ * ranges cover the section with no gaps/overlaps (HARD), each placed phrase's
+ * REALIZED length fills its slot (HARD), and the chord-fit guard (HARD). Pushes
+ * every defect via `push`, soft notes via `warn`, and returns
+ * `{ usedNonLiteral }` for the knob-alignment soft check.
  */
-function validateLead(lead, label, bars, motifNames, push, warn, harmonyContext) {
-  const summary = { motifSet: new Set(), hasDevelopment: false };
+function validateLead(lead, label, bars, beatsPerBar, motifs, motifNames, push, warn, harmonyContext) {
+  const summary = { usedNonLiteral: false };
   if (!Array.isArray(lead)) {
     push(`Section "${label}" "lead" must be an array of assignments.`);
     return summary;
   }
   if (lead.length === 0) {
-    push(`Section "${label}" "lead" is empty — it must place at least one motif assignment.`);
+    push(`Section "${label}" "lead" is empty — it must place at least one phrase assignment.`);
     return summary;
   }
 
-  const placed = []; // { start, length, motif, name, label: <readable>, key }
+  const placed = []; // { start, length, motif, name, label, key }
   lead.forEach((assignment, i) => {
     if (!assignment || typeof assignment !== 'object' || Array.isArray(assignment)) {
       push(`Section "${label}" lead assignment ${i} must be an object.`);
       return;
     }
 
-    // motif: null or a known motif name
+    // motif: null or a known phrase key (a section label)
     const motif = assignment.motif === undefined ? undefined : assignment.motif;
     const motifValid = motif === null || (typeof motif === 'string' && motifNames.has(motif));
     if (!motifValid) {
       push(
-        `Section "${label}" lead assignment ${i}: motif ${JSON.stringify(motif)} is not null or a known motif `
+        `Section "${label}" lead assignment ${i}: motif ${JSON.stringify(motif)} is not null or a known phrase `
           + `(${[...motifNames].join(', ') || 'none'}).`
       );
     }
 
     // transform: a recognized name (transformations.js export) or cadential_gesture,
-    // and — if recognized — params that won't crash the theory-layer realization.
+    // and — if recognized — params that won't crash the realization.
     const parsed = parseTransformSpec(assignment.transform);
     if (!isRecognizedTransform(parsed.name)) {
       const shown = parsed.name !== undefined ? JSON.stringify(parsed.name) : JSON.stringify(assignment.transform);
@@ -662,14 +585,48 @@ function validateLead(lead, label, bars, motifNames, push, warn, harmonyContext)
         label: transformLabel(parsed),
         key: `${motif === null ? 'null' : motif}|${transformCanonical(parsed)}`,
       });
+
+      // THE DETERMINISTIC BEAT-LENGTH / OVERFLOW CHECK (HARD). Apply the transform
+      // to the referenced phrase, sum the realized rhythm, and assert it fills the
+      // bar-slot exactly — no overflow (runs past the next assignment / section
+      // end) and no internal gap (the phrase doesn't fill its slot). This closes
+      // the hollow-reprise + per-bar-gap findings at the source.
+      const slotBeats = length * beatsPerBar;
+      if (motif === null || parsed.name === CADENTIAL_GESTURE) {
+        // A rest assignment realizes nothing — it cannot fill a bar-slot.
+        push(
+          `Section "${label}" lead assignment ${i} (motif ${motifDisplay(motif)}, transform "${transformLabel(parsed)}") `
+            + `realizes to 0.0 beats but its length_bars=${length} expects ${slotBeats.toFixed(1)} beats. This leaves a `
+            + `${slotBeats.toFixed(1)}-beat gap — place the section's phrase here instead of a rest.`
+        );
+      } else if (typeof motif === 'string' && motifs[motif]) {
+        const realized = realizedBeatsOf(motifs[motif], parsed.name, parsed.params);
+        if (realized != null) {
+          if (realized > slotBeats + BEATS_EPSILON) {
+            push(
+              `Section "${label}" lead assignment ${i} (motif "${motif}", transform "${transformLabel(parsed)}") `
+                + `realizes to ${realized.toFixed(1)} beats but its length_bars=${length} only allows `
+                + `${slotBeats.toFixed(1)} beats — it overflows by ${(realized - slotBeats).toFixed(1)}. Use a `
+                + 'length-preserving transform (literal/transpose_step/sequence_*) or give it more bars.'
+            );
+          } else if (realized < slotBeats - BEATS_EPSILON) {
+            push(
+              `Section "${label}" lead assignment ${i} (motif "${motif}", transform "${transformLabel(parsed)}") `
+                + `realizes to ${realized.toFixed(1)} beats but its length_bars=${length} expects `
+                + `${slotBeats.toFixed(1)} beats. This leaves a ${(slotBeats - realized).toFixed(1)}-beat internal gap. `
+                + 'Either choose a transform that preserves length (literal/transpose_step/sequence_*) or split the '
+                + 'section into multiple assignments.'
+            );
+          }
+        }
+      }
     }
 
-    // CHORD-FIT GUARD (Session-11 checkpoint, HARD). A TRANSPOSING transform that
-    // shifts the motif ENTIRELY off the bar's chord (zero of its notes are chord
-    // tones) is a wholesale clash — the A3-reprise case where sequence_up_step put
-    // a ii-arpeggio over the I chord. Reject it (retry-actionable). Only the gross
-    // mismatch is caught: a partial fit (≥1 chord tone, i.e. passing/colour tones
-    // over real chord tones) passes, and only when the harmonic context is supplied.
+    // CHORD-FIT GUARD (Session 11, reduced scope — a SAFETY NET). A TRANSPOSING
+    // transform that shifts the phrase ENTIRELY off its bar's chord (zero chord
+    // tones) is a wholesale clash; reject it. Fires rarely now (the phrase was
+    // authored chord-fit upstream) — it catches a variation that transposes
+    // off-chord. Checked against the assignment's START bar's chord.
     if (
       harmonyContext
       && rangeOk
@@ -681,18 +638,16 @@ function validateLead(lead, label, bars, motifNames, push, warn, harmonyContext)
       const hits = chordToneHitCount(harmonyContext.motifs[motif], parsed.name, parsed.params, roman);
       if (hits === 0) {
         push(
-          `Section "${label}" bar ${start}: ${transformLabel(parsed)} shifts motif "${motif}" entirely off bar `
+          `Section "${label}" bar ${start}: ${transformLabel(parsed)} shifts phrase "${motif}" entirely off bar `
             + `${start}'s chord ${roman} (chord tones: degrees ${chordToneDegreesOf(roman).join(', ')}) — none of the `
-            + 'transposed notes are chord tones, a wholesale clash. Use "literal" (keep the motif on its home chord), '
-            + 'a different transform, or place this where the chord fits the shifted motif.'
+            + 'transposed notes are chord tones, a wholesale clash. Use "literal" or a different variation.'
         );
       }
     }
 
     if (typeof motif === 'string' && motifNames.has(motif)) {
-      summary.motifSet.add(motif);
       if (isRecognizedTransform(parsed.name) && parsed.name !== 'literal' && parsed.name !== CADENTIAL_GESTURE) {
-        summary.hasDevelopment = true;
+        summary.usedNonLiteral = true;
       }
     }
   });
@@ -701,35 +656,46 @@ function validateLead(lead, label, bars, motifNames, push, warn, harmonyContext)
 
   const sorted = [...placed].sort((a, b) => a.start - b.start);
 
-  // (c) two ADJACENT (by start_bar) assignments sharing the same { motif, transform }
-  // pair — a back-to-back bar repeat. SOFT (Session-11 checkpoint): it sounds static
-  // but plays fine and is common in real music, so per the schema-hard / style-soft
-  // discipline it warns rather than aborting the (already 3-call) run.
+  // Adjacent-identical { motif, transform } pair — SOFT (Session-11 discipline).
   for (let k = 1; k < sorted.length; k++) {
     if (sorted[k].key === sorted[k - 1].key) {
       warn(
         `section "${label}" repeats the identical assignment at bars ${sorted[k - 1].start} and `
           + `${sorted[k].start}: motif ${motifDisplay(sorted[k].motif)} with transform "${sorted[k].label}" `
-          + '(back-to-back repeat sounds static — soft note, not a failure).'
+          + '(back-to-back repeat — soft note, not a failure).'
       );
     }
   }
 
-  // (d) no overlaps (gaps allowed), and the last assignment may not run past the section.
+  // COVERAGE (HARD): bars must be covered 1..bars with no gaps, no overlaps.
+  if (sorted[0].start !== 1) {
+    push(`Section "${label}" lead does not start at bar 1 (first assignment starts at bar ${sorted[0].start}).`);
+  }
   for (let k = 1; k < sorted.length; k++) {
     const prevEnd = sorted[k - 1].start + sorted[k - 1].length; // first free bar after prev
     if (prevEnd > sorted[k].start) {
       push(
-        `Section "${label}" lead has overlapping assignments: bars [${sorted[k - 1].start}..`
-          + `${prevEnd - 1}] overlaps the assignment starting at bar ${sorted[k].start}.`
+        `Section "${label}" lead has overlapping assignments: bars [${sorted[k - 1].start}..${prevEnd - 1}] `
+          + `overlaps the assignment starting at bar ${sorted[k].start}.`
+      );
+    } else if (prevEnd < sorted[k].start) {
+      push(
+        `Section "${label}" lead has an uncovered gap: bars [${prevEnd}..${sorted[k].start - 1}] have no phrase. `
+          + 'Every bar of the section must be covered.'
       );
     }
   }
   const last = sorted[sorted.length - 1];
-  if (last.start + last.length > bars + 1) {
+  const coveredThrough = last.start + last.length - 1;
+  if (coveredThrough > bars) {
     push(
-      `Section "${label}" lead overflows the section: an assignment runs to bar ${last.start + last.length - 1} `
-        + `but the section has only ${bars} bars.`
+      `Section "${label}" lead overflows the section: an assignment runs to bar ${coveredThrough} but the section `
+        + `has only ${bars} bars.`
+    );
+  } else if (coveredThrough < bars) {
+    push(
+      `Section "${label}" lead leaves bars [${coveredThrough + 1}..${bars}] uncovered — the phrase must fill the `
+        + 'whole section.'
     );
   }
 
@@ -738,12 +704,11 @@ function validateLead(lead, label, bars, motifNames, push, warn, harmonyContext)
 
 /**
  * Validate the WRAPPED PhrasePlan envelope `{ sections: { <label>: {
- * phrase_structure, lead } } }` against `macroParams` + `motifs`. Returns
- * { ok, errors: [] }; `ok` is true only when `errors` is empty.
+ * phrase_structure?, lead } } }` against `macroParams` + `motifs` (the per-section
+ * phrase map). Returns { ok, errors, warnings }.
  *
- * `harmonicPlan` (optional, the §3 array) enables the chord-fit guard: a
- * transposing transform that shifts a motif entirely off its bar's chord is
- * rejected. Absent it (the 3-arg form), the guard is skipped — back-compatible.
+ * `harmonicPlan` (optional, the §3 array) enables the chord-fit guard. Absent it
+ * (the 3-arg form), the guard is skipped — back-compatible.
  */
 export function validatePhrasePlan(wrappedPlan, macroParams, motifs, harmonicPlan = undefined) {
   const errors = [];
@@ -765,14 +730,14 @@ export function validatePhrasePlan(wrappedPlan, macroParams, motifs, harmonicPla
   } catch (error) {
     return { ok: false, errors: [`Could not derive the section plan from macroParams: ${error.message}`], warnings };
   }
+  const beatsPerBar = beatsPerBarOf(macroParams.meter);
   const expectedLabels = plan.map((s) => s.label);
   const barsByLabel = new Map(plan.map((s) => [s.label, s.bars]));
-  const motifNames = motifs && typeof motifs === 'object' ? new Set(Object.keys(motifs)) : new Set();
   const motifMap = motifs && typeof motifs === 'object' ? motifs : {};
+  const motifNames = new Set(Object.keys(motifMap));
   const progressionByLabel = new Map((harmonicPlan?.sections ?? []).map((s) => [s.label, s.progression]));
-  const relationships = sectionRelationshipsForPlan(macroParams, plan);
 
-  // (f) the section-label set must match exactly — none missing, none extra.
+  // The section-label set must match exactly — none missing, none extra.
   for (const label of expectedLabels) {
     if (!Object.prototype.hasOwnProperty.call(sections, label)) {
       push(`Missing section "${label}" in the phrase plan (expected sections: ${expectedLabels.join(', ')}).`);
@@ -787,63 +752,39 @@ export function validatePhrasePlan(wrappedPlan, macroParams, motifs, harmonicPla
     }
   }
 
-  // Per known section: phrase_structure + lead (schema/adjacency/coverage/cadence).
-  // Collect each section's motif set + whether it developed, for the cross-section rules.
-  const summaryByLabel = new Map();
+  // Per known section: optional phrase_structure (soft) + lead (schema/coverage/
+  // beat-length/chord-fit). Track whether the arrangement used any non-literal.
+  let anyNonLiteral = false;
   for (const label of Object.keys(sections)) {
     if (!barsByLabel.has(label)) continue; // already flagged as unexpected
     const bars = barsByLabel.get(label);
     const sectionPlan = sections[label];
     if (!sectionPlan || typeof sectionPlan !== 'object' || Array.isArray(sectionPlan)) {
-      push(`Section "${label}" must be an object with "phrase_structure" and "lead".`);
+      push(`Section "${label}" must be an object with a "lead" array.`);
       continue;
     }
-    if (!PHRASE_STRUCTURES.has(sectionPlan.phrase_structure)) {
-      push(
-        `Section "${label}" phrase_structure ${JSON.stringify(sectionPlan.phrase_structure)} is not one of: `
-          + `${[...PHRASE_STRUCTURES].join(', ')}.`
+    // phrase_structure is OPTIONAL metadata now — if present and unrecognized, warn (never fail).
+    if (sectionPlan.phrase_structure !== undefined && !PHRASE_STRUCTURES.has(sectionPlan.phrase_structure)) {
+      warn(
+        `section "${label}" phrase_structure ${JSON.stringify(sectionPlan.phrase_structure)} is not a recognized `
+          + 'structure name — it is ignored metadata, so this is a soft note.'
       );
     }
     const harmonyContext = harmonicPlan
       ? { motifs: motifMap, progression: progressionByLabel.get(label) }
       : null;
-    const summary = validateLead(sectionPlan.lead, label, bars, motifNames, push, warn, harmonyContext);
-    summaryByLabel.set(label, summary);
+    const summary = validateLead(sectionPlan.lead, label, bars, beatsPerBar, motifMap, motifNames, push, warn, harmonyContext);
+    if (summary.usedNonLiteral) anyNonLiteral = true;
   }
 
-  // (a)/(b) cross-section development rules, using the curated/derived relationships.
-  for (const label of Object.keys(sections)) {
-    if (!barsByLabel.has(label)) continue;
-    const here = summaryByLabel.get(label);
-    if (!here) continue; // section object was malformed
-    const rel = relationships[label] ?? {};
-
-    // (a) contrast / variation sections must show non-literal development.
-    if ((rel.role === 'contrast' || rel.role === 'variation') && !here.hasDevelopment) {
-      push(
-        `Section "${label}" must contain non-literal motivic development (currently every assignment is "literal").`
-      );
-    }
-
-    // (b) reprise sections must bring back a motif from the section they reprise.
-    if (rel.role === 'reprise' || rel.role === 'varied_reprise') {
-      const source = rel.of;
-      const sourceSummary = source != null ? summaryByLabel.get(source) : null;
-      if (sourceSummary && sourceSummary.motifSet.size > 0) {
-        const shares = [...here.motifSet].some((m) => sourceSummary.motifSet.has(m));
-        if (!shares) {
-          const sourceMotif = [...sourceSummary.motifSet][0];
-          push(`Section "${label}" is a reprise of "${source}" but does not contain motif "${sourceMotif}".`);
-        }
-      }
-    }
-  }
-
-  return { ok: errors.length === 0, errors, warnings };
+  // `anyNonLiteral` lets generatePhrasePlan emit the knob-alignment soft note (a
+  // "wild"-knob arrangement that placed everything literally added no variation).
+  // It lives there because the knob rides on `config`, which the validator — kept
+  // pure over (plan, macroParams, motifs, harmonicPlan) — does not receive.
+  return { ok: errors.length === 0, errors, warnings, anyNonLiteral };
 }
 
-// Unwrap the validated envelope into the flat §3 PhrasePlan the rest of the
-// pipeline consumes.
+// Unwrap the validated envelope into the flat §3 PhrasePlan the pipeline consumes.
 function unwrapPhrasePlan(wrapped) {
   return wrapped.sections;
 }
@@ -853,20 +794,16 @@ function unwrapPhrasePlan(wrapped) {
 // =================================================================
 
 /**
- * Generate a PhrasePlan for the supplied upstream context. Returns the flat
- * `{ <label>: { phrase_structure, lead } }` plan Stage 5b / Stage 6 consume.
+ * Generate a PhrasePlan (arrangement) for the supplied upstream context. Returns
+ * the flat `{ <label>: { lead } }` plan Stage 5b / Stage 6 consume.
  *
  * Modes:
  *   - Live: builds the prompt, calls the LLM, validates; on validation failure it
  *     retries ONCE with the specific errors fed back, then throws if still invalid.
- *   - Offline: pass `__mockResponse` (a JSON string) to skip the network and run
- *     that string through the same parse + validate path — how verify-stage5a.mjs
- *     exercises the stage without an API call.
+ *   - Offline: pass `__mockResponse` (a JSON string) to skip the network.
  *
- * `onTrace`, if supplied, is called once per model round-trip (or the mock) with
- * `{ attempt, raw, ok, errors }`, and once more after a successful result with
- * `{ attempt: 'soft-note', warnings }` IF any soft warnings fired (e.g. a
- * back-to-back identical-assignment repeat) — diagnostics, not failures. Never required.
+ * `onTrace`, if supplied, is called per model round-trip and once more with
+ * `{ attempt: 'soft-note', warnings }` if any soft notes fired. Never required.
  */
 export async function generatePhrasePlan({
   macroParams,
@@ -880,10 +817,19 @@ export async function generatePhrasePlan({
 
   const { system, user } = buildPhrasePlanPrompt({ macroParams, motifs, harmonicPlan, config });
   const trace = typeof onTrace === 'function' ? onTrace : () => {};
+  const adventurousness = arrangementAdventurousnessOf(config);
 
-  // Emit (and log) a validated plan's soft warnings. Diagnostics, never failures.
-  const emitSoftWarnings = (warns) => {
-    if (warns && warns.length > 0) {
+  // Collect a validated plan's soft notes, plus the knob-alignment note (a
+  // "wild"-knob arrangement that placed everything literally added no variation).
+  const emitSoftWarnings = (result) => {
+    const warns = [...(result.warnings ?? [])];
+    if (adventurousness === 'wild' && result.anyNonLiteral === false) {
+      warns.push(
+        'arrangement_adventurousness is "wild" but every section was placed literally — the arrangement layer '
+          + 'added no variation (soft note; the phrases may still carry the piece).'
+      );
+    }
+    if (warns.length > 0) {
       trace({ attempt: 'soft-note', raw: null, ok: true, errors: [], warnings: warns });
       for (const warning of warns) console.warn(`Stage 5a (soft): ${warning}`);
     }
@@ -898,7 +844,7 @@ export async function generatePhrasePlan({
       console.error('Stage 5a: mock response failed validation. Raw:\n', __mockResponse);
       throw new Error(`Stage 5a: mock PhrasePlan is invalid:\n  - ${result.errors.join('\n  - ')}`);
     }
-    emitSoftWarnings(result.warnings);
+    emitSoftWarnings(result);
     return unwrapPhrasePlan(parsed);
   }
 
@@ -911,8 +857,6 @@ export async function generatePhrasePlan({
     parsed = parsePhrasePlanResponse(raw);
     result = validatePhrasePlan(parsed, macroParams, motifs, harmonicPlan);
   } catch (parseError) {
-    // Treat an unparseable first response like a validation failure so the single
-    // retry gets a chance to return clean JSON.
     result = { ok: false, errors: [parseError.message], warnings: [] };
   }
   trace({ attempt: 1, raw, ok: result.ok, errors: result.errors });
@@ -930,6 +874,6 @@ export async function generatePhrasePlan({
     }
   }
 
-  emitSoftWarnings(result.warnings);
+  emitSoftWarnings(result);
   return unwrapPhrasePlan(parsed);
 }

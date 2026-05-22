@@ -337,18 +337,23 @@ if (JSON.stringify(shorthandPlan.sections[0].progression) !== JSON.stringify(['I
 
 // (b2) the four mocks threaded through the runner → end-to-end FinalJingle.
 // Stage 3 + 4 + 5a + 5b all run via their offline mock; no network.
+// Session-12 phrase-motif shape: Stage 4 emits one PHRASE per section (keyed by
+// section label, filling its 2-bar / 8-beat section); Stage 5a ARRANGES them
+// (one literal assignment per section).
 const validMotifMock = JSON.stringify({
-  motifs: {
-    a: { degrees: [1, 3, 5, 4, 3, 1], rhythm: [0.5, 0.5, 1, 0.5, 0.5, 0.5], contour: 'peak_descend', register: 'mid', anomaly: null },
-    b: { degrees: [5, 4, 3, 1], rhythm: [0.5, 0.5, 1, 0.5], contour: 'falling_arc', register: 'mid', anomaly: null },
+  phrases: {
+    A1: { degrees: [1, 3, 5, 3, 5, 4, 3, 2], rhythm: [1, 0.5, 0.5, 2, 1, 1, 1, 1], contour: 'peak_descend', register: 'mid', anomaly: null },
+    A2: { degrees: [1, 3, 5, 3, 5, 4, 3, 1], rhythm: [1, 0.5, 0.5, 2, 1, 1, 1, 1], contour: 'peak_descend', register: 'mid', anomaly: null },
+    B: { degrees: [8, 6, 4, 6, 5, 3, 2, 1], rhythm: [1, 1, 1, 1, 1, 1, 1, 1], contour: 'falling_arc', register: 'high', anomaly: null },
+    A3: { degrees: [1, 3, 5, 3, 4, 3, 2, 1], rhythm: [1, 0.5, 0.5, 2, 1, 1, 1, 1], contour: 'peak_descend', register: 'mid', anomaly: null },
   },
 });
 const validPhraseMock = JSON.stringify({
   sections: {
-    A1: { phrase_structure: 'period', lead: [{ motif: 'a', transform: 'literal', start_bar: 1, length_bars: 1 }, { motif: 'a', transform: 'sequence_up_step', start_bar: 2, length_bars: 1 }] },
-    A2: { phrase_structure: 'period', lead: [{ motif: 'a', transform: 'literal', start_bar: 1, length_bars: 1 }, { motif: 'a', transform: { name: 'transpose_third', params: { direction: 'up' } }, start_bar: 2, length_bars: 1 }] },
-    B: { phrase_structure: 'period', lead: [{ motif: 'b', transform: 'literal', start_bar: 1, length_bars: 1 }, { motif: 'b', transform: 'invert', start_bar: 2, length_bars: 1 }] },
-    A3: { phrase_structure: 'period', lead: [{ motif: 'a', transform: 'literal', start_bar: 1, length_bars: 1 }, { motif: 'a', transform: 'retrograde', start_bar: 2, length_bars: 1 }] },
+    A1: { lead: [{ motif: 'A1', transform: 'literal', start_bar: 1, length_bars: 2 }] },
+    A2: { lead: [{ motif: 'A2', transform: 'literal', start_bar: 1, length_bars: 2 }] },
+    B: { lead: [{ motif: 'B', transform: 'literal', start_bar: 1, length_bars: 2 }] },
+    A3: { lead: [{ motif: 'A3', transform: 'literal', start_bar: 1, length_bars: 2 }] },
   },
 });
 function buildValidWrappedTexture(macroParams) {

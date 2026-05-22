@@ -19,10 +19,13 @@
    ASYNC sibling: it fills any absent upstream artifact via its LLM stage, in
    dependency order, then delegates to the synchronous core:
      1. no harmonicPlan → Stage 3 (`generateHarmonicPlan`) writes the chords.
-     2. no motifs     → Stage 4  (`generateMotifs`) writes the melodic cells,
+     2. no motifs     → Stage 4  (`generateMotifs`) writes one melodic PHRASE per
+        section over that section's harmony (Session-12 phrase-motif rework),
         receiving the (now-resolved) harmonicPlan as upstream context.
-     3. no phrasePlan → Stage 5a (`generatePhrasePlan`) shapes how they develop,
-        receiving the (now-resolved) harmonicPlan + motifs as upstream context.
+     3. no phrasePlan → Stage 5a (`generatePhrasePlan`) ARRANGES those phrases
+        across the form (place literal, or vary), receiving harmonicPlan + motifs.
+     (config.knobs.motif_architecture === 'cell' swaps steps 2+3 for the preserved
+      legacy cell+development pair — the A/B audition path; see motifStagesFor.)
      4. no texturePlan → Stage 5b (`generateTexturePlan`) choreographs textures,
         receiving the (now-resolved) harmonicPlan + motifs + phrasePlan.
    Present-supplied input always wins; otherwise the LLM stage runs. This is the
@@ -57,8 +60,24 @@ import { enforceCadences } from './stage-8-cadence.js';
 import { generateHarmonicPlan } from './stage-3-harmony.js';
 import { generateMotifs } from './stage-4-motifs.js';
 import { generatePhrasePlan } from './stage-5a-phrase.js';
+// LEGACY cell+development pair, reached only for the A/B audition
+// (config.knobs.motif_architecture === 'cell'). Temporary debt — see the
+// Session-12 journal + the files' banners.
+import { generateMotifs as generateCellMotifs } from './stage-4-cells-LEGACY.js';
+import { generatePhrasePlan as generateCellPhrasePlan } from './stage-5a-development-LEGACY.js';
 import { generateTexturePlan } from './stage-5b-texture.js';
 import { DEFAULT_CONFIG } from './pipeline-config.js';
+
+// The melody architecture the runner generates with. Default 'phrase' (the
+// Session-12 per-section phrase Stage 4 + arrangement Stage 5a); 'cell' selects
+// the preserved legacy cell+development pair for Steven's A/B audition. Only
+// matters when motifs / phrasePlan are GENERATED — a present-supplied artifact
+// always wins regardless of architecture.
+function motifStagesFor(config) {
+  return config?.knobs?.motif_architecture === 'cell'
+    ? { generateMotifs: generateCellMotifs, generatePhrasePlan: generateCellPhrasePlan }
+    : { generateMotifs, generatePhrasePlan };
+}
 
 // Sharp-side vs flat-side of the circle of fifths, from the tonic. Flat for an
 // explicitly flat tonic (or F, whose key signature is flat); sharp otherwise
@@ -199,6 +218,10 @@ export function runPipeline(input, config = DEFAULT_CONFIG) {
  *     inspector display.
  */
 export async function runPipelineGenerating(input, config = DEFAULT_CONFIG) {
+  // Pick the melody stage pair (phrase-motif by default; legacy cells for the
+  // A/B audition). Only consulted when motifs / phrasePlan are generated.
+  const { generateMotifs: genMotifs, generatePhrasePlan: genPhrasePlan } = motifStagesFor(config);
+
   let harmonicPlan = input.harmonicPlan;
   if (!harmonicPlan) {
     harmonicPlan = await generateHarmonicPlan({
@@ -211,7 +234,7 @@ export async function runPipelineGenerating(input, config = DEFAULT_CONFIG) {
 
   let motifs = input.motifs;
   if (!motifs) {
-    motifs = await generateMotifs({
+    motifs = await genMotifs({
       macroParams: input.macroParams,
       harmonicPlan,
       config,
@@ -222,7 +245,7 @@ export async function runPipelineGenerating(input, config = DEFAULT_CONFIG) {
 
   let phrasePlan = input.phrasePlan;
   if (!phrasePlan) {
-    phrasePlan = await generatePhrasePlan({
+    phrasePlan = await genPhrasePlan({
       macroParams: input.macroParams,
       motifs,
       harmonicPlan,

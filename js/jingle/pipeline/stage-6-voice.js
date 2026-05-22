@@ -46,7 +46,7 @@
    ================================================================= */
 import { degreeToPitch } from '../theory/mode-engine.js';
 import { toMidi, pitchFromLetterAndAccidental } from '../theory/pitch.js';
-import { renderMotifToDegreeEvents } from '../theory/motif.js';
+import { renderMotifToDegreeEvents, degreeToLinear } from '../theory/motif.js';
 import * as Transforms from '../theory/transformations.js';
 import { getForm, distributeBars } from '../theory/form-engine.js';
 import { resolveRoman } from '../theory/roman-numeral.js';
@@ -177,33 +177,43 @@ function realizeLeadAssignment(transformed, startBeat, mode, tonic, leadOctave) 
   const chromaticAt =
     anomaly && anomaly.type === 'chromatic_neighbor' ? anomaly.at_position : -1;
 
+  const isSounded = (event) => event && !event.rest && event.degree !== null;
   const pitchAt = (event) =>
     degreeToPitch(mode, tonic, event.degree, leadOctave + event.octave_offset);
 
-  return degreeEvents.map((event, i) => {
+  // The nearest SOUNDED neighbor's pitch (next sounded after `i`, else previous),
+  // for the chromatic-neighbor bend — so a rest beside the anomaly is skipped.
+  const neighborPitch = (i) => {
+    for (let j = i + 1; j < degreeEvents.length; j++) if (isSounded(degreeEvents[j])) return pitchAt(degreeEvents[j]);
+    for (let j = i - 1; j >= 0; j--) if (isSounded(degreeEvents[j])) return pitchAt(degreeEvents[j]);
+    return null;
+  };
+
+  const events = [];
+  degreeEvents.forEach((event, i) => {
+    if (!isSounded(event)) return; // a rest emits no lead event — the gap becomes a rest at sequencing
     let pitch = pitchAt(event);
     let anomalous = false;
     if (i === chromaticAt) {
-      const neighborIndex = i + 1 < degreeEvents.length ? i + 1 : i - 1;
-      if (neighborIndex >= 0) {
-        const neighbor = pitchAt(degreeEvents[neighborIndex]);
+      const neighbor = neighborPitch(i);
+      if (neighbor) {
         const direction = Math.sign(toMidi(neighbor) - toMidi(pitch)) || 1;
         pitch = bendHalfStep(pitch, direction);
         // Tag the realized chromatic note so Stage 7's chiptune_idiomatic
-        // out_of_mode rule exempts it (it is a declared anomaly, not a stray
-        // accidental). See theory/voice-leading-rules.js.
+        // out_of_mode rule exempts it (a declared anomaly, not a stray accidental).
         anomalous = true;
       }
     }
-    return {
+    events.push({
       pitch,
       beat: event.beat,
       duration: event.duration,
       degree: event.degree,
       octave_offset: event.octave_offset,
       ...(anomalous ? { anomalous: true } : {}),
-    };
+    });
   });
+  return events;
 }
 
 function buildLead(macroParams, motifs, phrasePlan, sections, mode, tonic, leadOctave) {
@@ -225,6 +235,86 @@ function buildLead(macroParams, motifs, phrasePlan, sections, mode, tonic, leadO
     }
   }
   return events;
+}
+
+// --- strong-beat chord-fit nudge (Session 12) ------------------------------
+
+// The three chord-tone scale degrees (1..7) of a Roman numeral. Local copy (kept
+// independent of the LLM stages); matches Stage 4/5a's chordToneDegreesOf.
+const ALIGN_ROMAN_DEGREE = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7 };
+function alignChordToneDegrees(roman) {
+  if (typeof roman !== 'string') return null;
+  const core = roman.replace(/^[b#]+/, '').match(/^[ivxIVX]+/);
+  if (!core) return null;
+  const root = ALIGN_ROMAN_DEGREE[core[0].toLowerCase()];
+  if (!root) return null;
+  const wrap = (step) => (((step - 1) % 7) + 7) % 7 + 1;
+  return [wrap(root), wrap(root + 2), wrap(root + 4)];
+}
+
+// DETERMINISTIC STRONG-BEAT NUDGE. A lead note that ONSETS on a bar's strong beat
+// (the downbeat, and beat 3 in 4/4 — but NOT the final bar's beat 3, which the
+// cadence overwrites) is snapped to the NEAREST chord tone of that bar's chord
+// when it isn't already one. This removes the audible melody/harmony dissonances
+// the soft chord-fit check only WARNED about (Session-12 checkpoint, Steven's
+// choice of lever). It runs BEFORE harmony realization so parallel-thirds etc.
+// shadow the corrected lead. The snap is computed in degree-space (stays in mode);
+// it is a no-op when the strong beat is already a chord tone (so phrases authored
+// chord-fit upstream — including the hand-supplied cases — pass through unchanged).
+function alignLeadStrongBeatsToChords(leadEvents, harmonicPlan, sections, mode, tonic, leadOctave, beatsPerBar) {
+  const progressionByLabel = new Map((harmonicPlan?.sections ?? []).map((s) => [s.label, s.progression]));
+  const round = (beat) => Math.round(beat * 1e6) / 1e6;
+
+  // Map each strong-beat absolute onset → that bar's chord-tone degrees.
+  const tonesByBeat = new Map();
+  for (const section of sections) {
+    const progression = progressionByLabel.get(section.label);
+    if (!Array.isArray(progression) || progression.length === 0) continue;
+    for (let barRel = 1; barRel <= section.bars; barRel++) {
+      const tones = alignChordToneDegrees(romanForBar(progression, barRel));
+      if (!tones) continue;
+      const downbeat = (section.startBar + (barRel - 1)) * beatsPerBar;
+      tonesByBeat.set(round(downbeat), tones);
+      if (beatsPerBar === 4 && barRel !== section.bars) tonesByBeat.set(round(downbeat + 2), tones);
+    }
+  }
+
+  return leadEvents.map((event) => {
+    if (event.degree == null || !Number.isInteger(event.octave_offset)) return event; // rest / not a degree event
+    const tones = tonesByBeat.get(round(event.beat));
+    if (!tones || tones.includes(event.degree)) return event; // off a strong beat, or already a chord tone
+
+    // Snap to the nearest chord-tone HEIGHT (degree-space, so it stays in mode).
+    // The nudge is a best-effort enhancement, NOT a correctness requirement, so any
+    // failure (e.g. degreeToPitch throwing on an odd mode/degree) falls back to the
+    // original note rather than crashing the whole realization.
+    try {
+      const leadHeight = event.octave_offset * 7 + degreeToLinear(event.degree);
+      let bestHeight = null;
+      let bestDist = Infinity;
+      for (const tone of tones) {
+        for (const k of [event.octave_offset - 1, event.octave_offset, event.octave_offset + 1]) {
+          const height = degreeToLinear(tone) + 7 * k;
+          const dist = Math.abs(height - leadHeight);
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestHeight = height;
+          }
+        }
+      }
+      if (bestHeight === null) return event;
+      const octaveOffset = Math.floor(bestHeight / 7);
+      const inOctaveDegree = ((bestHeight % 7) + 7) % 7 + 1;
+      return {
+        ...event,
+        degree: inOctaveDegree,
+        octave_offset: octaveOffset,
+        pitch: degreeToPitch(mode, tonic, inOctaveDegree, leadOctave + octaveOffset),
+      };
+    } catch {
+      return event;
+    }
+  });
 }
 
 // --- harmony ---------------------------------------------------------------
@@ -416,8 +506,13 @@ export function realizeVoices({ macroParams, motifs, harmonicPlan, phrasePlan, t
   const leadOctave = leadOctaveOf(macroParams);
 
   const sections = computeSectionPlan(macroParams);
+  const beatsPerBar = beatsPerBarOf(macroParams.meter);
 
-  const leadEvents = buildLead(macroParams, motifs, phrasePlan, sections, mode, tonic, leadOctave);
+  // Realize the lead, then snap any off-chord STRONG-BEAT note to the nearest
+  // chord tone (Session 12) — BEFORE harmony, so parallel-thirds etc. shadow the
+  // corrected line. A no-op when strong beats already fit (e.g. the authored cases).
+  const rawLeadEvents = buildLead(macroParams, motifs, phrasePlan, sections, mode, tonic, leadOctave);
+  const leadEvents = alignLeadStrongBeatsToChords(rawLeadEvents, harmonicPlan, sections, mode, tonic, leadOctave, beatsPerBar);
   const harmonyEvents = buildHarmony(macroParams, harmonicPlan, texturePlan, sections, leadEvents, mode, tonic, leadOctave);
   const bassEvents = buildBass(macroParams, harmonicPlan, texturePlan, sections, mode, tonic);
 

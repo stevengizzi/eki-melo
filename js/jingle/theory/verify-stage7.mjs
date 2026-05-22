@@ -158,20 +158,23 @@ for (const testCase of CASES) {
 const countType = (repairs, type) => repairs.filter((r) => r.type === type).length;
 
 // Locked per-case totals (regression anchor — see the Session-7 journal table).
-// Desert dropped 9 → 8 in Session 10: the imitation_one_beat_delay texture became
-// a DIATONIC (scale-step) answer instead of a chromatic (semitone) one, so its
-// A' echo no longer emits an out-of-mode note — one fewer snap_to_mode repair
-// (now 6 uncross + 1 snap_to_mode + 1 tritone_passing).
-expect('b:count:sunrise', cppRepairs['c-major-aaba'].length, 6);
+// RE-PINNED Session 12: the phrase-motif rework replaced the cell fixtures with
+// per-section phrases (same macroParams / harmony / textures, new melody content),
+// so the cpp_strict crossing counts shifted — sunrise 6 → 2, desert 8 → 4 (its
+// A' uncross 6 → 1). The CHIPTUNE_IDIOMATIC ZERO-REPAIR GATE (section a) is
+// unchanged and still holds on the new phrases — that is the inviolable approved-
+// audio rule; these cpp_strict totals are a regression anchor re-baselined to the
+// deliberately-changed fixtures, not a relaxation.
+expect('b:count:sunrise', cppRepairs['c-major-aaba'].length, 3);
 expect('b:count:wanderer', cppRepairs['d-dorian-aba'].length, 0);
-expect('b:count:desert', cppRepairs['e-phrygian-dominant-aba'].length, 8);
+expect('b:count:desert', cppRepairs['e-phrygian-dominant-aba'].length, 4);
 
 // Only the imitation case crosses among the inspector cases — uncross fires on
 // Desert and nowhere else, and every uncross there is inside the A' passage.
 expect('b:uncross:sunrise', countType(cppRepairs['c-major-aaba'], 'uncross'), 0);
 expect('b:uncross:wanderer', countType(cppRepairs['d-dorian-aba'], 'uncross'), 0);
 const desertUncross = cppRepairs['e-phrygian-dominant-aba'].filter((r) => r.type === 'uncross');
-expect('b:uncross-count:desert', desertUncross.length, 6);
+expect('b:uncross-count:desert', desertUncross.length, 1);
 const [aPrimeStart, aPrimeEnd] = sectionRange(CASES.find((c) => c.id === 'e-phrygian-dominant-aba'), "A'");
 for (const repair of desertUncross) {
   if (!(repair.beat >= aPrimeStart - 1e-9 && repair.beat < aPrimeEnd - 1e-9)) {

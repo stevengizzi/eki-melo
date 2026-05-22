@@ -12,9 +12,13 @@
 
    SHAPE.
      {
-       degrees:  number[]   one entry per note; non-zero integers
-       rhythm:   number[]   one entry per note; positive beat values
-       contour:  string     one of CONTOURS (descriptive label)
+       degrees:  (number|null)[]  one entry per slot; a non-zero integer is a
+                            sounded note, `null` is a REST of that slot's
+                            duration (Session 12: rests let a phrase breathe
+                            between sub-statements). 0 is still NOT a degree.
+       rhythm:   number[]   one entry per slot; positive beat values (a rest
+                            has a duration like any other slot)
+       contour:  string     one of CONTOURS (computed over the sounded notes)
        register: string     one of REGISTERS (octave placement hint)
        anomaly:  object|null a single declared rule-breaker (e.g. a
                             chromatic neighbor), or null
@@ -105,8 +109,9 @@ export function validateMotif(motif) {
     throw new Error('Motif.degrees must be a non-empty array.');
   }
   degrees.forEach((degree, i) => {
-    if (!isNonZeroInteger(degree)) {
-      throw new Error(`Motif.degrees[${i}] must be a non-zero integer, got ${JSON.stringify(degree)}.`);
+    // `null` is a REST (Session 12). 0 is still not a degree.
+    if (degree !== null && !isNonZeroInteger(degree)) {
+      throw new Error(`Motif.degrees[${i}] must be a non-zero integer or null (a rest), got ${JSON.stringify(degree)}.`);
     }
   });
 
@@ -159,9 +164,10 @@ export function validateMotif(motif) {
  * was meant changes the contour, since 1 sits below 7 in pitch.
  */
 export function contourOfDegrees(degrees) {
-  const heights = degrees.map(degreeToLinear);
+  // Rests (null) carry no pitch — the contour is the shape of the SOUNDED notes.
+  const heights = degrees.filter((d) => d !== null).map(degreeToLinear);
   const n = heights.length;
-  if (n === 1) return 'static';
+  if (n <= 1) return 'static';
   if (Math.max(...heights) === Math.min(...heights)) return 'static';
 
   // Reduce to a sequence of monotonic runs: each consecutive non-zero step
@@ -202,15 +208,16 @@ export function motifTotalBeats(motif) {
 }
 
 /**
- * Render `motif` to a flat array of degree events, one per note, starting at
- * absolute beat `startBeat` (default 0). Each event is
+ * Render `motif` to a flat array of slot events, one per slot, starting at
+ * absolute beat `startBeat` (default 0). A sounded note yields
  * `{ degree, octave_offset, beat, duration }` where `degree` is the in-octave
- * degree (1..7), `octave_offset` is the net octave the note sits in (so an
- * input degree of +8 yields `{ degree: 1, octave_offset: 1 }`), `beat` is the
- * absolute start beat, and `duration` is the note's length in beats.
+ * degree (1..7) and `octave_offset` is the net octave (so input +8 yields
+ * `{ degree: 1, octave_offset: 1 }`). A REST (input degree `null`) yields
+ * `{ degree: null, octave_offset: 0, beat, duration, rest: true }` — the beat
+ * cursor still advances, so a rest leaves a gap a downstream sequencer fills.
  *
- * Stage 6 realizes each event with mode-engine's degreeToPitch by passing the
- * in-octave `degree` against a tonic octave shifted by `octave_offset`.
+ * Stage 6 realizes each sounded event with mode-engine's degreeToPitch and emits
+ * nothing for a rest event (the gap becomes a `null` rest at sequencing time).
  */
 export function renderMotifToDegreeEvents(motif, startBeat = 0) {
   validateMotif(motif);
@@ -221,6 +228,11 @@ export function renderMotifToDegreeEvents(motif, startBeat = 0) {
   let beat = startBeat;
   return motif.degrees.map((rawDegree, i) => {
     const duration = motif.rhythm[i];
+    if (rawDegree === null) {
+      const restEvent = { degree: null, octave_offset: 0, beat, duration, rest: true };
+      beat += duration;
+      return restEvent;
+    }
     const { degree, octaveOffset } = decomposeDegree(rawDegree);
     const event = { degree, octave_offset: octaveOffset, beat, duration };
     beat += duration;

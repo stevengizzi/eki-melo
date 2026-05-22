@@ -108,7 +108,8 @@ const HARMONIC_ADVENTUROUSNESS_DIRECTIVE = {
     'Reach past the textbook. Modal interchange is welcome (borrow the conventional chords — see below). '
     + 'Use surprise: a deceptive cadence, a ii°–V in minor, a secondary-dominant colour written as a plain '
     + 'chromatic numeral. AT LEAST ONE section must end on a NON-PAC cadence (half, deceptive, modal_iv_i, or '
-    + 'plagal). Give each section a progression with a real identity — not a random walk through diatonic chords.',
+    + 'plagal) — but NOT the piece\'s FINAL section, which must resolve with an authentic cadence; put the non-PAC '
+    + 'on an earlier section (typically B). Give each section a progression with a real identity — not a random walk.',
   wild:
     'Be bold but coherent. Reach for chromatic mediants (bIII / bVI in major), modal mixture that shifts a '
     + 'section\'s colour, and the phrygian_ii_i cadence somewhere if the mode allows a flat-2. You may place ONE '
@@ -282,8 +283,10 @@ function compositionalGuidance() {
     '  3. CONTRAST THE B SECTION. The B (contrast) section should harmonically depart from A — move to a related '
       + 'key area (vi in major, III in minor), introduce a chromatic chord, shift the harmonic rhythm, and/or end '
       + 'on a non-PAC cadence. It should not just re-run A\'s progression.',
-    '  4. RE-ESTABLISH HOME AT THE REPRISE. A returning A/A\' section should firmly re-assert the tonic area '
-      + 'before its final cadence — ground the listener before the close.',
+    '  4. RE-ESTABLISH HOME AT THE REPRISE, AND RESOLVE AT THE END. A returning A/A\' section should firmly '
+      + 're-assert the tonic area before its final cadence. The PIECE\'S FINAL section MUST close with an AUTHENTIC '
+      + 'cadence (PAC, or IAC) — the jingle has to resolve home. Do NOT end the final section on a deceptive, half, '
+      + 'or plagal cadence (a deceptive ending to vi after a piece rooted in the tonic sounds unearned and unfinished).',
     '  5. WRITE PROGRESSIONS WITH IDENTITY. Draw on memorable, named progressions rather than wandering:',
     '       • I–V–vi–IV         (the pop standard)',
     '       • I–vi–ii–V         (cyclic, "rhythm changes" feel)',

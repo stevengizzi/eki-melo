@@ -1,40 +1,38 @@
 /* =================================================================
-   VERIFY-STAGE4 — exit-criterion check for motivic material, the THIRD LLM
-   stage (buildplan Session 10). RUNS FULLY OFFLINE — no live API calls. Stage 4
+   VERIFY-STAGE4 — exit-criterion check for MELODIC PHRASES, the Session-12
+   phrase-motif rework of Stage 4. RUNS FULLY OFFLINE — no live API calls. Stage 4
    is exercised through its `__mockResponse` deterministic-fallback path; the
-   end-to-end run drives Stages 5a + 5b through THEIR mocks too.
+   end-to-end run drives Stages 5a (arrangement) + 5b (texture) through THEIR
+   mocks too.
 
    It confirms:
-     a. validateMotifs — a valid wrapped motifs object returns { ok:true,
-        errors:[] }, and EACH documented defect returns { ok:false } with a
-        clear, retry-actionable message: wrong key set (missing / extra motif),
-        out-of-range degree, non-integer degree, too few / too many degrees,
-        rhythm length mismatch, rhythm sum out of range (both ends), non-positive
-        rhythm, bad contour value, contour inconsistent with the trajectory, bad
-        register, anomaly type/at_position out of range, missing anomaly field,
-        distinctness violation (two identical motifs), and the envelope shape.
+     a. validateMotifs — a valid wrapped phrases object returns { ok:true,
+        errors:[] }, and EACH documented HARD defect returns { ok:false } with a
+        clear, retry-actionable message: wrong key set (missing / extra section),
+        rhythm sum != section beats (both ends), out-of-range / non-integer degree,
+        too few (<8) / too many (>32) degrees, rhythm length mismatch, non-positive
+        rhythm, bad contour value, bad register, anomaly type/at_position/missing,
+        and the envelope shape. The SOFT checks (strong-beat chord-fit, cross-
+        section relationship, contour mismatch, anomaly reality) return ok:true
+        with a populated `warnings` array — never a failure.
      b. generateMotifs(__mockResponse) — a VALID mock parses + validates and
-        returns the FLAT §3 map (keys = motif letters, no `motifs` wrapper).
-        Threaded through runPipelineGenerating (Stages 5a + 5b ALSO mocked) it
-        runs end-to-end (Stage 4 → 5a → 5b → 6 → 7 → 8 → toSynthString) to a
-        FinalJingle whose every pitch parses through the real synth.js noteToFreq.
-        A malformed mock (bad JSON) throws; a semantically-invalid mock throws on
-        validation. The soft end-on-chord-tone check emits a warning (via onTrace)
-        WITHOUT failing.
-     c. buildMotifsPrompt is a pure { system, user } builder naming the required
-        motif keys, the shape + anomaly vocabularies, the seed exemplars, the
-        compositional guidance, and the active adventurousness directive.
+        returns the FLAT per-section phrase map (keys = section labels, no
+        `phrases` wrapper). Threaded through runPipelineGenerating (Stages 5a + 5b
+        ALSO mocked) it runs end-to-end to a FinalJingle whose every pitch parses
+        through the real synth.js noteToFreq. A malformed mock (bad JSON) throws; a
+        semantically-invalid mock throws on validation. A soft chord-fit warning is
+        emitted via onTrace WITHOUT failing.
+     c. buildMotifsPrompt is a pure { system, user } builder naming the section
+        labels, the per-bar chord tones, the cross-section intent, the shape
+        vocabulary, the phrase-scale seed exemplars, the compositional guidance,
+        and the active adventurousness directive.
 
    Prints failures verbosely and exits non-zero on any failure.
 
-   RUNNING IT. Same throwaway-package.json dance as the other verify scripts
-   (the repo has no package.json by design):
-
+   RUNNING IT. Same throwaway-package.json dance as the other verify scripts:
      printf '{"type":"module"}' > js/jingle/package.json
      node js/jingle/theory/verify-stage4.mjs
      rm js/jingle/package.json
-
-   The browser loads these modules directly and needs none of this.
    ================================================================= */
 import {
   validateMotifs,
@@ -54,8 +52,6 @@ const expectOk = (scope, result) => {
   if (!result.ok) fail(scope, `expected ok:true, got errors: ${JSON.stringify(result.errors)}`);
   if (result.errors.length !== 0) fail(scope, `expected empty errors, got ${JSON.stringify(result.errors)}`);
 };
-// An invalid object: ok must be false AND at least one error message must mention
-// `keyword` (so we know the RIGHT defect was caught, not some incidental one).
 const expectInvalid = (scope, result, keyword) => {
   if (result.ok) {
     fail(scope, 'expected ok:false, got ok:true');
@@ -76,8 +72,8 @@ const expectThrows = async (scope, thunk) => {
 };
 
 // =================================================================
-// Fixtures — a self-contained C major AABA piece (requires motifs a + b),
-// independent of the inspector cases' lengths.
+// Fixtures — a self-contained C major AABA piece, 2-bar sections (8 beats each).
+// Phrases fill their sections (rhythm sums to 8) with strong beats on chord tones.
 // =================================================================
 
 const MACRO = {
@@ -107,174 +103,201 @@ const HARMONIC = {
   ],
 };
 
-// A valid wrapped motifs object: a peak_descend ending on degree 1 (chord tone of
-// A1's I); b a falling_arc ending on degree 1 (chord tone of B's IV). Both sums
-// are within [1.5, 3.5], degrees in [1,7], contours consistent, distinct.
+// A valid wrapped phrases object: each phrase fills its 2-bar (8-beat) section,
+// strong beats on chord tones (bar1/bar2 chords = the first two Roman numerals).
 const VALID = {
-  motifs: {
-    a: { degrees: [1, 3, 5, 4, 3, 1], rhythm: [0.5, 0.5, 1, 0.5, 0.5, 0.5], contour: 'peak_descend', register: 'mid', anomaly: null },
-    b: { degrees: [5, 4, 3, 1], rhythm: [0.5, 0.5, 1, 0.5], contour: 'falling_arc', register: 'mid', anomaly: null },
+  phrases: {
+    A1: { degrees: [1, 3, 5, 3, 5, 4, 3, 2], rhythm: [1, 0.5, 0.5, 2, 1, 1, 1, 1], contour: 'peak_descend', register: 'mid', anomaly: null },
+    A2: { degrees: [1, 3, 5, 3, 5, 4, 3, 1], rhythm: [1, 0.5, 0.5, 2, 1, 1, 1, 1], contour: 'peak_descend', register: 'mid', anomaly: null },
+    B: { degrees: [8, 6, 4, 6, 5, 3, 2, 1], rhythm: [1, 1, 1, 1, 1, 1, 1, 1], contour: 'falling_arc', register: 'high', anomaly: null },
+    A3: { degrees: [1, 3, 5, 3, 4, 3, 2, 1], rhythm: [1, 0.5, 0.5, 2, 1, 1, 1, 1], contour: 'peak_descend', register: 'mid', anomaly: null },
   },
 };
 
-// --- valid ---
+// --- valid (2-arg and 3-arg forms) ---
 expectOk('a:valid', validateMotifs(VALID, MACRO));
+expectOk('a:valid-with-harmony', validateMotifs(VALID, MACRO, HARMONIC));
 
-// A valid motif WITH an anomaly (chromatic_neighbor) also passes.
+// A valid phrase WITH a chromatic_neighbor anomaly also passes.
 const withAnomaly = clone(VALID);
-withAnomaly.motifs.a.anomaly = { type: 'chromatic_neighbor', at_position: 2 };
+withAnomaly.phrases.A1.anomaly = { type: 'chromatic_neighbor', at_position: 2 };
 expectOk('a:valid-anomaly', validateMotifs(withAnomaly, MACRO));
 
-// --- key set ---
+// --- key set (per-section coverage, HARD) ---
 const missing = clone(VALID);
-delete missing.motifs.b;
-expectInvalid('a:missing-motif', validateMotifs(missing, MACRO), 'missing motif');
+delete missing.phrases.B;
+expectInvalid('a:missing-section', validateMotifs(missing, MACRO), 'missing phrase');
 
 const extra = clone(VALID);
-extra.motifs.c = clone(VALID.motifs.b);
-extra.motifs.c.degrees = [1, 2, 3, 4]; // distinct, so only the extra-key rule fires
-expectInvalid('a:extra-motif', validateMotifs(extra, MACRO), 'unexpected motif');
+extra.phrases.C = clone(VALID.phrases.B);
+expectInvalid('a:extra-section', validateMotifs(extra, MACRO), 'unexpected phrase');
+
+// --- rhythm sum EQUALS section beats (HARD, both ends) ---
+const sumHigh = clone(VALID);
+sumHigh.phrases.A1.rhythm = [1, 0.5, 0.5, 1, 1, 1, 1, 3]; // sum 9, section is 8
+expectInvalid('a:rhythm-sum-high', validateMotifs(sumHigh, MACRO), 'fill its section');
+
+const sumLow = clone(VALID);
+sumLow.phrases.A1.rhythm = [1, 0.5, 0.5, 1, 1, 1, 1, 1]; // sum 7, section is 8
+expectInvalid('a:rhythm-sum-low', validateMotifs(sumLow, MACRO), 'fill its section');
 
 // --- degrees ---
 const outOfRange = clone(VALID);
-outOfRange.motifs.a.degrees = [1, 3, 99, 4, 3, 1]; // far above the bounded range
+outOfRange.phrases.A1.degrees = [1, 3, 99, 3, 5, 4, 3, 2];
 expectInvalid('a:degree-out-of-range', validateMotifs(outOfRange, MACRO), 'non-zero integer in');
 
 const nonInteger = clone(VALID);
-nonInteger.motifs.a.degrees = [1, 3, 2.5, 4, 3, 1];
+nonInteger.phrases.A1.degrees = [1, 3, 2.5, 3, 5, 4, 3, 2];
 expectInvalid('a:degree-non-integer', validateMotifs(nonInteger, MACRO), 'non-zero integer in');
 
 const zeroDegree = clone(VALID);
-zeroDegree.motifs.a.degrees = [1, 0, 5, 4, 3, 1]; // 0 is not a degree
+zeroDegree.phrases.A1.degrees = [1, 0, 5, 3, 5, 4, 3, 2];
 expectInvalid('a:degree-zero', validateMotifs(zeroDegree, MACRO), 'non-zero integer in');
 
-// The octave (8) and negative (below-tonic) degrees are now valid (the §3
-// octave-displacement convention the kickoff had wrongly narrowed to [1, 7]).
+// The octave (8) and negative degrees are valid (§3 octave-displacement convention).
 const octaveReach = clone(VALID);
-octaveReach.motifs.a.degrees = [1, 3, 5, 8, 5, 3]; // reaches the octave
-octaveReach.motifs.a.rhythm = [0.5, 0.5, 0.5, 1, 0.5, 0.5];
-octaveReach.motifs.a.contour = 'peak_descend';
+octaveReach.phrases.A1.degrees = [1, 3, 5, 8, 5, 4, 3, 2]; // reaches the octave
 expectOk('a:octave-reach', validateMotifs(octaveReach, MACRO));
 
 const belowTonic = clone(VALID);
-belowTonic.motifs.b.degrees = [5, 3, 1, -2, 1]; // dips below the tonic to the leading tone
-belowTonic.motifs.b.rhythm = [0.5, 0.5, 1, 0.5, 0.5];
-belowTonic.motifs.b.contour = 'valley_ascend';
+belowTonic.phrases.B.degrees = [8, 6, 4, 6, 5, 4, 3, -2]; // dips below the tonic
 expectOk('a:below-tonic', validateMotifs(belowTonic, MACRO));
 
+// too few (<8) / too many (>32) degrees — a phrase, not a cell.
 const tooFew = clone(VALID);
-tooFew.motifs.a.degrees = [1, 3, 5];
-tooFew.motifs.a.rhythm = [1, 1, 1];
-expectInvalid('a:too-few-degrees', validateMotifs(tooFew, MACRO), '4');
+tooFew.phrases.A1.degrees = [1, 3, 5, 4, 2];
+tooFew.phrases.A1.rhythm = [2, 2, 2, 1, 1]; // sum 8
+expectInvalid('a:too-few-degrees', validateMotifs(tooFew, MACRO), 'a phrase, not a cell');
 
 const tooMany = clone(VALID);
-tooMany.motifs.a.degrees = [1, 2, 3, 4, 5, 6, 7, 6, 5];
-tooMany.motifs.a.rhythm = [0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25];
-expectInvalid('a:too-many-degrees', validateMotifs(tooMany, MACRO), '8');
+tooMany.phrases.A1.degrees = Array.from({ length: 33 }, (_, i) => (i % 7) + 1);
+tooMany.phrases.A1.rhythm = Array.from({ length: 33 }, () => 8 / 33); // sum 8
+expectInvalid('a:too-many-degrees', validateMotifs(tooMany, MACRO), 'a phrase, not a cell');
 
 // --- rhythm ---
 const rhythmLenMismatch = clone(VALID);
-rhythmLenMismatch.motifs.a.rhythm = [0.5, 0.5];
+rhythmLenMismatch.phrases.A1.rhythm = [1, 1]; // length 2 != degrees length 8
 expectInvalid('a:rhythm-length', validateMotifs(rhythmLenMismatch, MACRO), 'length');
 
-const rhythmTooLong = clone(VALID);
-rhythmTooLong.motifs.a.rhythm = [1, 1, 1, 0.5, 0.5, 0.5]; // sum 4.5 (> one bar)
-expectInvalid('a:rhythm-sum-high', validateMotifs(rhythmTooLong, MACRO), 'between 1.5 and 4');
-
-// exactly one bar (4.0) is allowed — a natural one-bar motif.
-const rhythmOneBar = clone(VALID);
-rhythmOneBar.motifs.a.rhythm = [0.5, 0.5, 1, 0.5, 0.5, 1]; // sum 4.0
-expectOk('a:rhythm-sum-one-bar', validateMotifs(rhythmOneBar, MACRO));
-
-const rhythmTooShort = clone(VALID);
-rhythmTooShort.motifs.a.rhythm = [0.2, 0.2, 0.2, 0.2, 0.2, 0.2]; // sum 1.2
-expectInvalid('a:rhythm-sum-low', validateMotifs(rhythmTooShort, MACRO), 'between 1.5 and 4');
-
 const rhythmNonPositive = clone(VALID);
-rhythmNonPositive.motifs.a.rhythm = [0.5, 0, 1, 0.5, 0.5, 0.5];
+rhythmNonPositive.phrases.A1.rhythm = [1, 0, 0.5, 1.5, 1, 1, 1, 2]; // a zero
 expectInvalid('a:rhythm-non-positive', validateMotifs(rhythmNonPositive, MACRO), 'positive');
 
-// --- contour ---
+// --- contour / register ---
 const badContourValue = clone(VALID);
-badContourValue.motifs.a.contour = 'zigzag';
+badContourValue.phrases.A1.contour = 'zigzag';
 expectInvalid('a:bad-contour-value', validateMotifs(badContourValue, MACRO), 'not one of');
 
-// A contour LABEL that doesn't match the trajectory is now a SOFT warning, not a
-// hard failure — contour is inert metadata (Stage 6 realizes the degrees, not the
-// label). validateMotifs ACCEPTS these; generateMotifs warns (section b below).
-// a = [1,3,5,4,3,1] ends equal to its start → not really rising_arc.
-const contourMismatch = clone(VALID);
-contourMismatch.motifs.a.contour = 'rising_arc';
-expectOk('a:contour-mismatch-accepted', validateMotifs(contourMismatch, MACRO));
-
-// b = [5,4,3,1] labeled peak_descend (max at index 0, not interior) — also accepted.
-const contourPeakMismatch = clone(VALID);
-contourPeakMismatch.motifs.b.contour = 'peak_descend';
-expectOk('a:contour-peak-mismatch-accepted', validateMotifs(contourPeakMismatch, MACRO));
-
-// --- register ---
 const badRegister = clone(VALID);
-badRegister.motifs.a.register = 'middle';
+badRegister.phrases.A1.register = 'middle';
 expectInvalid('a:bad-register', validateMotifs(badRegister, MACRO), 'register');
 
 // --- anomaly ---
 const anomalyPosOOR = clone(VALID);
-anomalyPosOOR.motifs.a.anomaly = { type: 'chromatic_neighbor', at_position: 99 };
+anomalyPosOOR.phrases.A1.anomaly = { type: 'chromatic_neighbor', at_position: 99 };
 expectInvalid('a:anomaly-pos-out-of-range', validateMotifs(anomalyPosOOR, MACRO), 'at_position');
 
 const anomalyBadType = clone(VALID);
-anomalyBadType.motifs.a.anomaly = { type: 'wrong_kind', at_position: 1 };
+anomalyBadType.phrases.A1.anomaly = { type: 'wrong_kind', at_position: 1 };
 expectInvalid('a:anomaly-bad-type', validateMotifs(anomalyBadType, MACRO), 'anomaly.type');
 
 const anomalyMissing = clone(VALID);
-delete anomalyMissing.motifs.a.anomaly;
+delete anomalyMissing.phrases.A1.anomaly;
 expectInvalid('a:anomaly-missing', validateMotifs(anomalyMissing, MACRO), 'anomaly');
 
-// --- anomaly reality is a SOFT warning, not a hard failure ---
-// large_leap / rhythmic_displacement have no audible realization downstream (only
-// chromatic_neighbor bends a note), so a mislabel is cosmetic: validateMotifs
-// ACCEPTS it; generateMotifs emits a soft warning instead (section b below). The
-// anomaly SCHEMA checks (type ∈ set, at_position in range) stay hard — see above.
-const fakeLeapAccepted = clone(VALID);
-fakeLeapAccepted.motifs.a.anomaly = { type: 'large_leap', at_position: 2 }; // no real leap there
-expectOk('a:fake-large-leap-accepted', validateMotifs(fakeLeapAccepted, MACRO));
+// --- rests (Session 12): null = a rest; the phrase must stay mostly notes ---
+const withRest = clone(VALID);
+withRest.phrases.A1.degrees = [1, 3, 5, null, 5, 4, 3, 2]; // a rest mid-phrase (still sums to 8)
+expectOk('a:rest-valid', validateMotifs(withRest, MACRO));
 
-const realLeap = clone(VALID);
-realLeap.motifs.a.degrees = [1, 7, 5, 3, 1]; // a genuine seventh at position 1
-realLeap.motifs.a.rhythm = [0.5, 0.5, 1, 0.5, 0.5];
-realLeap.motifs.a.contour = 'peak_descend';
-realLeap.motifs.a.anomaly = { type: 'large_leap', at_position: 1 };
-expectOk('a:real-large-leap', validateMotifs(realLeap, MACRO));
-
-// --- distinctness (2+ motifs identical in degrees/rhythm/contour) ---
-const dup = clone(VALID);
-dup.motifs.b = clone(VALID.motifs.a);
-expectInvalid('a:distinctness', validateMotifs(dup, MACRO), 'identical');
+const mostlyRests = clone(VALID);
+mostlyRests.phrases.A1.degrees = [1, null, null, null, null, null, null, 2]; // only 2 sounded notes
+expectInvalid('a:too-few-sounded', validateMotifs(mostlyRests, MACRO), 'sounded');
 
 // --- envelope shape ---
 expectInvalid('a:not-object', validateMotifs(null, MACRO), 'object');
-expectInvalid('a:no-motifs', validateMotifs({ a: {} }, MACRO), 'motifs');
+expectInvalid('a:no-phrases', validateMotifs({ a: {} }, MACRO), 'phrases');
 
 // =================================================================
-// c. buildMotifsPrompt — pure { system, user }, names keys + vocab + exemplars
+// SOFT checks — return ok:true with a populated warnings array
+// =================================================================
+
+// (d) strong-beat chord-fit: a phrase whose downbeat sits OFF the bar's chord
+// validates (ok:true) and warns — only when a harmonicPlan is supplied.
+const offChord = clone(VALID);
+offChord.phrases.A1.degrees = [2, 3, 5, 3, 5, 4, 3, 2]; // bar-1 downbeat degree 2 over I (1,3,5)
+const offChordResult = validateMotifs(offChord, MACRO, HARMONIC);
+expectOk('a:soft-chordfit-ok', offChordResult);
+if (!offChordResult.warnings.some((w) => w.includes('chord tone'))) {
+  fail('a:soft-chordfit-warns', `expected a chord-fit warning, got ${JSON.stringify(offChordResult.warnings)}`);
+}
+// Without a harmonicPlan the chord-fit check is skipped (no such warning).
+const noHarmonyResult = validateMotifs(offChord, MACRO);
+expectOk('a:soft-chordfit-skipped', noHarmonyResult);
+if (noHarmonyResult.warnings.some((w) => w.includes('chord tone'))) {
+  fail('a:soft-chordfit-skipped', 'chord-fit warning fired without a harmonicPlan');
+}
+
+// (c) cross-section relationship: two SAME-letter phrases sharing no positions warn.
+const unrelated = clone(VALID);
+unrelated.phrases.A2.degrees = [2, 4, 6, 2, 6, 5, 4, 3]; // no position matches A1's [1,3,5,3,5,4,3,2]
+const unrelatedResult = validateMotifs(unrelated, MACRO);
+expectOk('a:soft-related-ok', unrelatedResult);
+if (!unrelatedResult.warnings.some((w) => w.toLowerCase().includes('related'))) {
+  fail('a:soft-related-warns', `expected a relationship warning, got ${JSON.stringify(unrelatedResult.warnings)}`);
+}
+
+// ...and two DIFFERENT-letter phrases that are IDENTICAL warn (contrast collapsed).
+const identicalContrast = clone(VALID);
+identicalContrast.phrases.B = clone(VALID.phrases.A1); // B == A1 exactly
+const identicalResult = validateMotifs(identicalContrast, MACRO);
+expectOk('a:soft-contrast-ok', identicalResult);
+if (!identicalResult.warnings.some((w) => w.toLowerCase().includes('contrast'))) {
+  fail('a:soft-contrast-warns', `expected a contrast warning, got ${JSON.stringify(identicalResult.warnings)}`);
+}
+
+// (e) contour mismatch: a label that doesn't match the trajectory warns (soft).
+const contourMismatch = clone(VALID);
+contourMismatch.phrases.A1.contour = 'rising_arc'; // A1 ends (2) below its start... actually 2 > 1, so use a clear fall
+contourMismatch.phrases.A1.degrees = [5, 4, 5, 3, 4, 2, 3, 1]; // ends 1 < starts 5 → not rising_arc
+const contourResult = validateMotifs(contourMismatch, MACRO);
+expectOk('a:soft-contour-ok', contourResult);
+if (!contourResult.warnings.some((w) => w.toLowerCase().includes('rising_arc'))) {
+  fail('a:soft-contour-warns', `expected a contour-mismatch warning, got ${JSON.stringify(contourResult.warnings)}`);
+}
+
+// (f) anomaly reality: a fake large_leap (a label on stepwise material) warns (soft).
+const fakeLeap = clone(VALID);
+fakeLeap.phrases.A1.anomaly = { type: 'large_leap', at_position: 1 }; // [1,3,...] step of 2, not a 6th+
+const fakeLeapResult = validateMotifs(fakeLeap, MACRO);
+expectOk('a:soft-anomaly-ok', fakeLeapResult);
+if (!fakeLeapResult.warnings.some((w) => w.toLowerCase().includes('large_leap'))) {
+  fail('a:soft-anomaly-warns', `expected a large_leap soft warning, got ${JSON.stringify(fakeLeapResult.warnings)}`);
+}
+
+// =================================================================
+// c. buildMotifsPrompt — pure { system, user }, names labels + per-bar chords +
+//    cross-section intent + vocab + exemplars + active directive
 // =================================================================
 
 const prompt = buildMotifsPrompt({
   macroParams: MACRO,
   harmonicPlan: HARMONIC,
-  config: { knobs: { motif_adventurousness: 'wild' } },
+  config: { knobs: { phrase_adventurousness: 'wild' } },
 });
 if (typeof prompt.system !== 'string' || prompt.system.length === 0) fail('c:system', 'system prompt missing');
 for (const needle of [
-  '"a"', '"b"',                                  // required keys
-  'rising_arc', 'peak_descend', 'wandering',     // shape vocabulary
-  'chromatic_neighbor', 'rhythmic_displacement', // anomaly vocabulary
-  'bright_arpeggio', 'byzantine_flourish',       // seed exemplars
-  'at_position',                                 // the anomaly key the realizer reads
-  'COMPOSITIONAL GUIDANCE',                       // the explicit coaching block
-  'wild',                                        // active adventurousness directive
-  '1.5', 'and 4 beats',                          // the rhythm-sum window (1.5–4.0)
-  'triumphant',                                  // the mood signal
+  '"A1"', '"A2"', '"B"', '"A3"',                  // required section keys
+  'chord tones at degrees',                        // the per-bar harmony block
+  'CROSS-SECTION INTENT',                          // the cross-section conditioning
+  'cadence approach',                              // the final-bar annotation
+  'rising_arc', 'peak_descend', 'wandering',       // shape vocabulary
+  'chromatic_neighbor', 'rhythmic_displacement',   // anomaly vocabulary
+  'SEED EXEMPLARS',                                // the phrase-scale exemplars
+  'at_position',                                   // the anomaly key the realizer reads
+  'COMPOSITIONAL GUIDANCE',                         // the explicit coaching block
+  'wild',                                          // active adventurousness directive
+  'triumphant',                                    // the mood signal
 ]) {
   if (!prompt.user.includes(needle)) fail('c:user', `user prompt does not mention ${needle}`);
 }
@@ -283,39 +306,14 @@ for (const needle of [
 // b. generateMotifs(__mockResponse) — offline parse/validate + e2e
 // =================================================================
 
-// Valid WRAPPED phrase + texture mocks so Stages 5a/5b satisfy their mock path
-// for the end-to-end run. The phrase mock honors the AABA development rules:
-// B (contrast) develops via invert; A3 (reprise of A1) brings back motif a.
+// Valid WRAPPED arrangement + texture mocks so Stages 5a/5b satisfy their mock
+// paths. The arrangement places each section's phrase literally over the section.
 const validPhraseMock = JSON.stringify({
   sections: {
-    A1: {
-      phrase_structure: 'period',
-      lead: [
-        { motif: 'a', transform: 'literal', start_bar: 1, length_bars: 1 },
-        { motif: 'a', transform: 'sequence_up_step', start_bar: 2, length_bars: 1 },
-      ],
-    },
-    A2: {
-      phrase_structure: 'period',
-      lead: [
-        { motif: 'a', transform: 'literal', start_bar: 1, length_bars: 1 },
-        { motif: 'a', transform: { name: 'transpose_third', params: { direction: 'up' } }, start_bar: 2, length_bars: 1 },
-      ],
-    },
-    B: {
-      phrase_structure: 'period',
-      lead: [
-        { motif: 'b', transform: 'literal', start_bar: 1, length_bars: 1 },
-        { motif: 'b', transform: 'invert', start_bar: 2, length_bars: 1 },
-      ],
-    },
-    A3: {
-      phrase_structure: 'period',
-      lead: [
-        { motif: 'a', transform: 'literal', start_bar: 1, length_bars: 1 },
-        { motif: 'a', transform: 'retrograde', start_bar: 2, length_bars: 1 },
-      ],
-    },
+    A1: { lead: [{ motif: 'A1', transform: 'literal', start_bar: 1, length_bars: 2 }] },
+    A2: { lead: [{ motif: 'A2', transform: 'literal', start_bar: 1, length_bars: 2 }] },
+    B: { lead: [{ motif: 'B', transform: 'literal', start_bar: 1, length_bars: 2 }] },
+    A3: { lead: [{ motif: 'A3', transform: 'literal', start_bar: 1, length_bars: 2 }] },
   },
 });
 
@@ -331,7 +329,7 @@ function buildValidWrappedTexture(macroParams) {
 }
 const validTextureMock = JSON.stringify(buildValidWrappedTexture(MACRO));
 const validMotifMock = JSON.stringify(VALID);
-const expectedLetters = ['a', 'b'];
+const expectedLabels = ['A1', 'A2', 'B', 'A3'];
 
 // The fully-LLM case must exist and omit motifs + phrasePlan + texturePlan.
 const sunriseFullyLLM = GENERATED_CASES.find((c) => c.id === 'sunrise-fully-llm');
@@ -344,15 +342,14 @@ if (!sunriseFullyLLM) {
   if (sunriseFullyLLM.macroParams.mood === undefined) fail('b:setup', 'sunrise-fully-llm macroParams should carry a mood (Stage 4 reads it)');
 }
 
-// (b1) valid motif mock → flat map (keys = letters, no `motifs` wrapper).
+// (b1) valid phrase mock → flat per-section map (keys = section labels, no `phrases` wrapper).
 const flat = await generateMotifs({ macroParams: MACRO, harmonicPlan: HARMONIC, __mockResponse: validMotifMock });
-if (flat.motifs !== undefined) fail('b1:flat', 'returned map still has a `motifs` wrapper — should be flat');
-if (JSON.stringify(Object.keys(flat).sort()) !== JSON.stringify([...expectedLetters].sort())) {
-  fail('b1:keys', `flat map keys ${JSON.stringify(Object.keys(flat))} != required letters ${JSON.stringify(expectedLetters)}`);
+if (flat.phrases !== undefined) fail('b1:flat', 'returned map still has a `phrases` wrapper — should be flat');
+if (JSON.stringify(Object.keys(flat).sort()) !== JSON.stringify([...expectedLabels].sort())) {
+  fail('b1:keys', `flat map keys ${JSON.stringify(Object.keys(flat))} != section labels ${JSON.stringify(expectedLabels)}`);
 }
 
 // (b2) the three mocks threaded through the runner → end-to-end FinalJingle.
-// Stage 4 + 5a + 5b all run via their offline mock; no network.
 let jingle;
 try {
   jingle = await runPipelineGenerating({
@@ -387,123 +384,115 @@ if (jingle) {
   }
 }
 
-// (b3) malformed motif mock (not JSON) → throws.
+// (b2b) a rest (null degree) realizes to an actual 'rest' in the lead track, and
+// the run stays beat-aligned across voices.
+const restMotifMock = JSON.stringify({
+  phrases: {
+    ...VALID.phrases,
+    A1: { ...VALID.phrases.A1, degrees: [1, 3, 5, null, 5, 4, 3, 2] },
+  },
+});
+let restJingle;
+try {
+  restJingle = await runPipelineGenerating({
+    macroParams: MACRO, harmonicPlan: HARMONIC,
+    __mockMotifResponse: restMotifMock, __mockPhraseResponse: validPhraseMock, __mockResponse: validTextureMock,
+  });
+} catch (error) {
+  fail('b2b:rest-e2e', `a rest-bearing phrase threw: ${error.message}`);
+}
+if (restJingle) {
+  if (!restJingle.lead.some(([note]) => note === 'rest')) fail('b2b:rest-e2e', 'expected a rest in the lead from a null degree');
+  const lens = ['lead', 'harmony', 'bass'].map((v) => restJingle[v].reduce((s, e) => s + e[1], 0));
+  if (Math.max(...lens) - Math.min(...lens) > 1e-6) fail('b2b:rest-align', `track lengths disagree with a rest: ${JSON.stringify(lens)}`);
+}
+
+// (b3) malformed phrase mock (not JSON) → throws.
 await expectThrows('b3:bad-json', () => generateMotifs({ macroParams: MACRO, harmonicPlan: HARMONIC, __mockResponse: 'this is not json {{{' }));
 
-// (b4) semantically invalid motif mock (out-of-range degree) → throws.
-const semOOR = clone(VALID);
-semOOR.motifs.a.degrees = [1, 3, 99, 4, 3, 1]; // 99 is far outside the bounded range
-await expectThrows('b4:out-of-range', () => generateMotifs({ macroParams: MACRO, harmonicPlan: HARMONIC, __mockResponse: JSON.stringify(semOOR) }));
+// (b4) semantically invalid mock (out-of-range degree — the counting-slip fixup
+// never touches degrees, so this still throws). A gross rhythm-sum miss is covered
+// by b5b:gross-miss above.
+const semBadDegree = clone(VALID);
+semBadDegree.phrases.A1.degrees = [1, 3, 99, 3, 5, 4, 3, 2]; // 99 is out of range
+await expectThrows('b4:bad-degree', () => generateMotifs({ macroParams: MACRO, harmonicPlan: HARMONIC, __mockResponse: JSON.stringify(semBadDegree) }));
 
-// (b5) semantically invalid motif mock (contour inconsistent) → throws.
-// (contour MISMATCH is now soft — see b9. A bad contour VALUE is still hard.)
+// (b5) semantically invalid mock (bad contour VALUE) → throws.
 const semBadContour = clone(VALID);
-semBadContour.motifs.a.contour = 'zigzag'; // not one of the six → hard failure
+semBadContour.phrases.A1.contour = 'zigzag';
 await expectThrows('b5:bad-contour-value', () => generateMotifs({ macroParams: MACRO, harmonicPlan: HARMONIC, __mockResponse: JSON.stringify(semBadContour) }));
 
-// (b6) soft end-on-chord-tone check: a valid motif that ends OFF a chord tone
-// does NOT fail — it returns and emits a warning via onTrace.
-const offToneMotifs = clone(VALID);
-offToneMotifs.motifs.b.degrees = [5, 4, 3, 2]; // ends on degree 2; B's IV chord tones are 4/6/1
-offToneMotifs.motifs.b.contour = 'falling_arc'; // 2 < 5, still falling_arc
+// (b5b) counting-slip fixup: a phrase whose rhythm is a beat short of its section
+// is SNAPPED to exact (final note extended) and returns successfully with a soft
+// note — no retry, no failure. A GROSS miss still throws.
+const slip = clone(VALID);
+slip.phrases.A1.rhythm = [1, 0.5, 0.5, 1, 1, 1, 1, 1]; // sums to 7, section is 8 (off by 1)
+const slipTraces = [];
+let slipResult;
+try {
+  slipResult = await generateMotifs({ macroParams: MACRO, harmonicPlan: HARMONIC, __mockResponse: JSON.stringify(slip), onTrace: (t) => slipTraces.push(t) });
+} catch (error) {
+  fail('b5b:counting-slip', `a 1-beat near-miss should be fixed up, not thrown: ${error.message}`);
+}
+if (slipResult) {
+  const a1Sum = slipResult.A1.rhythm.reduce((s, b) => s + b, 0);
+  if (Math.abs(a1Sum - 8) > 1e-6) fail('b5b:counting-slip', `A1 should be snapped to 8 beats, got ${a1Sum}`);
+  const notes = slipTraces.flatMap((t) => t.warnings ?? []);
+  if (!notes.some((w) => w.toLowerCase().includes('counting-slip'))) {
+    fail('b5b:counting-slip', `expected a counting-slip soft note, got ${JSON.stringify(notes)}`);
+  }
+}
+// An OVER-shoot whose final note can't absorb the trim (the bug from the field:
+// [1,1,2,1,1,1,1,1] = 9 over an 8-beat section) is fixed by trimming the LONGEST note.
+const overShoot = clone(VALID);
+overShoot.phrases.A1.rhythm = [1, 1, 2, 1, 1, 1, 1, 1]; // sums to 9, section is 8; final note is only 1
+const overTraces = [];
+let overResult;
+try {
+  overResult = await generateMotifs({ macroParams: MACRO, harmonicPlan: HARMONIC, __mockResponse: JSON.stringify(overShoot), onTrace: (t) => overTraces.push(t) });
+} catch (error) {
+  fail('b5b:over-shoot', `a 1-beat over-shoot should be fixed up (trim the longest note), not thrown: ${error.message}`);
+}
+if (overResult) {
+  const a1Sum = overResult.A1.rhythm.reduce((s, b) => s + b, 0);
+  if (Math.abs(a1Sum - 8) > 1e-6) fail('b5b:over-shoot', `A1 should be snapped to 8 beats, got ${a1Sum}`);
+}
+
+// A GROSS miss (off by 5 beats, beyond the fixup tolerance) still throws.
+const grossMiss = clone(VALID);
+grossMiss.phrases.A1.rhythm = [1, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]; // sums to 4.5, section is 8
+await expectThrows('b5b:gross-miss', () => generateMotifs({ macroParams: MACRO, harmonicPlan: HARMONIC, __mockResponse: JSON.stringify(grossMiss) }));
+
+// (b6) soft chord-fit: an off-chord-downbeat phrase does NOT fail — it returns and
+// emits a warning via onTrace (naming the section).
 const softTraces = [];
 let offToneResult;
 try {
   offToneResult = await generateMotifs({
     macroParams: MACRO,
     harmonicPlan: HARMONIC,
-    __mockResponse: JSON.stringify(offToneMotifs),
+    __mockResponse: JSON.stringify(offChord),
     onTrace: (t) => softTraces.push(t),
   });
 } catch (error) {
-  fail('b6:soft-warning', `off-chord-tone motif should NOT throw, but did: ${error.message}`);
+  fail('b6:soft-warning', `off-chord phrase should NOT throw, but did: ${error.message}`);
 }
 if (offToneResult) {
   const warnings = softTraces.flatMap((t) => t.warnings ?? []);
-  if (warnings.length === 0) fail('b6:soft-warning', 'expected a soft chord-tone warning, got none');
-  if (!warnings.some((w) => w.includes('"b"'))) fail('b6:soft-warning', `expected the warning to name motif "b": ${JSON.stringify(warnings)}`);
+  if (warnings.length === 0) fail('b6:soft-warning', 'expected a soft chord-fit warning, got none');
+  if (!warnings.some((w) => w.includes('"A1"'))) fail('b6:soft-warning', `expected the warning to name phrase "A1": ${JSON.stringify(warnings)}`);
 }
 
-// (b7) soft rhythm-sameness check: two motifs sharing the identical rhythm array
-// pass validation (the spec allows shared rhythm) but emit a soft warning.
-const sameRhythm = clone(VALID);
-sameRhythm.motifs.b.degrees = [4, 6, 5, 4, 3, 1];          // distinct shape, falling_arc
-sameRhythm.motifs.b.rhythm = [0.5, 0.5, 1, 0.5, 0.5, 0.5]; // identical to motif a's rhythm
-expectOk('b7:same-rhythm-valid', validateMotifs(sameRhythm, MACRO));
-const rhythmTraces = [];
-const sameRhythmResult = await generateMotifs({
-  macroParams: MACRO,
-  harmonicPlan: HARMONIC,
-  __mockResponse: JSON.stringify(sameRhythm),
-  onTrace: (t) => rhythmTraces.push(t),
-});
-if (sameRhythmResult) {
-  const warnings = rhythmTraces.flatMap((t) => t.warnings ?? []);
-  if (!warnings.some((w) => w.toLowerCase().includes('rhythm'))) {
-    fail('b7:rhythm-warning', `expected a rhythm-sameness warning, got ${JSON.stringify(warnings)}`);
-  }
-}
-
-// (b8) anomaly-reality SOFT warning: a fake large_leap (a label on ordinary
-// material) validates and returns, with a warning — never a failure.
-const fakeLeapMock = clone(VALID);
-fakeLeapMock.motifs.a.anomaly = { type: 'large_leap', at_position: 2 };
-const leapTraces = [];
-const fakeLeapResult = await generateMotifs({
-  macroParams: MACRO,
-  harmonicPlan: HARMONIC,
-  __mockResponse: JSON.stringify(fakeLeapMock),
-  onTrace: (t) => leapTraces.push(t),
-});
-if (fakeLeapResult) {
-  const warnings = leapTraces.flatMap((t) => t.warnings ?? []);
-  if (!warnings.some((w) => w.toLowerCase().includes('large_leap'))) {
-    fail('b8:large-leap-warning', `expected a large_leap soft warning, got ${JSON.stringify(warnings)}`);
-  }
-}
-
-// (b9) contour-mismatch SOFT warning: a label that doesn't match the degree
-// trajectory validates and returns, with a warning (contour is inert metadata).
-const contourMock = clone(VALID);
-contourMock.motifs.a.contour = 'rising_arc'; // a = [1,3,5,4,3,1] ends where it started
-const contourTraces = [];
-const contourResult = await generateMotifs({
-  macroParams: MACRO,
-  harmonicPlan: HARMONIC,
-  __mockResponse: JSON.stringify(contourMock),
-  onTrace: (t) => contourTraces.push(t),
-});
-if (contourResult) {
-  const warnings = contourTraces.flatMap((t) => t.warnings ?? []);
-  if (!warnings.some((w) => w.toLowerCase().includes('rising_arc'))) {
-    fail('b9:contour-warning', `expected a contour-mismatch soft warning, got ${JSON.stringify(warnings)}`);
-  }
-}
-
-// (b10) the chord-tone soft check folds octave degrees: a motif ending on the
-// octave (8 = tonic) over its I chord IS a chord tone — no spurious warning.
-const octaveEnding = clone(VALID);
-octaveEnding.motifs.a.degrees = [1, 3, 5, 8]; // ends on the octave (the tonic, up high)
-octaveEnding.motifs.a.rhythm = [0.5, 0.5, 0.5, 1];
-octaveEnding.motifs.a.contour = 'rising_arc'; // 8 > 1
-const octaveTraces = [];
-await generateMotifs({
-  macroParams: MACRO,
-  harmonicPlan: HARMONIC,
-  __mockResponse: JSON.stringify(octaveEnding),
-  onTrace: (t) => octaveTraces.push(t),
-});
-const octaveWarnings = octaveTraces.flatMap((t) => t.warnings ?? []);
-if (octaveWarnings.some((w) => w.includes('"a"') && w.includes('chord tone'))) {
-  fail('b10:octave-fold', `octave ending (8 = tonic) should fold to a chord tone, not warn: ${JSON.stringify(octaveWarnings)}`);
-}
-
-// Sanity: hand-supplied CASES still carry motifs + phrasePlan + texturePlan
-// (the prior verifiers depend on this; a stray edit to the data module surfaces here).
+// Sanity: hand-supplied CASES still carry motifs + phrasePlan + texturePlan, and
+// their motif keys are SECTION LABELS (the phrase-shape contract).
 for (const c of CASES) {
   if (!c.motifs) fail('b:cases-intact', `hand-supplied case ${c.id} lost its motifs`);
   if (!c.phrasePlan) fail('b:cases-intact', `hand-supplied case ${c.id} lost its phrasePlan`);
   if (!c.texturePlan) fail('b:cases-intact', `hand-supplied case ${c.id} lost its texturePlan`);
+  const sectionLabels = new Set(c.macroParams.sections.map((s) => s.label));
+  for (const key of Object.keys(c.motifs ?? {})) {
+    if (!sectionLabels.has(key)) fail('b:phrase-shape', `case ${c.id} motif key "${key}" is not a section label (phrase-shape requires per-section keys)`);
+  }
 }
 
 // =================================================================
@@ -515,9 +504,10 @@ if (failures.length > 0) {
   process.exit(1);
 }
 console.log(
-  'verify-stage4 PASSED — validateMotifs catches every documented defect (key set, degree range, '
-    + 'rhythm length/sum, contour consistency, register, anomaly, distinctness, envelope); '
-    + 'generateMotifs(__mockResponse) parses/validates offline, returns the flat map, runs end-to-end through '
-    + 'the pipeline (Stages 5a + 5b also mocked), throws on malformed/invalid mocks, and emits the soft '
-    + 'end-on-chord-tone warning without failing.'
+  'verify-stage4 PASSED — validateMotifs catches every documented HARD defect (per-section key set, rhythm '
+    + 'sum = section beats, degree range/count, rhythm length/positivity, contour, register, anomaly, envelope) and '
+    + 'returns the SOFT notes (chord-fit, cross-section relationship, contour mismatch, anomaly reality) as warnings; '
+    + 'generateMotifs(__mockResponse) parses/validates offline, returns the flat per-section phrase map, runs '
+    + 'end-to-end through the pipeline (Stages 5a + 5b also mocked), throws on malformed/invalid mocks, and emits the '
+    + 'soft chord-fit warning without failing.'
 );

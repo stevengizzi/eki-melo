@@ -163,6 +163,31 @@ if (chromaticNotes.length === 0) {
   fail('stage6:chromatic', 'expected at least one out-of-scale (chromatic) lead pitch, found none');
 }
 
+// --- 3b. strong-beat chord-fit nudge (Session 12) --------------------------
+// A lead note ONSETTING on a bar's downbeat that is NOT a chord tone of that bar's
+// chord is snapped to the nearest chord tone (in mode), BEFORE harmony realization.
+const nudgePlan = {
+  macroParams: {
+    tempo: 120, meter: FOUR_FOUR, tonic: 'C', mode: 'major', form: 'through_composed',
+    total_bars: 1, register_center: 'C5', sections: [{ label: 'A', bars: 1 }],
+  },
+  // downbeat degree 2 (D) is NOT a chord tone of I (C–E–G); it must be snapped.
+  motifs: { A: { degrees: [2, 3, 4, 5, 4, 3, 2, 1], rhythm: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5], contour: 'peak_descend', register: 'mid', anomaly: null } },
+  harmonicPlan: { sections: [{ label: 'A', progression: ['I'] }] },
+  phrasePlan: { A: { lead: [{ motif: 'A', transform: 'literal', start_bar: 1, length_bars: 1 }] } },
+  texturePlan: { A: { harmony: [], bass: [] } },
+};
+const nudgedLead = realizeVoices(nudgePlan).lead;
+const downbeatEvent = nudgedLead.find((e) => Math.abs(e.beat) < 1e-9);
+if (!downbeatEvent) {
+  fail('stage6:nudge', 'no lead event on the downbeat');
+} else {
+  const chordToneClasses = new Set([0, 4, 7]); // C, E, G — chord tones of I in C major
+  if (!chordToneClasses.has(pitchClassOf(downbeatEvent.pitch))) {
+    fail('stage6:nudge', `off-chord downbeat (degree 2 = D) should snap to a chord tone of I, got ${toScoreString(downbeatEvent.pitch)}`);
+  }
+}
+
 // --- 4. end-to-end over every case -----------------------------------------
 
 CASES.forEach((testCase) => {
