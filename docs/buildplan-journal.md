@@ -2254,3 +2254,43 @@ stage5a updated (the old cadence-bar rejection is replaced by a positive test: a
 leading into a cadenced final bar validates OK; the 4th validator arg dropped). All nine
 verifiers PASS offline. Steven evaluates the Stage-5a phrase work and this Stage-8 cadence
 revision together in the (still-open) human checkpoint.
+
+### Checkpoint follow-ups (2026-05-21) — transform-param bug + jingle length cap
+
+Two more items from Steven's listening pass:
+
+1. **Bug: `transpose_step steps must be an integer, got undefined`.** The LLM emitted a
+   `transpose_step` with no `steps` param; Stage 5a's validator only checked the transform
+   NAME was recognized, so it passed validation and then crashed in Stage 6 at realization.
+   The prompt also wrongly claimed `transpose_step` defaults to +1 (theory/transformations.js
+   REQUIRES steps). Fixed: `validatePhrasePlan` now runs `transformParamError()` per
+   assignment — a transform whose params would throw in the theory layer (`transpose_step`
+   steps, `transpose_third` direction, `invert` pivot, fragment count, ornament at_position)
+   is caught at the seam and fed to the one-shot retry instead of blowing up downstream. The
+   prompt now marks `steps` REQUIRED and steers ±1 to `sequence_up_step`/`sequence_down_step`.
+   verify-stage5a covers both the missing-param rejection and the valid object form.
+
+2. **Length: jingles capped at 32 beats.** Steven: the jingles are too long (Wanderer's was
+   48 beats); 32 should be the max. These are arrival jingles — short is correct. The three
+   inspector fixtures were the de-facto length source (Stage 2, which will set total_bars, is
+   Session 12), so they were shortened to 32 beats by TRUNCATING each section to its opening
+   material: Sunrise AABA 16→8 bars (2/2/2/2), Wanderer's & Desert ternary 12→8 bars (3/2/3).
+   Truncation preserves the Session-6/7-audited character of the kept bars (only the back of
+   each section is dropped), so verify-stage7's pinned cpp_strict repair counts still hold;
+   verify-stage8 and verify-stage5a were made robust to section length (compute beats from the
+   case; the 5a e2e now runs on its self-contained MACRO fixture, not the inspector case). The
+   GENERATED cases inherit the shorter macroParams. **The 32-beat (≈8-bar at 4/4) cap is a
+   product constraint Stage 2 (Session 12) should enforce when it computes total_bars** —
+   recorded here so it isn't lost; the fixture edit applies it today for the listening pass.
+
+**Standing note — "less memorable than v1."** Steven's broader read at this checkpoint: even
+at its best the output isn't as memorable as the pre-refactor v1, and it's hit-or-miss. This
+is expected and on-trajectory, not a regression: v1 let the LLM compose the actual melody +
+harmony freely (the memorable part), whereas the rebuild has so far shipped the deterministic
+back-half (Stages 6/7/8), texture choreography (5b), and phrase placement (5a) — but the
+melodic DNA (motif shapes = Stage 4 / Session 10) and the harmonic content (progressions =
+Stage 3 / Session 11) are STILL hand-written test fixtures, deliberately plain. "Memorable"
+lives precisely in those two unbuilt stages. Steven's instinct ("trust the process and wait
+for us to see it through") is the right call — the creative-melody engine comes online in
+S10/S11, wielded through the freedom knobs + anomaly slots + the 47-scale palette. Carrying
+the aesthetic-bar memory ([[aesthetic-bar-creative-melodies]]) forward to those sessions.
