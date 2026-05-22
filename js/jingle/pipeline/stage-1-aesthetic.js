@@ -30,6 +30,8 @@
    OUTPUT (the bare Aesthetic dict Stage 2 consumes — buildplan §3 AestheticBrief,
    re-shaped for the deterministic Stage 2 chooser):
      {
+       title:         a short, evocative theme name (2–4 words) — the pipeline has
+                      no other title stage, so this is the jingle's display name,
        mood_label:    one of MOOD_LABELS,
        tonic_hint:    "A".."G" + optional accidental, or "auto",
        mode_hint:     a scales.json mode name (or the "natural_minor" alias), or "auto",
@@ -154,24 +156,24 @@ function workedExamples() {
   return [
     'WORKED EXAMPLES (mood → aesthetic) — match this judgement, not these exact values:',
     '  1. "energetic triumphant fanfare, loves to make an entrance" →',
-    '     { "mood_label": "triumphant", "tonic_hint": "C", "mode_hint": "major", "tempo_hint": 144, '
-      + '"register_hint": "high", "form_hint": "AABA", "intensity": 0.9, '
+    '     { "title": "Hero\'s Entrance", "mood_label": "triumphant", "tonic_hint": "C", "mode_hint": "major", '
+      + '"tempo_hint": 144, "register_hint": "high", "form_hint": "AABA", "intensity": 0.9, '
       + '"notes": "A bold major fanfare — high, fast, anthemic." }',
     '  2. "dark and mysterious, into horror films and long silences" →',
-    '     { "mood_label": "dark", "tonic_hint": "auto", "mode_hint": "phrygian", "tempo_hint": 92, '
-      + '"register_hint": "low", "form_hint": "ABA", "intensity": 0.5, '
+    '     { "title": "Midnight Vigil", "mood_label": "dark", "tonic_hint": "auto", "mode_hint": "phrygian", '
+      + '"tempo_hint": 92, "register_hint": "low", "form_hint": "ABA", "intensity": 0.5, '
       + '"notes": "Phrygian half-step menace, low and unhurried." }',
     '  3. "mellow and dreamy, loves shoegaze and houseplants, walks slowly" →',
-    '     { "mood_label": "calm", "tonic_hint": "auto", "mode_hint": "dorian", "tempo_hint": 84, '
-      + '"register_hint": "mid", "form_hint": "auto", "intensity": 0.25, '
+    '     { "title": "Slow Bloom", "mood_label": "calm", "tonic_hint": "auto", "mode_hint": "dorian", '
+      + '"tempo_hint": 84, "register_hint": "mid", "form_hint": "auto", "intensity": 0.25, '
       + '"notes": "Slow, soft, a little wistful — dorian keeps it from being plain sad." }',
     '  4. "goofy prankster, always grinning, never sits still" →',
-    '     { "mood_label": "playful", "tonic_hint": "G", "mode_hint": "major_pentatonic", "tempo_hint": 132, '
-      + '"register_hint": "high", "form_hint": "AB", "intensity": 0.7, '
+    '     { "title": "Whoopee Cushion Waltz", "mood_label": "playful", "tonic_hint": "G", "mode_hint": "major_pentatonic", '
+      + '"tempo_hint": 132, "register_hint": "high", "form_hint": "AB", "intensity": 0.7, '
       + '"notes": "Bouncy pentatonic, quick and grinning." }',
     '  5. "quiet, warm, the friend you tell secrets to" →',
-    '     { "mood_label": "intimate", "tonic_hint": "F", "mode_hint": "auto", "tempo_hint": 88, '
-      + '"register_hint": "mid", "form_hint": "AB", "intensity": 0.3, '
+    '     { "title": "Close Quarters", "mood_label": "intimate", "tonic_hint": "F", "mode_hint": "auto", '
+      + '"tempo_hint": 88, "register_hint": "mid", "form_hint": "AB", "intensity": 0.3, '
       + '"notes": "Small and tender — short, soft, close." }',
   ].join('\n');
 }
@@ -182,6 +184,7 @@ function schemaBlock() {
     '',
     '{',
     '  "aesthetic": {',
+    '    "title": "a short, evocative theme name, 2–4 words (e.g. \\"Mellow Drift\\", \\"Hero\'s Entrance\\")",',
     `    "mood_label": one of ${MOOD_LABELS.map((m) => JSON.stringify(m)).join(' | ')},`,
     '    "tonic_hint": "C" (a letter A–G with an optional accidental like "Bb" or "F#") or "auto",',
     '    "mode_hint": a mode name (e.g. "major", "dorian", "phrygian", "harmonic_minor", "natural_minor") or "auto",',
@@ -194,6 +197,7 @@ function schemaBlock() {
     '}',
     '',
     'REQUIREMENTS:',
+    '- "title" is REQUIRED — a short evocative name for THIS guest\'s arrival theme (it becomes the jingle\'s display title). Make it specific and characterful, not generic.',
     '- "mood_label" and "intensity" are REQUIRED and never "auto" — they always carry signal.',
     '- For every other field, COMMIT to a value when the vibe clearly implies one, and write "auto" when it '
       + 'does not (do not force a guess — "auto" defers to a sensible default).',
@@ -291,7 +295,8 @@ function parseAestheticResponse(raw) {
 // mode (or "auto"), tonic_hint not letter+accidental (or "auto"), tempo_hint not
 // an integer (or "auto").
 // SOFT (warnings): intensity out of [0,1], tempo_hint outside [80,160] (the
-// "absurd tempo" case — Stage 2 clamps it), notes missing/empty.
+// "absurd tempo" case — Stage 2 clamps it), title missing/empty (the runner
+// synthesizes a fallback), notes missing/empty.
 // =================================================================
 
 /**
@@ -351,6 +356,12 @@ export function validateAesthetic(wrapped) {
     push(`"form_hint" must be one of: ${FORM_HINTS.join(', ')}, got ${JSON.stringify(a.form_hint)}.`);
   }
 
+  // title — soft (the runner synthesizes a fallback if absent), but a real title
+  // is strongly wanted: the pipeline has no other naming stage.
+  if (typeof a.title !== 'string' || a.title.trim().length === 0) {
+    warn('title is missing or empty — the jingle will fall back to a synthesized name.');
+  }
+
   // notes — soft (free text, for humans).
   if (typeof a.notes !== 'string' || a.notes.trim().length === 0) {
     warn('notes is missing or empty — a 1–2 sentence rationale helps human review.');
@@ -375,6 +386,7 @@ function unwrapAesthetic(wrapped) {
   const mode_hint = a.mode_hint in MODE_ALIASES ? MODE_ALIASES[a.mode_hint] : a.mode_hint;
   const tempo_hint = a.tempo_hint === 'auto' ? 'auto' : clamp(a.tempo_hint, TEMPO_MIN, TEMPO_MAX);
   return {
+    title: typeof a.title === 'string' ? a.title.trim() : '',
     mood_label: a.mood_label,
     tonic_hint: a.tonic_hint,
     mode_hint,

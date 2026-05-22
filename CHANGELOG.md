@@ -13,13 +13,14 @@ remain the historical record.
 ### Added
 - **Dual-engine jingle composition, chosen per guest.** The Add-Guest form now
   has an **ENGINE** toggle next to Compose:
-  - **PIPELINE** (default) — the new 10-stage composer: aesthetic interpretation
-    → macro parameters → harmony → melodic phrases → arrangement → texture →
-    voice realization → voice-leading → cadence. Five LLM calls scoped to soft
-    creative decisions, deterministic music theory for the hard rules.
+  - **v2** (default) — the new 10-stage composer pipeline: aesthetic
+    interpretation → macro parameters → harmony → melodic phrases → arrangement →
+    texture → voice realization → voice-leading → cadence. Five LLM calls scoped
+    to soft creative decisions, deterministic music theory for the hard rules.
+    (The engine's internal id is `pipeline`; it's labeled **v2** in the UI.)
   - **v1** (classic) — the original single-prompt generator, unchanged.
   Each generated jingle records which engine made it; the guest card shows a
-  small **PIPELINE** / **v1** badge that updates as you page through a guest's
+  small **v2** / **v1** badge that updates as you page through a guest's
   archive. See DEC-014.
 - **Retry with the other engine.** If the chosen engine fails, a one-tap "Retry
   with v1 / Retry with Pipeline" button appears. No silent auto-fallback — your
@@ -38,6 +39,21 @@ remain the historical record.
   `pipelineMetadata`). Migration is non-destructive (DEC-007): every jingle
   stored before this release is tagged `engine: 'v1'` on read (v1 was the only
   engine then) and written back only after a clean full read. See DEC-015.
+
+### Fixed (post-initial-deploy)
+- **Pipeline jingles were always named "Untitled Jingle."** The pipeline had no
+  naming stage. Stage 1 (aesthetic) now also authors a short evocative theme
+  title (the runner falls back to "{Guest}'s Theme" if the model omits one).
+- **The jingle's mood line showed the full guest description** instead of a
+  one-word mood. The pipeline's `FinalJingle.mood` now uses the canonical mood
+  label from Stage 2 (e.g. "wistful"), not the raw vibe text.
+- **AABA was unreachable.** A 32-beat "downsize" rule forced any 4-section form
+  to AB, so AABA never appeared (and an explicit AABA choice was overridden).
+  Removed — AABA 2/2/2/2 is a known-good jingle form, so the chosen form is now
+  honored, improving form variety. (The "always ternary/96 BPM" report was this
+  plus the mood-field bug masking that the mood was in fact varying correctly.)
+- **Engine label.** The pipeline engine is now labeled **v2** in the UI (badge,
+  selector, retry button); its stored id stays `pipeline` (no migration).
 
 ### Preserved
 - **v1 is bit-identical.** `composition.js` / `api.js` / `render.js` /

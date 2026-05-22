@@ -17,7 +17,7 @@ export function escapeHtml(s) {
 // so the badge always tracks g.jingles[g.currentJingleIndex].
 function engineBadge(engine) {
   const which = engine === 'pipeline' ? 'pipeline' : 'v1';
-  const label = which === 'pipeline' ? 'PIPELINE' : 'v1';
+  const label = which === 'pipeline' ? 'v2' : 'v1';
   return `<span class="engine-badge engine-badge-${which}">${label}</span>`;
 }
 

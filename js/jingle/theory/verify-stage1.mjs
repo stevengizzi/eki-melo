@@ -64,6 +64,7 @@ const expectThrows = async (scope, thunk) => {
 // =================================================================
 const GOOD = {
   aesthetic: {
+    title: "Hero's Entrance",
     mood_label: 'triumphant',
     tonic_hint: 'C',
     mode_hint: 'major',
@@ -115,6 +116,8 @@ expectWarns('a:soft-intensity', validateAesthetic(wrap({ ...GOOD.aesthetic, inte
 expectWarns('a:soft-tempo', validateAesthetic(wrap({ ...GOOD.aesthetic, tempo_hint: 300 })), 'clamp');
 const noNotes = clone(GOOD); delete noNotes.aesthetic.notes;
 expectWarns('a:soft-notes', validateAesthetic(noNotes), 'notes');
+const noTitle = clone(GOOD); delete noTitle.aesthetic.title;
+expectWarns('a:soft-title', validateAesthetic(noTitle), 'title');
 
 // =================================================================
 // c. buildAestheticPrompt — pure { system, user }
@@ -122,6 +125,7 @@ expectWarns('a:soft-notes', validateAesthetic(noNotes), 'notes');
 const prompt = buildAestheticPrompt({ mood: 'dark and mysterious, loves horror', guestName: 'Mortimer' });
 if (typeof prompt.system !== 'string' || prompt.system.length === 0) fail('c:system', 'system prompt missing');
 for (const needle of [
+  'title',                                       // the title field is requested
   'MOOD LABELS', 'triumphant', 'mysterious',     // the label vocabulary
   'phrygian', 'natural_minor',                   // modal-character notes
   'FORM HINT', 'AABA',                           // form vocabulary + ranges
@@ -141,15 +145,16 @@ if (!noName.user.includes('(none given)')) fail('c:noname', 'name-less prompt sh
 // b. generateAesthetic(__mockResponse) — offline parse/validate/unwrap, 4 moods
 // =================================================================
 const MOCKS = {
-  triumphant: wrap({ mood_label: 'triumphant', tonic_hint: 'C', mode_hint: 'major', tempo_hint: 144, register_hint: 'high', form_hint: 'AABA', intensity: 0.9, notes: 'fanfare' }),
-  dark: wrap({ mood_label: 'dark', tonic_hint: 'auto', mode_hint: 'phrygian', tempo_hint: 92, register_hint: 'low', form_hint: 'ABA', intensity: 0.5, notes: 'menace' }),
-  calm: wrap({ mood_label: 'calm', tonic_hint: 'auto', mode_hint: 'dorian', tempo_hint: 84, register_hint: 'mid', form_hint: 'auto', intensity: 0.25, notes: 'soft' }),
-  playful: wrap({ mood_label: 'playful', tonic_hint: 'G', mode_hint: 'major_pentatonic', tempo_hint: 132, register_hint: 'high', form_hint: 'AB', intensity: 0.7, notes: 'bouncy' }),
+  triumphant: wrap({ title: 'Big Win', mood_label: 'triumphant', tonic_hint: 'C', mode_hint: 'major', tempo_hint: 144, register_hint: 'high', form_hint: 'AABA', intensity: 0.9, notes: 'fanfare' }),
+  dark: wrap({ title: 'Night Shade', mood_label: 'dark', tonic_hint: 'auto', mode_hint: 'phrygian', tempo_hint: 92, register_hint: 'low', form_hint: 'ABA', intensity: 0.5, notes: 'menace' }),
+  calm: wrap({ title: 'Still Water', mood_label: 'calm', tonic_hint: 'auto', mode_hint: 'dorian', tempo_hint: 84, register_hint: 'mid', form_hint: 'auto', intensity: 0.25, notes: 'soft' }),
+  playful: wrap({ title: 'Jellybean Jig', mood_label: 'playful', tonic_hint: 'G', mode_hint: 'major_pentatonic', tempo_hint: 132, register_hint: 'high', form_hint: 'AB', intensity: 0.7, notes: 'bouncy' }),
 };
 for (const [mood, mock] of Object.entries(MOCKS)) {
   const a = await generateAesthetic({ mood, __mockResponse: JSON.stringify(mock) });
   if (a.mood_label !== mock.aesthetic.mood_label) fail(`b:${mood}`, `mood_label round-trip: got ${a.mood_label}`);
   if (typeof a.intensity !== 'number') fail(`b:${mood}`, 'intensity missing from unwrapped aesthetic');
+  if (a.title !== mock.aesthetic.title) fail(`b:${mood}`, `title round-trip: got ${JSON.stringify(a.title)}`);
   // unwrapped is the BARE dict (no .aesthetic wrapper)
   if ('aesthetic' in a) fail(`b:${mood}`, 'unwrapped result should be the bare Aesthetic, not the wrapped envelope');
 }

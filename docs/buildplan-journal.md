@@ -4082,3 +4082,41 @@ untouched), confirms the archive badges + the forced-failure retry button, and r
 backup roundtrip on real data. If anything regresses on v1 that is a serious bug in the
 engines.js conversion path (investigate / rollback). The close-out below is written
 after that verification.
+
+### Session 13 — post-deploy bug fixes (2026-05-22)
+
+Steven deployed and tested. He reported the pipeline jingles were "all 96 BPM and
+ternary," all titled "Untitled Jingle," and the mood line showed the FULL guest
+description instead of an adjective. A live diagnostic (5 contrasting vibes through
+the real Stage-1 LLM) settled the cause: the aesthetic was **varying correctly**
+(party-animal → celebratory/152/binary; goth → dark/88/ternary; prankster →
+playful/128; triumphant → triumphant/140; wistful → wistful/96/ternary). The "always
+96/ternary" was a PERCEPTION bug — Steven's test guests skewed mellow (96 ternary is
+the *correct* read of a wistful vibe), and the mood-field bug hid the varying label.
+Four real fixes landed:
+
+1. **mood field showed the raw vibe.** `runPipeline` set `FinalJingle.mood =
+   input.mood` (the free-text vibe). Now it uses `macroParams.mood ?? input.mood`
+   — the canonical mood LABEL Stage 2 sets from the aesthetic. So the meta line
+   reads "A dorian · wistful · 92 BPM · ternary" again, not the whole prompt.
+2. **title always "Untitled Jingle."** The pipeline had no naming stage. Stage 1
+   now also authors a short evocative `title` (added to its schema, prompt
+   examples, SOFT validation, and unwrap); the runner threads `aesthetic.title`
+   into `runPipeline`, with a `fallbackTitle(guestName, mood)` → "{Guest}'s Theme"
+   if the model omits it. (Title is soft-validated to avoid retry-burn.)
+3. **AABA unreachable / form variety.** The §7.7 32-beat "downsize" (drop any
+   4-section form to AB when sections would be ≤2 bars) made AABA unreachable at the
+   jingle length AND overrode an explicit AABA choice (the live test's triumphant
+   vibe asked for AABA and got binary). REMOVED — AABA 2/2/2/2 is a known-good
+   shipped fixture (Session-9 "Sunrise"), the phrase-motif model fills each 2-bar
+   section, so the chosen form is now honored. verify-stage2 re-pinned: triumphant/
+   celebratory → AABA at 32 beats; explicit AABA hint honored; no downsize warning.
+4. **Engine label v2.** Per Steven: the pipeline engine now shows as **v2** in the
+   UI (badge, selector main label, retry button), with the selector description
+   "new · 10-stage composer pipeline". The stored engine id stays `pipeline` (no
+   migration); only `engineLabel('pipeline')` + the badge + the radio text changed.
+
+All fourteen verifiers still pass offline; an updated e2e smoke confirms the title
+(LLM + fallback), the mood label, and the v2 label thread through. composition.js /
+api.js / render.js / synth.js still untouched. The human deployment-verification
+checkpoint remains open.

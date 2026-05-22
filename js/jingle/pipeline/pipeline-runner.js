@@ -110,6 +110,15 @@ function accidentalPreferenceForTonic(tonic) {
   return letter === 'F' ? 'flat' : 'sharp';
 }
 
+// A last-resort jingle title when neither the caller nor Stage 1 supplied one.
+// Prefers the guest's name ("Wren's Theme"); otherwise names it from the mood.
+function fallbackTitle(guestName, mood) {
+  const name = typeof guestName === 'string' ? guestName.trim() : '';
+  if (name) return `${name}'s Theme`;
+  const m = typeof mood === 'string' && mood.length > 0 ? mood : 'Arrival';
+  return `${m.charAt(0).toUpperCase()}${m.slice(1)} Theme`;
+}
+
 function tonicName(tonic) {
   if (tonic && typeof tonic === 'object') {
     const glyph = { '-2': 'bb', '-1': 'b', '0': '', '1': '#', '2': '##' }[String(tonic.accidental)] ?? '';
@@ -190,7 +199,10 @@ export function runPipeline(input, config = DEFAULT_CONFIG) {
     title: input.title ?? 'Untitled Jingle',
     tempo: macroParams.tempo ?? 140,
     key: `${tonicName(macroParams.tonic)} ${macroParams.mode}`,
-    mood: input.mood ?? 'neutral',
+    // The canonical mood LABEL (e.g. "wistful"), not the raw free-text vibe — the
+    // generating path threads it in via macroParams.mood (Stage 2 sets it from the
+    // aesthetic's mood_label). `input.mood` (the vibe text) is only the last resort.
+    mood: macroParams.mood ?? input.mood ?? 'neutral',
     form: macroParams.form ?? null,
     sections: sectionMarkers(macroParams),
     lead: renderTrack(sequenced.lead, preference),
@@ -323,8 +335,16 @@ export async function runPipelineGenerating(input, config = DEFAULT_CONFIG) {
     input.onArtifacts({ aesthetic, macroParams, harmonicPlan, motifs, phrasePlan, texturePlan });
   }
 
+  // Title: a caller-supplied title wins; else the aesthetic's LLM-authored title;
+  // else a synthesized fallback (the pipeline has no other naming stage, so this
+  // guarantees a real name instead of "Untitled Jingle").
+  const title = input.title
+    ?? (aesthetic && typeof aesthetic.title === 'string' && aesthetic.title.trim().length > 0
+      ? aesthetic.title.trim()
+      : fallbackTitle(input.guestName, macroParams.mood));
+
   return runPipeline(
-    { ...input, macroParams, harmonicPlan, motifs, phrasePlan, texturePlan },
+    { ...input, macroParams, harmonicPlan, motifs, phrasePlan, texturePlan, title },
     effectiveConfig
   );
 }

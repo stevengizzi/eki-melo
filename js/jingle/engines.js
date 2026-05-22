@@ -58,9 +58,10 @@ export function otherEngine(engine) {
   return engine === 'v1' ? 'pipeline' : 'v1';
 }
 
-/** Human-facing label for a badge / button ("PIPELINE", "v1"). */
+/** Human-facing label for a badge / button ("v2" for the pipeline, "v1" classic).
+    The stored engine value stays 'pipeline'; only the display label is "v2". */
 export function engineLabel(engine) {
-  return engine === 'pipeline' ? 'PIPELINE' : 'v1';
+  return engine === 'pipeline' ? 'v2' : 'v1';
 }
 
 // =================================================================

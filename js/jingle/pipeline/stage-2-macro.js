@@ -211,12 +211,12 @@ export function deriveKnobs({ aesthetic, config = DEFAULT_CONFIG } = {}) {
  * beats (default 32 — the jingle length cap); `config` is accepted for parity but
  * does not affect the §3 fields (knobs are deriveKnobs's job). `onTrace`, if
  * supplied, receives `{ attempt: 'soft-note', warnings }` once if any soft
- * warning fired (the form downsize / substitution notes).
+ * warning fired (the AABB / rondo form-substitution notes).
  *
- * THE 32-BEAT DOWNSIZE (buildplan §7.7). At the default 32-beat budget a 4-section
- * form (AABA, rondo, …) distributes to ~2 bars per section — too cramped for
- * harmonic variety. When every section would get ≤2 bars, the form is downsized to
- * AB (binary, 2 sections × 4 bars) with a soft warning.
+ * The form the chooser (or an explicit hint) picks is honored as-is at the chosen
+ * length — including AABA at 2 bars/section under the 32-beat budget. (An earlier
+ * §7.7 "downsize 4-section forms to AB" rule was removed: it made AABA unreachable
+ * and overrode explicit form choices, while AABA 2/2/2/2 is a known-good fixture.)
  */
 export function generateMacroParams({ aesthetic, lengthBudget = 32, config, onTrace } = {}) {
   void config; // §3 fields don't read knobs; accepted for sibling-parity.
@@ -237,15 +237,17 @@ export function generateMacroParams({ aesthetic, lengthBudget = 32, config, onTr
   const tonic = chooseTonic(aesthetic);
   const mode = chooseMode(aesthetic);
   const tempo = chooseTempo(aesthetic);
-  let form = chooseForm(aesthetic, lengthBudget, warn);
+  const form = chooseForm(aesthetic, lengthBudget, warn);
 
-  // Per-section bar plan, with the 32-beat downsize.
-  let counts = distributeBars(form, total_bars);
-  if (lengthBudget === 32 && counts.length > 2 && counts.every((b) => b <= 2)) {
-    warn(`downsized ${form} to AB (binary) to fit the 32-beat budget — each section needs ≥3 bars for harmonic variety.`);
-    form = 'binary';
-    counts = distributeBars(form, total_bars);
-  }
+  // Per-section bar plan. NOTE: no 32-beat "downsize" — an earlier revision dropped
+  // any 4-section form (AABA, …) to AB when every section would be ≤2 bars, on the
+  // §7.7 theory that ≤2 bars/section is too cramped for harmonic variety. In
+  // practice that made AABA UNREACHABLE at the jingle length (it always became
+  // binary) and overrode the LLM's explicit form choice — yet AABA at 2/2/2/2 is a
+  // known-good shipped fixture (the Session-9 "Sunrise" case), since the
+  // phrase-motif model fills each 2-bar section with a real phrase. So the downsize
+  // was removed; the form the chooser/hint picks is honored as-is.
+  const counts = distributeBars(form, total_bars);
   const labels = getForm(form).section_labels;
   const sections = labels.map((label, i) => ({ label, bars: counts[i] }));
 

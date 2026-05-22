@@ -8,10 +8,10 @@
         intensity 0.5, default 32-beat budget) the chosen tonic / mode / form /
         tempo land in the expected slots, the sections tile the form and sum to
         total_bars, and the result passes validateMacroParams.
-     b. THE 32-BEAT DOWNSIZE (§7.7) — an AABA-default mood downsizes to AB (binary)
-        at the 32-beat budget (every section would be ≤2 bars) WITH a soft warning;
-        a ternary mood does NOT; and the same AABA SURVIVES at a 64-beat budget
-        (each section gets 4 bars).
+     b. FORMS ARE HONORED AT THE JINGLE LENGTH (no downsize) — an AABA-default mood
+        stays AABA at the 32-beat budget (4 sections × 2 bars), AABA at 64 beats is
+        4 bars/section, and an explicit AABA hint is honored at 32 beats (the bug
+        that previously forced it to binary).
      c. HINT HONORING — explicit tonic / mode / tempo / form hints override the
         mood defaults; the "AABB" hint resolves to binary with a note; a rondo hint
         under 48 beats is replaced with ternary with a note.
@@ -73,10 +73,10 @@ const sum = (xs) => xs.reduce((t, x) => t + x, 0);
 // =================================================================
 // a. per-mood mapping (all-auto, intensity 0.5, default 32-beat budget)
 // =================================================================
-// At 32 beats AABA-default moods (triumphant/celebratory) DOWNSIZE to binary.
+// Forms are honored as chosen at the jingle length — AABA stays AABA (2 bars/section).
 const EXPECT = {
-  triumphant:  { tonic: 'C', mode: 'major',          form: 'binary',         tempo: [130, 150] },
-  celebratory: { tonic: 'C', mode: 'major',          form: 'binary',         tempo: [130, 150] },
+  triumphant:  { tonic: 'C', mode: 'major',          form: 'AABA',           tempo: [130, 150] },
+  celebratory: { tonic: 'C', mode: 'major',          form: 'AABA',           tempo: [130, 150] },
   playful:     { tonic: 'C', mode: 'major',          form: 'ternary',        tempo: [105, 125] },
   hopeful:     { tonic: 'D', mode: 'major',          form: 'ternary',        tempo: [105, 125] },
   mysterious:  { tonic: 'E', mode: 'harmonic_minor', form: 'ternary',        tempo: [105, 125] },
@@ -107,25 +107,26 @@ for (const [mood, want] of Object.entries(EXPECT)) {
 }
 
 // =================================================================
-// b. the 32-beat downsize
+// b. forms honored at the jingle length (no downsize) — AABA survives
 // =================================================================
 {
   const { macro, warnings } = gen(aesthetic({ mood_label: 'triumphant' })); // AABA default
-  if (macro.form !== 'binary') fail('b:downsize-form', `triumphant@32 should downsize to binary, got ${macro.form}`);
-  if (macro.sections.length !== 2) fail('b:downsize-sections', `expected 2 sections, got ${macro.sections.length}`);
-  if (!warnings.some((w) => w.toLowerCase().includes('downsized'))) fail('b:downsize-warn', `expected a downsize warning, got ${JSON.stringify(warnings)}`);
+  if (macro.form !== 'AABA') fail('b:aaba-32', `triumphant@32 should be AABA, got ${macro.form}`);
+  if (macro.sections.length !== 4) fail('b:aaba-sections', `AABA should have 4 sections, got ${macro.sections.length}`);
+  if (macro.sections.some((s) => s.bars !== 2)) fail('b:aaba-2bars', `AABA@32 should be 2 bars/section, got ${JSON.stringify(macro.sections.map((s) => s.bars))}`);
+  if (warnings.some((w) => w.toLowerCase().includes('downsiz'))) fail('b:no-downsize', `no downsize expected, got ${JSON.stringify(warnings)}`);
 }
 {
-  const { warnings } = gen(aesthetic({ mood_label: 'hopeful' })); // ternary — no downsize
-  if (warnings.some((w) => w.toLowerCase().includes('downsized'))) fail('b:no-downsize', `ternary should not downsize, got ${JSON.stringify(warnings)}`);
+  // honored at a larger budget too — 4 bars/section at 64 beats.
+  const { macro } = gen(aesthetic({ mood_label: 'triumphant' }), 64);
+  if (macro.form !== 'AABA') fail('b:aaba-64', `triumphant@64 should keep AABA, got ${macro.form}`);
+  if (macro.total_bars !== 16) fail('b:aaba-64-bars', `64-beat budget should give 16 bars, got ${macro.total_bars}`);
+  if (macro.sections.some((s) => s.bars !== 4)) fail('b:aaba-64-size', `AABA@64 should be 4 bars/section, got ${JSON.stringify(macro.sections.map((s) => s.bars))}`);
 }
 {
-  // AABA survives at a 64-beat (16-bar) budget — each section gets 4 bars.
-  const { macro, warnings } = gen(aesthetic({ mood_label: 'triumphant' }), 64);
-  if (macro.form !== 'AABA') fail('b:aaba-survives', `triumphant@64 should keep AABA, got ${macro.form}`);
-  if (macro.total_bars !== 16) fail('b:aaba-bars', `64-beat budget should give 16 bars, got ${macro.total_bars}`);
-  if (macro.sections.some((s) => s.bars < 3)) fail('b:aaba-section-size', `AABA@16 sections should be ≥3 bars, got ${JSON.stringify(macro.sections)}`);
-  if (warnings.some((w) => w.toLowerCase().includes('downsized'))) fail('b:aaba-nowarn', 'AABA@64 should not downsize');
+  // an explicit AABA form_hint is honored at 32 beats (previously forced to binary).
+  const { macro } = gen(aesthetic({ mood_label: 'calm', form_hint: 'AABA' }));
+  if (macro.form !== 'AABA') fail('b:aaba-hint', `explicit AABA hint should be honored at 32 beats, got ${macro.form}`);
 }
 
 // =================================================================
@@ -214,8 +215,9 @@ if (failures.length > 0) {
 }
 console.log(
   'verify-stage2 PASSED — generateMacroParams maps all ten moods to the expected tonic/mode/form/tempo with '
-    + 'sections that tile and sum to total_bars; the 32-beat AABA→AB downsize fires (and AABA survives at 64 '
-    + 'beats); explicit hints (tonic/mode/tempo/form, AABB→binary, rondo→ternary, natural_minor→aeolian) are '
-    + 'honored; deriveKnobs maps intensity to the adventurousness knobs (and user_knobs_override is respected); '
-    + 'validateMacroParams catches the hard defects and warns on the soft ones.'
+    + 'sections that tile and sum to total_bars; forms are honored at the jingle length (AABA stays AABA at '
+    + '2 bars/section, 4 bars at 64 beats, explicit AABA hint honored — no downsize); explicit hints '
+    + '(tonic/mode/tempo/form, AABB→binary, rondo→ternary, natural_minor→aeolian) are honored; deriveKnobs maps '
+    + 'intensity to the adventurousness knobs (and user_knobs_override is respected); validateMacroParams catches '
+    + 'the hard defects and warns on the soft ones.'
 );
