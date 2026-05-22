@@ -287,13 +287,42 @@ function motifsSummary(motifs) {
   return ['MOTIFS (melodic cells, in scale degrees — reference each by its name)', ...lines].join('\n');
 }
 
+// The three chord-tone scale degrees (1..7) of a Roman numeral, stacked in
+// diatonic thirds from its root degree (root, root+2, root+4 mod 7). Exact for
+// diatonic triads (the common case) and a good-enough hint for borrows. Used to
+// tell Stage 5a which degrees a placed motif should land its strong beats on, so
+// the melody fits the chord under each bar rather than just the section's first.
+const ROMAN_DEGREE = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7 };
+function chordToneDegreesOf(roman) {
+  if (typeof roman !== 'string') return null;
+  const core = roman.replace(/^[b#]+/, '').match(/^[ivxIVX]+/);
+  if (!core) return null;
+  const root = ROMAN_DEGREE[core[0].toLowerCase()];
+  if (!root) return null;
+  const wrap = (step) => (((step - 1) % 7) + 7) % 7 + 1;
+  return [wrap(root), wrap(root + 2), wrap(root + 4)];
+}
+
+// Show the chord under EACH BAR (the progression is one chord per bar), with its
+// chord-tone degrees, so the model can land a placed motif's strong beats on the
+// harmony actually sounding in that bar — not only the section's opening chord.
 function harmonySummary(harmonicPlan) {
   const sections = harmonicPlan?.sections ?? [];
   if (sections.length === 0) return 'HARMONIC PLAN\n- (none supplied)';
-  const lines = sections.map(
-    (s) => `- ${s.label}: ${(s.progression ?? []).join(' ')}  (cadence: ${s.cadence ?? 'none'})`
-  );
-  return ['HARMONIC PLAN (Roman numerals, per section — informs phrase choices + cadences)', ...lines].join('\n');
+  const lines = sections.map((s) => {
+    const perBar = (s.progression ?? [])
+      .map((roman, i) => {
+        const tones = chordToneDegreesOf(roman);
+        return `bar ${i + 1} = ${roman}${tones ? ` (chord tones: degrees ${tones.join(', ')})` : ''}`;
+      })
+      .join('; ');
+    return `- ${s.label} (cadence: ${s.cadence ?? 'none'}): ${perBar}`;
+  });
+  return [
+    'HARMONIC PLAN — the chord under EACH BAR (bars are section-relative; a motif you place in a bar plays '
+      + 'OVER that bar\'s chord):',
+    ...lines,
+  ].join('\n');
 }
 
 // Per-section role / reprise-source / contrast, so the model honors the
@@ -349,6 +378,28 @@ function developmentRules() {
       + 'the section\'s final TWO BEATS. So you may let a motif occupy the FINAL bar and lead INTO the cadence '
       + '(its tail resolves into the close) — that is the preferred, more melodic choice — OR use the reserved '
       + `"${CADENTIAL_GESTURE}" slot if you want the melody to rest into the cadence. Either is valid.`,
+  ].join('\n');
+}
+
+// Non-enforced guidance steering the melody to FIT the per-bar harmony — a
+// Session-11 checkpoint finding. The motifs were being developed in pure
+// degree-space (e.g. sequence_up_step shifting a motif off the chord it fit) and
+// the wrong section's motif dropped into a bar, so the melody clashed with the
+// chord actually sounding. This is a soft steer (the validator can't measure
+// chord-tone fit from bar indices); it works with the per-bar HARMONIC PLAN above.
+function harmonyFitGuidance() {
+  return [
+    'FIT THE HARMONY (each placed motif plays OVER its bar\'s chord — see the per-bar HARMONIC PLAN above):',
+    '- Use each section\'s HOME motif as its primary material — the motif whose letter matches the section '
+      + '(A-sections → motif "a", B → "b", C → "c"). The home motif was written to sit on that section\'s '
+      + 'harmony; dropping a different section\'s motif into a bar usually clashes with the chord there.',
+    '- Land a motif\'s DOWNBEAT and any LONG note on a CHORD TONE of that bar\'s chord (the degrees listed '
+      + 'above). Strong beats on non-chord-tones fight the harmony; passing/neighbor tones between them are fine.',
+    '- TRANSPOSING/SEQUENCING SHIFTS THE WHOLE MOTIF. sequence_up_step / sequence_down_step / transpose_step / '
+      + 'transpose_third move every note by the same interval, so a motif that fit its home chord will NOT fit a '
+      + 'different chord unless that chord sits the same interval away. When you transpose or sequence a motif into '
+      + 'a bar, CHECK that the result\'s strong notes are chord tones of THAT bar\'s chord — if not, choose a '
+      + 'different transform or place it where the chord fits. Develop the material, but develop it CHORD-AWARE.',
   ].join('\n');
 }
 
@@ -422,6 +473,7 @@ export function buildPhrasePlanPrompt({ macroParams, motifs, harmonicPlan, confi
     phraseStructureVocabulary(),
     transformVocabulary(),
     developmentRules(),
+    harmonyFitGuidance(),
     phrasingGuidance(),
     `PHRASE ADVENTUROUSNESS — ${adventurousness}:\n  ${PHRASE_ADVENTUROUSNESS_DIRECTIVE[adventurousness]}`,
     schemaBlock(plan),
