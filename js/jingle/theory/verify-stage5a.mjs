@@ -185,7 +185,8 @@ lostMotif.sections["A'"].lead = [
 ];
 expectInvalid('a:reprise-lost-motif', validatePhrasePlan(lostMotif, MACRO, MOTIFS), 'reprise');
 
-// adjacent identical { motif, transform } pair
+// adjacent identical { motif, transform } pair — SOFT (Session-11 checkpoint): a
+// back-to-back bar repeat is static but plays fine, so it warns rather than aborting.
 const adjacent = clone(VALID);
 adjacent.sections.A.lead = [
   { motif: 'a', transform: 'literal', start_bar: 1, length_bars: 1 },
@@ -193,7 +194,11 @@ adjacent.sections.A.lead = [
   { motif: 'a', transform: 'fragment_tail', start_bar: 3, length_bars: 1 },
   { motif: null, transform: 'cadential_gesture', start_bar: 4, length_bars: 1 },
 ];
-expectInvalid('a:adjacent-identical', validatePhrasePlan(adjacent, MACRO, MOTIFS), 'adjacent identical');
+const adjacentResult = validatePhrasePlan(adjacent, MACRO, MOTIFS);
+if (!adjacentResult.ok) fail('a:adjacent-identical-soft', `adjacent-identical should now be a soft warning, not a failure: ${JSON.stringify(adjacentResult.errors)}`);
+if (!adjacentResult.warnings.some((w) => w.toLowerCase().includes('repeat'))) {
+  fail('a:adjacent-identical-soft', `expected a soft 'repeat' warning, got ${JSON.stringify(adjacentResult.warnings)}`);
+}
 
 // overlap (bar 1 spans 2 bars, bar 2 assignment starts inside it)
 const overlap = clone(VALID);

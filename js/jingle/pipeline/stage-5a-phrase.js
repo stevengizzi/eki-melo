@@ -411,8 +411,9 @@ function developmentRules() {
     '- A contrast section (role "contrast"/"variation") must contain at least one non-literal motivic '
       + 'transform (not just "literal").',
     '- A reprise section (role "reprise") must bring back at least one motif used by the section it reprises.',
-    '- No two ADJACENT assignments in a section may be the identical { motif, transform } pair.',
     '- Assignments within a section may NOT overlap (a gap/rest is fine); none may run past the section\'s last bar.',
+    'PREFER VARIETY (advisory, not rejected): avoid placing the IDENTICAL { motif, transform } pair in two '
+      + 'adjacent bars — repeating a bar back-to-back sounds static. Vary the transform between adjacent bars.',
     'CADENCES: a section that declares a cadence (see HARMONIC PLAN) closes with one — but Stage 8 enforces only '
       + 'the section\'s final TWO BEATS. So you may let a motif occupy the FINAL bar and lead INTO the cadence '
       + '(its tail resolves into the close) — that is the preferred, more melodic choice — OR use the reserved '
@@ -584,7 +585,7 @@ function parsePhrasePlanResponse(raw) {
  * the final bar and lead INTO the cadence (only its tail resolves) — that is a
  * valid, preferred shape, not a defect.
  */
-function validateLead(lead, label, bars, motifNames, push, harmonyContext) {
+function validateLead(lead, label, bars, motifNames, push, warn, harmonyContext) {
   const summary = { motifSet: new Set(), hasDevelopment: false };
   if (!Array.isArray(lead)) {
     push(`Section "${label}" "lead" must be an array of assignments.`);
@@ -700,12 +701,16 @@ function validateLead(lead, label, bars, motifNames, push, harmonyContext) {
 
   const sorted = [...placed].sort((a, b) => a.start - b.start);
 
-  // (c) no two ADJACENT (by start_bar) assignments share the same { motif, transform } pair.
+  // (c) two ADJACENT (by start_bar) assignments sharing the same { motif, transform }
+  // pair — a back-to-back bar repeat. SOFT (Session-11 checkpoint): it sounds static
+  // but plays fine and is common in real music, so per the schema-hard / style-soft
+  // discipline it warns rather than aborting the (already 3-call) run.
   for (let k = 1; k < sorted.length; k++) {
     if (sorted[k].key === sorted[k - 1].key) {
-      push(
-        `Section "${label}" has adjacent identical assignments at bars ${sorted[k - 1].start} and `
-          + `${sorted[k].start}: motif ${motifDisplay(sorted[k].motif)} with transform "${sorted[k].label}" repeated.`
+      warn(
+        `section "${label}" repeats the identical assignment at bars ${sorted[k - 1].start} and `
+          + `${sorted[k].start}: motif ${motifDisplay(sorted[k].motif)} with transform "${sorted[k].label}" `
+          + '(back-to-back repeat sounds static — soft note, not a failure).'
       );
     }
   }
@@ -742,21 +747,23 @@ function validateLead(lead, label, bars, motifNames, push, harmonyContext) {
  */
 export function validatePhrasePlan(wrappedPlan, macroParams, motifs, harmonicPlan = undefined) {
   const errors = [];
+  const warnings = [];
   const push = (message) => errors.push(message);
+  const warn = (message) => warnings.push(message);
 
   if (!wrappedPlan || typeof wrappedPlan !== 'object' || Array.isArray(wrappedPlan)) {
-    return { ok: false, errors: ['PhrasePlan must be a JSON object.'] };
+    return { ok: false, errors: ['PhrasePlan must be a JSON object.'], warnings };
   }
   const sections = wrappedPlan.sections;
   if (!sections || typeof sections !== 'object' || Array.isArray(sections)) {
-    return { ok: false, errors: ['PhrasePlan.sections must be an object keyed by section label.'] };
+    return { ok: false, errors: ['PhrasePlan.sections must be an object keyed by section label.'], warnings };
   }
 
   let plan;
   try {
     plan = computeSectionPlan(macroParams);
   } catch (error) {
-    return { ok: false, errors: [`Could not derive the section plan from macroParams: ${error.message}`] };
+    return { ok: false, errors: [`Could not derive the section plan from macroParams: ${error.message}`], warnings };
   }
   const expectedLabels = plan.map((s) => s.label);
   const barsByLabel = new Map(plan.map((s) => [s.label, s.bars]));
@@ -800,7 +807,7 @@ export function validatePhrasePlan(wrappedPlan, macroParams, motifs, harmonicPla
     const harmonyContext = harmonicPlan
       ? { motifs: motifMap, progression: progressionByLabel.get(label) }
       : null;
-    const summary = validateLead(sectionPlan.lead, label, bars, motifNames, push, harmonyContext);
+    const summary = validateLead(sectionPlan.lead, label, bars, motifNames, push, warn, harmonyContext);
     summaryByLabel.set(label, summary);
   }
 
@@ -832,7 +839,7 @@ export function validatePhrasePlan(wrappedPlan, macroParams, motifs, harmonicPla
     }
   }
 
-  return { ok: errors.length === 0, errors };
+  return { ok: errors.length === 0, errors, warnings };
 }
 
 // Unwrap the validated envelope into the flat §3 PhrasePlan the rest of the
@@ -857,8 +864,9 @@ function unwrapPhrasePlan(wrapped) {
  *     exercises the stage without an API call.
  *
  * `onTrace`, if supplied, is called once per model round-trip (or the mock) with
- * `{ attempt, raw, ok, errors }` — used by the inspector to show the raw
- * response(s). It is never required.
+ * `{ attempt, raw, ok, errors }`, and once more after a successful result with
+ * `{ attempt: 'soft-note', warnings }` IF any soft warnings fired (e.g. a
+ * back-to-back identical-assignment repeat) — diagnostics, not failures. Never required.
  */
 export async function generatePhrasePlan({
   macroParams,
@@ -873,6 +881,14 @@ export async function generatePhrasePlan({
   const { system, user } = buildPhrasePlanPrompt({ macroParams, motifs, harmonicPlan, config });
   const trace = typeof onTrace === 'function' ? onTrace : () => {};
 
+  // Emit (and log) a validated plan's soft warnings. Diagnostics, never failures.
+  const emitSoftWarnings = (warns) => {
+    if (warns && warns.length > 0) {
+      trace({ attempt: 'soft-note', raw: null, ok: true, errors: [], warnings: warns });
+      for (const warning of warns) console.warn(`Stage 5a (soft): ${warning}`);
+    }
+  };
+
   // --- Offline / deterministic fallback: same parse + validate, no network. ---
   if (__mockResponse !== undefined) {
     const parsed = parsePhrasePlanResponse(__mockResponse); // throws clearly on bad JSON
@@ -882,6 +898,7 @@ export async function generatePhrasePlan({
       console.error('Stage 5a: mock response failed validation. Raw:\n', __mockResponse);
       throw new Error(`Stage 5a: mock PhrasePlan is invalid:\n  - ${result.errors.join('\n  - ')}`);
     }
+    emitSoftWarnings(result.warnings);
     return unwrapPhrasePlan(parsed);
   }
 
@@ -896,7 +913,7 @@ export async function generatePhrasePlan({
   } catch (parseError) {
     // Treat an unparseable first response like a validation failure so the single
     // retry gets a chance to return clean JSON.
-    result = { ok: false, errors: [parseError.message] };
+    result = { ok: false, errors: [parseError.message], warnings: [] };
   }
   trace({ attempt: 1, raw, ok: result.ok, errors: result.errors });
 
@@ -913,5 +930,6 @@ export async function generatePhrasePlan({
     }
   }
 
+  emitSoftWarnings(result.warnings);
   return unwrapPhrasePlan(parsed);
 }
