@@ -174,6 +174,39 @@ for (const name of Object.keys(TEXTURE_REGISTRY)) {
   }
 }
 
+// --- 1b. heterophony density guard (Session-10 checkpoint regression) -------
+// The old heterophony halved EVERY lead note, so a sixteenth ornament note became
+// two 32nds and a zero-movement step doubled a pitch into a stutter — "nothing a
+// human would write." The reshaped texture holds the lead's pitch and adds at most
+// one sixteenth passing tone into the next, only on notes longer than an eighth.
+// Guard both regressions: no sub-sixteenth event, and never more than 2 events per
+// lead note (no over-subdivision).
+{
+  const sixteenth = METER.denominator / 8 / 2; // 0.25 in x/4
+  const hetMode = 'major';
+  const hetTonic = 'C';
+  // A lead with a sixteenth note and held notes — the shapes that produced 32nds /
+  // dotted-sixteenth runs under the old code.
+  const hetMotif = { degrees: [1, 3, 2, 5], rhythm: [0.25, 0.75, 1, 2], contour: 'wandering', register: 'mid', anomaly: null };
+  const hetLead = renderMotifToDegreeEvents(hetMotif, 0).map((event) => ({
+    pitch: degreeToPitch(hetMode, hetTonic, event.degree, LEAD_OCTAVE + event.octave_offset),
+    beat: event.beat,
+    duration: event.duration,
+    degree: event.degree,
+    octave_offset: event.octave_offset,
+  }));
+  const hetChords = new Map([[0, resolveRoman('I', hetMode, hetTonic, 4)]]);
+  const hetOut = TEXTURE_REGISTRY.heterophony(hetLead, hetChords, hetMode, hetTonic, LEAD_OCTAVE, METER, {});
+  hetOut.forEach((event, i) => {
+    if (event.duration < sixteenth - EPSILON) {
+      fail('heterophony:density', `event ${i} duration ${event.duration} is shorter than a sixteenth (${sixteenth}) — 32nd-note regression`);
+    }
+  });
+  if (hetOut.length > hetLead.length * 2) {
+    fail('heterophony:density', `produced ${hetOut.length} events from ${hetLead.length} lead notes (> 2× — over-subdivided)`);
+  }
+}
+
 // --- 2. dispatch reaches every registry entry ------------------------------
 
 const registryNames = Object.keys(TEXTURE_REGISTRY).sort();

@@ -433,36 +433,44 @@ export function chord_tones_pulse(leadEventsInRange, chordsByAbsBar, mode, tonic
 // =================================================================
 
 /**
- * Harmony shadows the lead at twice its rhythmic density: each lead event
- * becomes two half-duration events — the lead's own pitch, then a passing /
- * neighbor tone a scale step toward the NEXT lead pitch (the same pitch when the
- * lead repeats, or has reached its end). The shadow is voiced an octave below
- * the lead so the rising ornament never crosses above it (the literal-unison
- * reading the prompt names would cross on an ascending step; octave-below keeps
- * the same pitch CLASS while honoring the no-crossing rule). The octave doubling
- * plus the ornament reads as heterophony rather than a plain unison.
+ * Harmony shadows the lead an octave below, adding a LIGHT passing-tone ornament
+ * into the next note rather than mechanically halving every note. For each lead
+ * note LONGER than an eighth (and only when the line actually moves to the next
+ * pitch), the shadow holds the lead's pitch for most of the note, then steps one
+ * scale degree toward the next lead pitch for a closing sixteenth — a heterophonic
+ * ornament. Shorter notes, and notes with no movement to the next pitch, are
+ * shadowed plainly (a single octave-below note). Voiced an octave below so the
+ * ornament never crosses above the lead.
+ *
+ * This replaces a Session-6 version that split EVERY lead note into two
+ * half-duration events: that turned a sixteenth into two 32nds, doubled a
+ * repeated/zero-movement pitch into a stutter, and made dotted-sixteenth runs out
+ * of dotted-eighth lead notes — "nothing a human would write" (Session-10
+ * checkpoint). Holding the note and adding at most one sixteenth passing tone, only
+ * on notes worth ornamenting, keeps heterophony a varied doubling without the
+ * machine-gun density. See verify-textures.mjs's heterophony density guard.
  */
-export function heterophony(leadEventsInRange, chordsByAbsBar, mode, tonic, leadOctave) {
+export function heterophony(leadEventsInRange, chordsByAbsBar, mode, tonic, leadOctave, meter) {
+  const eighth = eighthDurOf(meter);
+  const sixteenth = eighth / 2;
   const events = [];
+  const shadow = (linear, beat, duration) =>
+    events.push({ pitch: clampToRange(pitchFromLinear(linear, mode, tonic, leadOctave - 1)), beat, duration });
+
   leadEventsInRange.forEach((event, i) => {
-    const half = event.duration / 2;
     const baseLinear = leadLinearOf(event);
-
-    // First half — the lead's pitch, an octave below.
-    events.push({
-      pitch: clampToRange(pitchFromLinear(baseLinear, mode, tonic, leadOctave - 1)),
-      beat: event.beat,
-      duration: half,
-    });
-
-    // Second half — a scale step toward the next lead pitch (0 = stay put).
     const next = leadEventsInRange[i + 1];
     const direction = next ? Math.sign(leadLinearOf(next) - baseLinear) : 0;
-    events.push({
-      pitch: clampToRange(pitchFromLinear(baseLinear + direction, mode, tonic, leadOctave - 1)),
-      beat: event.beat + half,
-      duration: half,
-    });
+
+    if (direction !== 0 && event.duration > eighth + EPSILON) {
+      // Hold the lead's pitch, then one sixteenth passing tone toward the next.
+      shadow(baseLinear, event.beat, event.duration - sixteenth);
+      shadow(baseLinear + direction, event.beat + (event.duration - sixteenth), sixteenth);
+    } else {
+      // Short note, or no movement to the next pitch — a plain octave-below
+      // shadow (no spurious subdivision, no stutter).
+      shadow(baseLinear, event.beat, event.duration);
+    }
   });
   return events;
 }

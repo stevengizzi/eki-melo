@@ -2733,3 +2733,25 @@ The first live re-runs couldn't complete a single generation, hitting two transp
 All eleven verifiers now pass offline (the ten prior + verify-llm-call). The static pipeline
 modules are served live by wrangler, so a hard-refresh picks up the retry logic; the proxy cap
 is already live. Checkpoint still OPEN pending Steven's re-listen.
+
+### Checkpoint finding (2026-05-22) — heterophony reshaped (it sounded inhuman)
+
+With the transport fixes in, runs completed and Steven's read was positive ("sounding good!") with
+one texture singled out: heterophony "doesn't sound like anything a human would write." The trace
+confirmed it — the Session-6 heterophony split EVERY lead note into two half-duration events, which
+produced, in a real developed lead: 32nd notes (a 0.25 ornament note halved to two 0.125s), repeated-
+pitch stutters (a zero-movement step doubled a pitch, e.g. `A4 A4 A4`), and dotted-sixteenth scale
+runs (0.75 notes halved to 0.375). Mechanical and jittery, not composed.
+
+Reshaped `theory/textures.js` heterophony: it now shadows the lead an octave below at the lead's OWN
+rhythm, and adds at most ONE sixteenth passing tone into the next pitch — and only on notes longer
+than an eighth, and only when the line actually moves. Short notes and zero-movement notes get a
+plain octave-below shadow (no subdivision, no stutter). So a held quarter becomes "hold 0.75 + a
+sixteenth passing tone," while an eighth-note run is simply doubled — a varied doubling rather than a
+relentless 2× scale-walk. The texture keeps its identity (the ornament) and its distinctness from
+voice_exchange (which never ornaments), without the machine-gun artifacts. Stage 5b's heterophony
+description updated to match ("an octave below, ornamenting longer notes with a passing tone").
+Theory-layer change (a Session-6 deliverable), made in-pass because it's a clear aesthetic defect the
+fully-LLM audition surfaced — and the no-crossing / in-range / positive-duration invariants are
+unchanged, so the pinned verify-stage6/7/8 cases are unaffected. verify-textures gains a heterophony
+density guard (no sub-sixteenth event; ≤ 2 events per lead note). All eleven verifiers pass offline.

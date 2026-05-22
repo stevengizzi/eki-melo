@@ -80,7 +80,7 @@ const TEXTURE_DESCRIPTIONS = {
   voice_exchange: 'doubles the melody an octave below — reinforces the line, fuller',
   dropout: 'silent for the passage — breath, contrast, exposes the melody alone',
   chord_tones_pulse: 'pulses chord tones in steady eighth notes — rhythmic drive',
-  heterophony: 'shadows the melody with added passing tones — ornamented, busier doubling',
+  heterophony: 'shadows the melody an octave below, ornamenting longer notes with a passing tone into the next — a varied doubling',
 };
 
 const BASS_DESCRIPTIONS = {
