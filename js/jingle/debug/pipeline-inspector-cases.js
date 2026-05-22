@@ -35,6 +35,11 @@
    so the inspector calls Stage 5b (the LLM) to choreograph one live. Kept out of
    `CASES` on purpose — a case with no texturePlan would crash the Stage-6/7/8
    verifiers, which trust the hand-supplied plan.
+
+   SESSION 10. `GENERATED_CASES` gains the FULLY-LLM case "Sunrise Fanfare — fully
+   LLM" (motifs + phrasePlan + texturePlan all omitted): the whole creative
+   content is generated (Stage 4 → 5a → 5b), only macroParams + harmonicPlan are
+   hand-supplied. This is the Session-10 human-checkpoint case.
    ================================================================= */
 
 export const CASES = [
@@ -340,6 +345,30 @@ function withoutPhraseAndTexturePlan(base, overrides) {
   return { ...rest, generated: true, ...overrides };
 }
 
+// ---------------------------------------------------------------- Session 10
+// FULLY-LLM case: the same macroParams + harmonicPlan as the matching hand-
+// supplied case, but with motifs, phrasePlan, AND texturePlan all OMITTED. The
+// inspector calls Stage 4 (generateMotifs) to write the melodic cells, then
+// Stage 5a (generatePhrasePlan) to shape their development, then Stage 5b
+// (generateTexturePlan) to choreograph textures — the ENTIRE creative content is
+// LLM-generated; only the macro params and the harmonic progression are hand-
+// supplied. This is the case the Session-10 human checkpoint A/Bs against the
+// hand-supplied Sunrise and the partial-generated twins.
+//
+// Stage 4 reads `macroParams.mood` (its single most important shape signal), so
+// the case's mood is surfaced INTO macroParams (forward-looking: Stage 2 will set
+// it from the AestheticBrief). The top-level `mood` is kept for FinalJingle
+// metadata, exactly as the runner reads it.
+function fullyLLMCase(base, overrides) {
+  const { motifs, phrasePlan, texturePlan, ...rest } = base;
+  return {
+    ...rest,
+    macroParams: { ...rest.macroParams, mood: base.mood },
+    generated: true,
+    ...overrides,
+  };
+}
+
 export const GENERATED_CASES = [
   withoutTexturePlan(CASES[0], {
     id: 'sunrise-generated',
@@ -352,5 +381,9 @@ export const GENERATED_CASES = [
   withoutPhraseAndTexturePlan(CASES[1], {
     id: 'wanderer-fully-generated',
     title: "Wanderer's Path — fully generated",
+  }),
+  fullyLLMCase(CASES[0], {
+    id: 'sunrise-fully-llm',
+    title: 'Sunrise Fanfare — fully LLM',
   }),
 ];
