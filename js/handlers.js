@@ -8,14 +8,64 @@
 import { guests, setGuests, saveGuests, migrateGuest } from './storage.js';
 import { render, showError, hideError, toast } from './ui.js';
 import { synth, renderJingleToWav } from './jingle/synth.js';
-import { generateJingle } from './jingle/api.js';
+import { generateJingle, DEFAULT_ENGINE, otherEngine, engineLabel } from './jingle/engines.js';
 import { generateAvatar } from './avatar/api.js';
 
-export async function handleGenerate() {
+const GENERATE_LABEL = '► COMPOSE THEME & AVATAR';
+
+// The engine the Add-Guest form currently selects (radio group), defaulting to
+// the pipeline if the control is somehow absent.
+function selectedEngine() {
+  const checked = document.querySelector('input[name="engine"]:checked');
+  return checked ? checked.value : DEFAULT_ENGINE;
+}
+
+// A successful avatar held across a jingle-engine RETRY so we don't re-spend the
+// PixelLab call when only the jingle engine is being swapped. Cleared once a guest
+// is saved (or a fresh, non-retry generation starts).
+let heldAvatarResult = null;
+
+function setGenerating(btn, on) {
+  if (!btn) return;
+  btn.disabled = on;
+  if (on) btn.innerHTML = 'COMPOSING<span class="loading"></span>';
+  else btn.textContent = GENERATE_LABEL;
+}
+
+// Render the "retry with the other engine" affordance. The button regenerates
+// with the OTHER engine (preserving the user's deliberate first choice — no
+// auto-fallback). Recreated each time, so no stale listener accumulates.
+function showRetry(failedEngine) {
+  const el = document.getElementById('form-retry');
+  if (!el) return;
+  const other = otherEngine(failedEngine);
+  el.innerHTML = `<button class="btn btn-secondary btn-small" id="retry-other-btn">↻ RETRY WITH ${engineLabel(other).toUpperCase()}</button>`;
+  el.style.display = 'block';
+  const btn = document.getElementById('retry-other-btn');
+  if (btn) btn.addEventListener('click', () => runGenerate(other));
+}
+
+function hideRetry() {
+  const el = document.getElementById('form-retry');
+  if (!el) return;
+  el.innerHTML = '';
+  el.style.display = 'none';
+}
+
+// Click handler on the Generate button — composes with the selected engine.
+export function handleGenerate() {
+  heldAvatarResult = null; // a fresh top-level generate is not a retry.
+  return runGenerate(selectedEngine());
+}
+
+// The core generate flow, parameterized by engine so the retry button can re-run
+// it with the other engine. On a retry a previously-successful avatar is reused.
+async function runGenerate(engine) {
   const nameEl = document.getElementById('guest-name');
   const descEl = document.getElementById('guest-desc');
   const btn = document.getElementById('generate-btn');
   hideError();
+  hideRetry();
 
   const name = nameEl.value.trim();
   const description = descEl.value.trim();
@@ -23,20 +73,28 @@ export async function handleGenerate() {
   if (!description) return showError('Describe their vibe — even a sentence works.');
 
   synth.init();
-  btn.disabled = true;
-  btn.innerHTML = 'COMPOSING<span class="loading"></span>';
+  setGenerating(btn, true);
 
+  // Reuse a held avatar across an engine retry; otherwise generate one alongside.
+  const avatarPromise = heldAvatarResult
+    ? Promise.resolve(heldAvatarResult)
+    : generateAvatar(name, description);
   const [jingleResult, avatarResult] = await Promise.allSettled([
-    generateJingle(name, description),
-    generateAvatar(name, description)
+    generateJingle({ guestName: name, mood: description, engine }),
+    avatarPromise
   ]);
 
+  setGenerating(btn, false);
+
   if (jingleResult.status === 'rejected') {
-    btn.disabled = false;
-    btn.textContent = '► COMPOSE THEME & AVATAR';
-    return showError(`Couldn't compose jingle: ${jingleResult.reason?.message || 'unknown'}`);
+    // Hold a good avatar so the retry-with-other-engine doesn't redo it.
+    heldAvatarResult = avatarResult.status === 'fulfilled' ? avatarResult.value : null;
+    showError(`Couldn't compose the ${engineLabel(engine)} jingle: ${jingleResult.reason?.message || 'unknown'}`);
+    showRetry(engine);
+    return;
   }
 
+  heldAvatarResult = null;
   const guest = {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
     name,
@@ -57,9 +115,6 @@ export async function handleGenerate() {
   }
 
   render();
-  btn.disabled = false;
-  btn.textContent = '► COMPOSE THEME & AVATAR';
-
   setTimeout(() => synth.play(jingleResult.value, guest.id), 200);
 }
 
@@ -70,15 +125,18 @@ async function handleRerollJingle(id) {
   const btn = card?.querySelector('[data-act="rerollJingle"]');
   if (btn) { btn.disabled = true; btn.innerHTML = 'REROLLING<span class="loading"></span>'; }
 
+  // Reroll honors the form's current engine selection (a guest can hold a mix of
+  // v1 and pipeline takes; each carries its own engine tag).
+  const engine = selectedEngine();
   try {
-    const jingle = await generateJingle(guest.name, guest.description);
+    const jingle = await generateJingle({ guestName: guest.name, mood: guest.description, engine });
     guest.jingles.push(jingle);
     guest.currentJingleIndex = guest.jingles.length - 1;
     await saveGuests();
     render();
     setTimeout(() => synth.play(jingle, id), 150);
   } catch (e) {
-    showError(`Reroll failed: ${e.message}`);
+    showError(`Reroll (${engineLabel(engine)}) failed: ${e.message}`);
     if (btn) { btn.disabled = false; btn.innerHTML = '↻ NEW JINGLE'; }
   }
 }

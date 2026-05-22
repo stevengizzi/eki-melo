@@ -2,6 +2,51 @@
 
 All notable changes to EKI Melo. Most recent first.
 
+## [v2.0.0] — 2026-05-22
+
+The composition-engine rebuild ships. This is the milestone the 12-session
+`docs/composition-engine-buildplan.md` was building toward, so it adopts a
+semantic version (`v2.0.0`) rather than continuing the `vN` release-tag run —
+`v2` marks "the second-generation composer is live." The prior `v1`…`v8` tags
+remain the historical record.
+
+### Added
+- **Dual-engine jingle composition, chosen per guest.** The Add-Guest form now
+  has an **ENGINE** toggle next to Compose:
+  - **PIPELINE** (default) — the new 10-stage composer: aesthetic interpretation
+    → macro parameters → harmony → melodic phrases → arrangement → texture →
+    voice realization → voice-leading → cadence. Five LLM calls scoped to soft
+    creative decisions, deterministic music theory for the hard rules.
+  - **v1** (classic) — the original single-prompt generator, unchanged.
+  Each generated jingle records which engine made it; the guest card shows a
+  small **PIPELINE** / **v1** badge that updates as you page through a guest's
+  archive. See DEC-014.
+- **Retry with the other engine.** If the chosen engine fails, a one-tap "Retry
+  with v1 / Retry with Pipeline" button appears. No silent auto-fallback — your
+  engine choice is preserved across the failure (a held avatar isn't re-spent on
+  the retry). See DEC-014.
+- **Pipeline metadata stored per jingle.** Pipeline jingles keep their full
+  intermediate plans (aesthetic / macroParams / harmony / motifs / phrase /
+  texture) under `pipelineMetadata` for inspection.
+
+### Changed
+- **Generate + reroll now dispatch through `js/jingle/engines.js`** (the new
+  engine dispatcher: 60s timeout, structured errors, one structured log line per
+  generation). Reroll honors the form's current engine selection, so a guest can
+  hold a mix of v1 and pipeline takes.
+- **Per-jingle storage schema** gains `engine: 'v1' | 'pipeline'` (+ optional
+  `pipelineMetadata`). Migration is non-destructive (DEC-007): every jingle
+  stored before this release is tagged `engine: 'v1'` on read (v1 was the only
+  engine then) and written back only after a clean full read. See DEC-015.
+
+### Preserved
+- **v1 is bit-identical.** `composition.js` / `api.js` / `render.js` /
+  `synth.js` are untouched; `engines.js` reuses `api.js`'s `generateJingle`
+  verbatim for the v1 path. Both engines work in the deployed browser AND the
+  Claude.ai artifact runtime (same `env.js` endpoint adapter). `STORAGE_KEY`
+  unchanged; the JSON backup export/import round-trips the new fields with no
+  format change (DEC-009); the Anthropic key stays server-side (DEC-010).
+
 ## [v8] — 2026-05-21
 
 ### Changed

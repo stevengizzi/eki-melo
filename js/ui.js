@@ -11,6 +11,16 @@ export function escapeHtml(s) {
   return d.innerHTML;
 }
 
+// A small inline tag showing which engine composed the currently-shown jingle.
+// Reads the per-jingle `engine` field (defaulting to v1 for any pre-dual-engine
+// jingle that somehow lacks one); re-rendered whenever the archive pager moves,
+// so the badge always tracks g.jingles[g.currentJingleIndex].
+function engineBadge(engine) {
+  const which = engine === 'pipeline' ? 'pipeline' : 'v1';
+  const label = which === 'pipeline' ? 'PIPELINE' : 'v1';
+  return `<span class="engine-badge engine-badge-${which}">${label}</span>`;
+}
+
 export function render() {
   avatarAnimations.forEach(a => cancelAnimationFrame(a.raf));
   avatarAnimations.clear();
@@ -61,7 +71,7 @@ export function renderGuestCard(g) {
           </div>
           <div class="guest-info">
             <div class="guest-name">${escapeHtml(g.name)}</div>
-            <div class="guest-theme">"${escapeHtml(jingle.title)}"</div>
+            <div class="guest-theme">"${escapeHtml(jingle.title)}" ${engineBadge(jingle.engine)}</div>
             <div class="guest-meta">${escapeHtml(jingle.key)} · ${escapeHtml(jingle.mood)} · ${jingle.tempo} BPM${jingle.form ? ' · ' + escapeHtml(jingle.form) : ''}</div>
             ${g.description ? `<div class="guest-desc">${escapeHtml(g.description)}</div>` : ''}
           </div>

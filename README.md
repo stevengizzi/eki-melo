@@ -4,15 +4,36 @@
 
 ## What it does
 
-You enter a guest's name and a sentence about their personality. The app calls Claude to compose a 3-voice chiptune piece (square-wave lead, pulse harmony, triangle bass) with proper musical form — AABA / ABA' / ABCA — and to design a pixel-art character: Claude writes the character spec, then PixelLab's PixFlux model renders a 64×64 sprite. Every reroll preserves the previous version so you can compare and pick favorites. You can download any jingle as a WAV.
+You enter a guest's name and a sentence about their personality, pick a composition **engine**, and the app composes a 3-voice chiptune piece (square-wave lead, pulse harmony, triangle bass) with proper musical form — AABA / ABA' / ABCA — and designs a pixel-art character: Claude writes the character spec, then PixelLab's PixFlux model renders a 64×64 sprite. Every reroll preserves the previous version so you can compare and pick favorites. You can download any jingle as a WAV.
 
-The whole thing renders inline as a "character select" screen with section markers on the piano-roll visualization.
+**Two composition engines (you choose per guest):**
+
+- **Pipeline** (default) — a 10-stage composer (`js/jingle/pipeline/`, with the music-theory layer in `js/jingle/theory/`): an LLM interprets the vibe into an aesthetic, deterministic code picks the macro parameters (key/mode/form/tempo), then LLM stages write the harmony, the melodic phrases, the arrangement, and the texture, and deterministic stages realize the voices, fix the voice-leading, and enforce the cadences. The LLM makes the soft creative calls; the code enforces the hard music-theory rules.
+- **v1** (classic) — the original single-prompt generator (`js/jingle/composition.js` + `api.js`): one prompt to Claude, one jingle JSON back.
+
+The chosen engine is recorded on each jingle and badged in the archive; if one engine fails you can retry with the other. The whole thing renders inline as a "character select" screen with section markers on the piano-roll visualization. See DEC-014.
 
 ## Project structure
 
 ```
 eki-melo/
-├── index.html              ← the entire app
+├── index.html              ← markup only; loads styles.css + js/main.js
+├── styles.css
+├── js/                     ← ES modules (no build step; the import graph is load order)
+│   ├── main.js             ← event wire-up + initial load
+│   ├── env.js              ← artifact/browser endpoint + storage detection
+│   ├── storage.js          ← guests, migrate/load/save (per-jingle engine field)
+│   ├── ui.js               ← render, guest cards, engine badge
+│   ├── handlers.js         ← generate/reroll dispatch (+ retry-with-other-engine)
+│   ├── jingle/
+│   │   ├── engines.js      ← dual-engine dispatcher (v1 | pipeline)
+│   │   ├── composition.js  ← v1 system prompt (read-only)
+│   │   ├── api.js          ← v1 generateJingle (read-only)
+│   │   ├── synth.js        ← chiptune synthesis + WAV (read-only)
+│   │   ├── render.js       ← piano-roll renderer (read-only)
+│   │   ├── theory/         ← scales, modes, forms, motifs, cadences, voice-leading, verifiers
+│   │   └── pipeline/       ← the 10-stage composer (stage-1…stage-8 + runner + config)
+│   └── avatar/             ← avatar api + render
 ├── functions/
 │   └── api/
 │       ├── generate.js     ← Cloudflare Pages Function: proxies jingles to Anthropic
@@ -20,10 +41,10 @@ eki-melo/
 ├── docs/
 │   ├── project-knowledge.md
 │   ├── architecture.md
-│   └── decision-log.md
-├── archive/                ← preserved earlier versions
-│   ├── eki_greetings_v1.html
-│   └── eki_greetings_v2.html
+│   ├── decision-log.md
+│   ├── composition-engine-buildplan.md   ← the 12-session rebuild plan
+│   └── buildplan-journal.md              ← per-session build journal
+├── archive/                ← preserved earlier single-file versions
 ├── README.md
 ├── CHANGELOG.md
 ├── CLAUDE.md               ← Claude Code session entry point

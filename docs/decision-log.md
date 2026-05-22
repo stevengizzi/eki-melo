@@ -354,3 +354,59 @@ The existing section banners were the natural seams. One section split across tw
 **Cross-References:**
 - Supersedes the single-file aspect of DEC-001 (vanilla JS, no framework, no build step all retained)
 - Related decisions: DEC-007 (storage key/migration), DEC-009 (backup format), DEC-010 (key proxy)
+
+---
+
+**DEC-014:** Composition engine rebuild ships as a user-selected dual-engine (v1 + pipeline)
+**Date:** 2026-05-22
+**Sprint:** Composition-engine rebuild (Session 13 — wire-up)
+
+**Decision:**
+The 10-stage composition pipeline built across Sessions 1–12 ships alongside the original generator as TWO co-equal engines, and the **user chooses one per generation** via a radio toggle on the Add-Guest form:
+
+- **`v1`** — the original loose generator: one large LLM prompt (`js/jingle/composition.js`'s brief) → a jingle JSON, parsed by `js/jingle/api.js`. Unchanged and bit-identical to its pre-Session-13 behavior.
+- **`pipeline`** — the new composer: Stage 1 (aesthetic interpretation, LLM) → Stage 2 (macro parameters, deterministic) → Stage 3 (harmony, LLM) → Stage 4 (melodic phrases, LLM) → Stage 5a (arrangement, LLM) → Stage 5b (texture, LLM) → Stages 6/7/8 (deterministic voice realization / voice-leading / cadence). Driven by `runPipelineGenerating`.
+
+A new dispatcher, `js/jingle/engines.js`, exposes one `generateJingle({ guestName, mood, engine })` that runs the chosen engine under a 60s timeout, tags the result with its `engine`, attaches the full `pipelineMetadata` for pipeline jingles, and logs one structured line per generation. Each jingle stores its engine; the archive view badges it. On failure the UI surfaces the error with a one-tap "Retry with the other engine" button — there is **no auto-fallback** (the user's engine choice is deliberate and is preserved across the failure). Default engine: `pipeline` (the Session-12 confirmed "keep" verdict).
+
+**Alternatives Rejected:**
+1. *Replace v1 outright with the pipeline (the original buildplan §1 plan: "demote the old call path to a fallback, kept for one release, then removed").* The pipeline is good but "good-not-perfect" (Session-12 close-out); v1 remains a strong, different-sounding generator. Keeping both as a user choice makes v1 the permanent safety net and turns the A/B comparison into something Steven does organically over real party guests, rather than a throwaway transition aid.
+2. *Auto-fallback to v1 when the pipeline fails.* Rejected: it silently overrides a deliberate choice. If a guest's pipeline take fails, the user may still want the pipeline (a retry often succeeds) — so the failure surfaces with an explicit retry-with-the-other-engine affordance instead.
+3. *A `'both'` engine that generates with each and lets the user pick.* Doubles cost and latency at party time for a comparison that the per-guest toggle already affords across the guest list. Steven's call: pick one per guest.
+4. *An internal-only engine flag (no UI).* The whole point is to let the party host steer the sound per guest; a hidden flag would bury the rebuild.
+
+**Rationale:**
+The pipeline's value is conditional and aesthetic, not absolute — some guests will sound better through one engine, some through the other. A user-facing toggle is the honest shape for that: it ships the rebuild as a real option while preserving the proven generator, with the dual-engine itself as the primary safety net (the secondary one, the in-pipeline cell-vs-phrase A/B behind `motif_architecture`, is retained internally — see the Session-12 journal). The pipeline's `FinalJingle` was designed (Stage 6) to emit synth-ready `[pitch, duration]` tracks, so `engines.js`'s pipeline→playback conversion is a field-pick, not a re-channelization, and the read-only `synth.js` / `render.js` play and draw either engine identically.
+
+**Constraints:**
+- Both engines must work in BOTH runtime contexts (deployed Cloudflare Pages + Claude.ai artifact runtime). Both route their LLM calls through the same `js/env.js` endpoint adapter, so neither needs a server change. (Avatars remain artifact-unavailable per DEC-012; that is unchanged.)
+- `composition.js` / `api.js` / `render.js` / `synth.js` stay read-only — the dual-engine must not shift any v1 behavior. `engines.js` reuses `api.js`'s `generateJingle` verbatim for v1.
+- Per-jingle storage gains `engine` + optional `pipelineMetadata`, migrated non-destructively (DEC-007 / DEC-009 — see DEC-015 and the storage changes).
+- The Anthropic key stays server-side (DEC-010): the pipeline's five LLM calls all go through `/api/generate` (or the artifact direct path).
+
+**Cross-References:**
+- Related decisions: DEC-004 (Claude as composer, the v1 brief), DEC-010 (key proxy), DEC-015 (the editability change this wire-up required)
+- Source: `docs/composition-engine-buildplan.md` (the 12-session plan) and `docs/buildplan-journal.md` (Sessions 1–13).
+
+---
+
+**DEC-015:** `index.html` / `storage.js` / `handlers.js` become editable for the dual-engine wire-up
+**Date:** 2026-05-22
+**Sprint:** Composition-engine rebuild (Session 13 — wire-up)
+
+**Decision:**
+Throughout Sessions 1–12 the deployed app's entry points were treated as read-only so the pipeline could be built dormant alongside the working app. Session 13 (the wire-up) necessarily makes three of them editable, and they stay editable afterward (the new pipeline lives there): `index.html` (the integration target — gains the engine selector, the per-jingle archive badge, and the retry area), `js/storage.js` (the per-jingle schema extension + migration), and `js/handlers.js` (the generate/reroll dispatch through `engines.js`). `js/ui.js` (the badge render) and `styles.css` (selector + badge styling) were never under the read-only convention and are likewise touched. `composition.js` / `api.js` / `render.js` / `synth.js` REMAIN read-only and bit-identical.
+
+**Alternatives Rejected:**
+1. *Wire the pipeline in without touching `index.html` (e.g. inject the selector from JS).* Possible, but the markup is the honest home for a form control and a per-card badge; hiding it in a script would be a worse, harder-to-find shape for no benefit now that the build phase (where the dormant-engine isolation mattered) is over.
+2. *Keep `handlers.js` read-only and add a parallel handler module.* The existing handlers ARE the generate dispatch; routing the new flow anywhere else would fork the orchestration layer.
+
+**Rationale:**
+The read-only treatment of these files was a build-phase discipline — it kept the deployed app stable while the engine was assembled in isolation. Wiring the engine in is exactly the step that retires that discipline for the integration surface; it does not retire it for the four synthesis/composition files, whose stability is what guarantees v1's behavior is unchanged (DEC-014).
+
+**Constraints:**
+- Storage migration is non-destructive and read-side (DEC-007): the engine tag is added in memory and written back only after a clean full read + migration; no field is dropped. The JSON backup export/import (DEC-009) carries the new fields with no logic change (it serializes `guests` and re-runs `migrateGuest` on import — the new fields ride along; the export/import roundtrip was verified identical including the engine fields).
+- The four read-only synthesis/composition files stay byte-for-byte unchanged.
+
+**Cross-References:**
+- Related decisions: DEC-013 (the multi-file layout these files live in), DEC-007 (non-destructive migration), DEC-009 (backup format), DEC-014 (the dual-engine this enables)

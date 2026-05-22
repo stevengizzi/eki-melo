@@ -28,8 +28,20 @@
     <input type="text" id="guest-name" placeholder="e.g. Patrick" maxlength="60" autocomplete="off">
     <label for="guest-desc">PERSONALITY / VIBE</label>
     <textarea id="guest-desc" placeholder="e.g. Mellow and dreamy, loves shoegaze and houseplants. Walks slowly, talks even slower. Always brings the perfect record." maxlength="500"></textarea>
+    <span class="field-label">ENGINE</span>
+    <div class="engine-select" id="engine-select">
+      <label class="engine-option">
+        <input type="radio" name="engine" value="pipeline" checked>
+        <span class="engine-option-text">PIPELINE <small>new · 10-stage composer</small></span>
+      </label>
+      <label class="engine-option">
+        <input type="radio" name="engine" value="v1">
+        <span class="engine-option-text">v1 <small>classic · the loose original</small></span>
+      </label>
+    </div>
     <button class="btn" id="generate-btn">► COMPOSE THEME &amp; AVATAR</button>
     <div id="form-error" class="error" style="display:none"></div>
+    <div id="form-retry" class="form-retry" style="display:none"></div>
   </div>
 
   <div id="guest-list"></div>

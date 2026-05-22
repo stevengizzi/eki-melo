@@ -474,6 +474,86 @@ footer .tag { font-family: 'Press Start 2P', monospace; font-size: 8px; letter-s
   vertical-align: middle;
 }
 
+/* === ENGINE SELECTOR + per-jingle engine badge (Session 13 dual-engine) === */
+
+/* The "ENGINE" header above the selector — a <span> styled like the form's
+   yellow uppercase <label>s (which are real <label> elements; the radio labels
+   below are also <label>s, so they get a dedicated reset). */
+.field-label {
+  display: block;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  color: var(--accent-yellow);
+  margin: 16px 0 8px;
+  letter-spacing: 1.5px;
+}
+
+.engine-select {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Reset the global block-label styling for the radio rows. */
+.engine-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 200px;
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--bg-deep);
+  border: 2px solid var(--border);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.engine-option:hover { border-color: var(--accent-pink); }
+
+.engine-option input[type="radio"] { accent-color: var(--accent-pink); cursor: pointer; }
+
+/* Highlight the chosen engine (the label wraps the radio). */
+.engine-option:has(input:checked) {
+  border-color: var(--accent-pink);
+  color: var(--text);
+  background: #18093a;
+}
+
+.engine-option-text {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  letter-spacing: 1px;
+  line-height: 1.5;
+}
+
+.engine-option-text small {
+  display: block;
+  margin-top: 4px;
+  font-family: 'VT323', monospace;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  text-transform: none;
+}
+
+.form-retry { margin-top: 12px; }
+
+/* The small inline tag on a guest card showing which engine made the jingle. */
+.engine-badge {
+  display: inline-block;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  letter-spacing: 1px;
+  padding: 3px 6px;
+  vertical-align: middle;
+  color: #000;
+  box-shadow: 2px 2px 0 rgba(0,0,0,0.4);
+}
+
+.engine-badge-pipeline { background: var(--accent-green); }
+.engine-badge-v1 { background: var(--accent-yellow); }
+
 @media (max-width: 600px) {
   body { padding: 16px 12px; font-size: 18px; }
   h1 { font-size: 18px; letter-spacing: 1px; }

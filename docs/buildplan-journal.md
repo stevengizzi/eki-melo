@@ -3905,3 +3905,180 @@ app yet — the engine stays dormant until the Session-13 front-end wire-up):**
 **Verdict: Session 12 COMPLETE.** Phrase-motif rework shipped and kept; quality is
 good-not-perfect and intentionally left to settle before further tuning; legacy A/B
 path retained; twelve verifiers green offline.
+
+**Claude.ai-side verification (Steven + Claude Opus 4.7):**
+- All twelve verify scripts re-run independently — PASSED:
+  verify-spelling, verify-forms, verify-motif, verify-stage6,
+  verify-stage8, verify-textures, verify-stage7, verify-stage5b,
+  verify-stage5a, verify-stage4, verify-stage3, verify-llm-call
+  (all exit 0, all offline).
+- Chiptune zero-repair gate (Session-7 floor) INTACT on all three
+  rewritten phrase-shape hand-supplied cases (0/0/0 repairs under
+  chiptune_idiomatic). The architectural pivot did not disturb the
+  deterministic back-half's contract — phrases authored chord-fit
+  at construction time pass through Stage 7 unchanged.
+- 0 bad pitches end-to-end across every voice in every case
+  through the real noteToFreq.
+- The strong-beat chord-fit nudge in Stage 6 reads as well-placed:
+  · runs BEFORE harmony realization (so texture shadows
+    operate on the corrected lead, not the original)
+  · no-op when the strong beat is already a chord tone
+    (hand-supplied chord-fit cases pass through unchanged —
+    the source of the zero-repair gate preservation)
+  · graceful try/catch fallback to original note on edge
+    cases (best-effort enhancement, not correctness requirement)
+  · final-bar beat 3 excluded (avoids wasting computation on
+    a beat Stage 8's cadence formula overwrites anyway)
+- Counting-slip rhythm fixup continues the deterministic-
+  correction-for-LLM-quirks pattern established by Stage 3's
+  [n] normalization. The 2-beat bound discriminates "miscounted"
+  from "misread"; the trim-longest fallback handles over-shoots
+  bigger than the final note without sacrificing the musical
+  rationale (final note absorbs the slip because the cadence
+  overwrites its tail).
+- Rests as first-class phrasing (`null` in degrees) threads
+  cleanly through motif.js, transformations.js, and Stage 6
+  without special-casing at any single layer; the contour
+  analysis correctly filters nulls before measuring shape.
+- The retained-legacy decision is correct discipline: deliberate
+  debt with a known retirement plan, retained until Steven has
+  lived with the pivot long enough to be confident the A/B
+  option isn't needed.
+
+**Verdict: Session 12 COMPLETE and verified. The cell→phrase
+architectural pivot succeeded — phrase-motif beats cell+development
+clearly and reaches v1's level (the pre-committed "keep" outcome).
+The composition engine rebuild's hardest architectural decision is
+now settled with decision-quality evidence. All remaining work
+(Session 13 — front-end wire-up + Stage 1 + Stage 2) is
+integration, not creative. Cleared to proceed to Session 13.**
+
+## Session 13 — 2026-05-22 — Stages 1 + 2 + the dual-engine wire-up (THE REBUILD SHIPS)
+
+The last session. Sessions 1–12 built the composition engine; this one connects it
+to the deployed app. It added the two missing upstream stages (1 aesthetic, 2
+macro), built the dual-engine dispatcher, extended storage non-destructively, and
+wired the front-end — so a guest's name + vibe now flows through all ten stages and
+plays. The engine was dormant after Session 12 ("not wired into the deployed app");
+it is now live as one of two user-selectable engines.
+
+**The product shape (Steven's decision, implemented).** The user picks the engine
+PER GENERATION — `pipeline` (the new 10-stage composer, default) or `v1` (the loose
+original) — via a radio toggle on the Add-Guest form. Each jingle stores its
+`engine`; the archive view badges it (PIPELINE / v1, updating as the pager moves).
+On failure the form shows the error + a one-tap "Retry with the other engine"
+button — NO auto-fallback (the choice is deliberate). The A/B comparison happens
+organically over real guests; there is no special A/B mode. See DEC-014 / DEC-015.
+
+**Stage 1 — `stage-1-aesthetic.js` (the fifth LLM stage, the smallest).** Mirrors the
+Stage 3/4/5a/5b template exactly: `buildAestheticPrompt` / `validateAesthetic` /
+`generateAesthetic` (+ `__mockResponse` offline path, validate-then-retry-once, the
+shared `llm-call.js` transport). The model reads the free-text vibe + name and
+returns a WRAPPED `{ aesthetic: {…} }` envelope unwrapped to the bare canonical
+Aesthetic at the seam: `mood_label` (10-label closed set, never deferred),
+`intensity` (0–1, never deferred), and `tonic/mode/tempo/register/form` hints that
+each accept an `"auto"` sentinel to defer to Stage 2. The prompt teaches the
+mood-label vocabulary (1-line defs), the modal-character notes, the form bar-count
+ranges, the intensity scale, and five worked mood→aesthetic exemplars. Validator:
+HARD on the closed sets / types, SOFT on out-of-range intensity + absurd tempo (the
+unwrap clamps both) + missing notes. The `natural_minor` prompt alias normalizes to
+the scales.json key `aeolian` at unwrap.
+
+**Stage 2 — `stage-2-macro.js` (deterministic, no LLM).** A sibling-shaped stage
+(generate/validate exports, an onTrace soft-warning channel) but pure JS — Stage 1
+already deferred the ambiguous fields with `"auto"`, so the optional LLM tiebreak the
+buildplan floated was unnecessary. `generateMacroParams({ aesthetic, lengthBudget=32,
+config })` → the §3 MacroParams (the shape `computeSectionPlan` + Stages 3/4/5a/5b
+read). Each field honors its hint when set, else a mood-keyed default: tonic (C/A/D/
+E/F/G by mood), mode (major/aeolian/dorian/harmonic_minor/phrygian/mixolydian; intimate
+splits on intensity), tempo (fast/slow/medium bands scaled by intensity), form (hint
+vocab → real forms.json names: AB→binary, ABA→ternary, AABB→binary+note, rondo<48→
+ternary+note; mood defaults AABA/ternary/binary/ternary_varied). Sections come from
+`distributeBars` + getForm labels, with the **§7.7 32-beat downsize**: when every
+section would get ≤2 bars at the 32-beat budget the form drops to AB (binary) with a
+soft warning — so at the default budget AABA-default moods (triumphant/celebratory)
+ship as AB, and AABA only survives at larger budgets (verified: survives at 64 beats,
+4 bars/section). `harmonic_rhythm` is a string label (one_per_2bars/one_per_bar/
+two_per_bar) — only ever stringified for prompts, so safe. `register_center` is a
+pitch string whose octave digit is what Stage 6 reads (low/mid/high → C4/C5/C6).
+A SEPARATE export, `deriveKnobs({ aesthetic, config })`, maps intensity to the four
+adventurousness knobs (harmonic/phrase/texture three-tier; arrangement two-level at a
+raised 0.6 threshold) + `motif_architecture: 'phrase'` + `allow_modal_interchange`
+aligned to the harmonic tier — UNLESS `config.user_knobs_override` (then the user's
+explicit knobs win). Knobs live on the config the runner threads, not in the §3
+MacroParams, so generateMacroParams stays a pure §3 producer.
+
+**Pipeline runner — all seven stages threaded.** `runPipelineGenerating` now prepends
+Stage 1 (if no aesthetic) + Stage 2 (if no macroParams) before the existing 3→4→5a→5b
+chain, then delegates to the unchanged synchronous core. A hand-supplied macroParams
+skips both Stage 1 and 2 and uses the passed config unchanged (so every existing
+verifier + the inspector's hand-supplied cases are bit-for-bit unaffected — confirmed:
+all 12 prior verifiers still green). Stage 2's `deriveKnobs` result becomes the
+effective config threaded downstream. An additive `input.onArtifacts(...)` hook hands
+the resolved upstream artifacts to the caller before the back-half runs — engines.js
+uses it for `pipelineMetadata`. New offline hooks: `__mockAestheticResponse` +
+`onAestheticTrace` + `onMacroTrace`.
+
+**`engines.js` — the dual-engine dispatcher.** `generateJingle({ guestName, mood,
+engine, options? })` runs the chosen engine under a 60s timeout, tags the result with
+`engine`, attaches `pipelineMetadata: { aesthetic, macroParams, harmonicPlan, motifs,
+phrasePlan, texturePlan }` for the pipeline, throws a structured `EngineError ({
+engine, stage?, message, cause })` on failure (salvaging a "Stage N" tag from the
+message), and logs one structured line per generation (`[jingle-engine]
+engine=pipeline status=success duration=23.4s`). v1 reuses `api.js`'s `generateJingle`
+verbatim. THE PLAYBACK-SHAPE CONVERSION turned out to be a field-pick, not a
+re-channelization: the kickoff noted v1 uses "a single notes array with channel info",
+but v1 (and the pipeline's FinalJingle) both already emit `lead`/`harmony`/`bass`
+arrays of `[pitch, duration]` — Stage 6 was designed to render to the synth alphabet
+at its output boundary — so `pipelineToPlayback` just pins the playback contract +
+defends the boundaries the way api.js does. The read-only synth.js + render.js play
+and draw either engine identically (render.js already reads `sections` as
+`[{label, start}]`, exactly the FinalJingle marker shape).
+
+**Storage (non-destructive, DEC-007/009).** `migrateJingle` adds `engine: 'v1'` to any
+jingle lacking the tag (v1 was the only engine before this session) and preserves
+`pipelineMetadata`; `migrateGuest` maps every jingle through it; `loadGuests` adds a
+write-back trigger when any jingle is untagged (migrate in memory first, persist only
+after a clean full read). The backup export/import needed NO logic change — it
+serializes `guests` and re-runs `migrateGuest` on import, so the new fields ride along;
+the export→wipe→import roundtrip was verified byte-identical including the engine
+fields, and migrateJingle is idempotent for already-tagged jingles.
+
+**Front-end.** `index.html` gained the ENGINE radio toggle (Pipeline default) above
+Compose + a `#form-retry` area; `ui.js` renders the per-jingle PIPELINE/v1 badge in the
+guest card (re-rendered on pager nav, so it tracks the shown jingle); `handlers.js`
+routes generate + reroll through `engines.js`, reading the selected engine, and on
+failure shows the error + a retry-with-the-other-engine button that re-runs with the
+other engine (a successful avatar is held so the retry doesn't re-spend the PixelLab
+call); `styles.css` got the selector / badge / retry styling in the existing pixel-card
+idiom. `composition.js` / `api.js` / `render.js` / `synth.js` stayed byte-for-byte
+read-only; the legacy cell+development pair + its `motif_architecture` A/B path were
+not pruned (retained per the Session-12 close-out).
+
+**Verification (offline, no live API).** All FOURTEEN verifiers pass:
+verify-spelling, -forms, -motif, -stage6, -stage8, -textures, -stage7, -stage5b,
+-stage5a, -stage4, -stage3, -llm-call, **-stage1, -stage2** (the two new ones). Plus a
+full end-to-end smoke through `engines.js` with all five stage mocks (Stage 1 mock →
+Stage 2 deterministic [A dorian, ternary, 3/3/2 bars] → 3→8 → conversion): 96 events,
+0 unparseable pitches, `engine: 'pipeline'`, all six pipelineMetadata keys present,
+createdAt set, the structured log line fired. Storage roundtrip smoke: pre-13 jingle
+tags v1, pipeline jingle keeps its metadata, export/import identical, migrateJingle
+idempotent.
+
+**Exit criteria — all met:** stage-1 + stage-2 exports mirror the template; the runner
+threads seven stages; engines.js has the dispatcher + timeout + structured errors +
+logging; storage extended non-destructively + roundtrip verified; index.html exposes
+the selector + badge + retry; handlers dispatches the chosen engine and falls back only
+on explicit retry; verify-stage1 + verify-stage2 added and all fourteen pass offline;
+DEC-014 (dual-engine) + DEC-015 (editability) logged; CHANGELOG v2.0.0 added; README +
+architecture.md updated to the final shape.
+
+**Status: Session 13 implementation COMPLETE; all fourteen verifiers green offline; the
+rebuild is shippable. THE HUMAN DEPLOYMENT-VERIFICATION CHECKPOINT IS PENDING** —
+Steven runs the local dev stack (`wrangler pages dev .`) and the artifact runtime,
+generates a real guest with BOTH engines, confirms the pipeline runs all five LLM calls
+to a playable jingle, confirms v1 is unchanged (no regression — composition.js was
+untouched), confirms the archive badges + the forced-failure retry button, and runs the
+backup roundtrip on real data. If anything regresses on v1 that is a serious bug in the
+engines.js conversion path (investigate / rollback). The close-out below is written
+after that verification.

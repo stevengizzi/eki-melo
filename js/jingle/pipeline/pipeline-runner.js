@@ -11,27 +11,36 @@
    The upstream LLM/rule stages (1–5b) that will eventually produce this are
    built in later sessions; here they are pre-supplied.
 
-   TWO ENTRY POINTS (Session 8, extended Sessions 9 + 10 + 11). `runPipeline` is
-   SYNCHRONOUS and requires `input.harmonicPlan`, `input.motifs`,
-   `input.phrasePlan`, AND `input.texturePlan` — the Session 4–7 hand-supplied
-   path, bit-for-bit unchanged (every existing verifier + the inspector's
-   hand-supplied cases call it synchronously). `runPipelineGenerating` is its
-   ASYNC sibling: it fills any absent upstream artifact via its LLM stage, in
-   dependency order, then delegates to the synchronous core:
-     1. no harmonicPlan → Stage 3 (`generateHarmonicPlan`) writes the chords.
-     2. no motifs     → Stage 4  (`generateMotifs`) writes one melodic PHRASE per
+   TWO ENTRY POINTS (Session 8, extended Sessions 9 + 10 + 11 + 13). `runPipeline`
+   is SYNCHRONOUS and requires `input.macroParams`, `input.harmonicPlan`,
+   `input.motifs`, `input.phrasePlan`, AND `input.texturePlan` — the Session 4–7
+   hand-supplied path, bit-for-bit unchanged (every existing verifier + the
+   inspector's hand-supplied cases call it synchronously). `runPipelineGenerating`
+   is its ASYNC sibling: it fills any absent upstream artifact via its stage, in
+   dependency order, then delegates to the synchronous core. As of Session 13 it
+   threads ALL SEVEN upstream stages, so a bare `{ mood, guestName }` runs end to
+   end:
+     1. no aesthetic   → Stage 1 (`generateAesthetic`) reads the free-text mood +
+        name and returns the small Aesthetic dict (LLM).
+     2. no macroParams → Stage 2 (`generateMacroParams`) turns the Aesthetic into
+        concrete MacroParams (key/mode/form/bars/tempo) — DETERMINISTIC, no LLM —
+        and `deriveKnobs` overlays intensity-derived freedom knobs onto the config
+        threaded downstream (unless config.user_knobs_override).
+     3. no harmonicPlan → Stage 3 (`generateHarmonicPlan`) writes the chords.
+     4. no motifs     → Stage 4  (`generateMotifs`) writes one melodic PHRASE per
         section over that section's harmony (Session-12 phrase-motif rework),
         receiving the (now-resolved) harmonicPlan as upstream context.
-     3. no phrasePlan → Stage 5a (`generatePhrasePlan`) ARRANGES those phrases
+     5. no phrasePlan → Stage 5a (`generatePhrasePlan`) ARRANGES those phrases
         across the form (place literal, or vary), receiving harmonicPlan + motifs.
-     (config.knobs.motif_architecture === 'cell' swaps steps 2+3 for the preserved
+     (config.knobs.motif_architecture === 'cell' swaps steps 4+5 for the preserved
       legacy cell+development pair — the A/B audition path; see motifStagesFor.)
-     4. no texturePlan → Stage 5b (`generateTexturePlan`) choreographs textures,
+     6. no texturePlan → Stage 5b (`generateTexturePlan`) choreographs textures,
         receiving the (now-resolved) harmonicPlan + motifs + phrasePlan.
-   Present-supplied input always wins; otherwise the LLM stage runs. This is the
-   pattern the remaining LLM stages (1, 2) follow as they land. Keeping the core
-   synchronous means adding an LLM stage never changes the calling convention of
-   the deterministic back-half.
+   Present-supplied input always wins; otherwise the stage runs. Keeping the core
+   synchronous means adding a stage never changes the calling convention of the
+   deterministic back-half. Stage 2's deterministic chooser also sets the effective
+   config (intensity → knobs); a hand-supplied macroParams skips both Stage 1 and 2
+   and uses the passed-in config unchanged.
 
    Flow:
      1. Stage 6  — realizeVoices → VoiceTracks of beat-stamped { pitch, beat,
@@ -66,6 +75,8 @@ import { generatePhrasePlan } from './stage-5a-phrase.js';
 import { generateMotifs as generateCellMotifs } from './stage-4-cells-LEGACY.js';
 import { generatePhrasePlan as generateCellPhrasePlan } from './stage-5a-development-LEGACY.js';
 import { generateTexturePlan } from './stage-5b-texture.js';
+import { generateAesthetic } from './stage-1-aesthetic.js';
+import { generateMacroParams, deriveKnobs } from './stage-2-macro.js';
 import { DEFAULT_CONFIG } from './pipeline-config.js';
 
 // The melody architecture the runner generates with. Default 'phrase' (the
@@ -189,44 +200,80 @@ export function runPipeline(input, config = DEFAULT_CONFIG) {
 }
 
 /**
- * Async sibling of `runPipeline` (Session 8, extended Sessions 9 + 10 + 11). Any
- * upstream artifact that is present is trusted; any that is absent is generated
- * by its LLM stage, in dependency order, before delegating to the synchronous
- * core:
- *   1. no `input.harmonicPlan` → Stage 3 (`generateHarmonicPlan`), honoring
- *      `config.knobs.harmonic_adventurousness` + `allow_modal_interchange`.
- *   2. no `input.motifs` → Stage 4 (`generateMotifs`), honoring
- *      `config.knobs.motif_adventurousness` and receiving the now-resolved
- *      harmonicPlan as upstream context.
- *   3. no `input.phrasePlan` → Stage 5a (`generatePhrasePlan`), honoring
- *      `config.knobs.phrase_adventurousness` and receiving the now-resolved
- *      harmonicPlan + motifs as upstream context.
- *   4. no `input.texturePlan` → Stage 5b (`generateTexturePlan`), honoring
- *      `config.knobs.texture_adventurousness` and receiving the now-resolved
- *      harmonicPlan + motifs + phrasePlan as upstream context.
- * When all four are supplied the output is identical to `runPipeline`.
+ * Async sibling of `runPipeline` (Session 8, extended Sessions 9 + 10 + 11 + 13).
+ * Any upstream artifact that is present is trusted; any that is absent is
+ * generated by its stage, in dependency order, before delegating to the
+ * synchronous core:
+ *   1. no `input.aesthetic` (and no `input.macroParams`) → Stage 1
+ *      (`generateAesthetic`) reads `input.mood` + `input.guestName` (LLM).
+ *   2. no `input.macroParams` → Stage 2 (`generateMacroParams`) turns the
+ *      aesthetic into MacroParams (DETERMINISTIC); `deriveKnobs` overlays
+ *      intensity-derived freedom knobs onto the config used downstream (unless
+ *      `config.user_knobs_override`). `input.lengthBudget` (beats, default 32 in
+ *      Stage 2) bounds the piece.
+ *   3. no `input.harmonicPlan` → Stage 3 (`generateHarmonicPlan`), honoring
+ *      `knobs.harmonic_adventurousness` + `allow_modal_interchange`.
+ *   4. no `input.motifs` → Stage 4 (`generateMotifs`), honoring
+ *      `knobs.phrase_adventurousness` and receiving the now-resolved harmonicPlan.
+ *   5. no `input.phrasePlan` → Stage 5a (`generatePhrasePlan`), honoring
+ *      `knobs.arrangement_adventurousness` and receiving harmonicPlan + motifs.
+ *   6. no `input.texturePlan` → Stage 5b (`generateTexturePlan`), honoring
+ *      `knobs.texture_adventurousness` and receiving harmonicPlan + motifs + phrasePlan.
+ * When everything from `macroParams` down is supplied the output is identical to
+ * `runPipeline` (Stage 1 + 2 are skipped and the passed `config` is used as-is).
  *
  * Offline / debug hooks (never required):
- *   - `input.__mockHarmonyResponse` / `input.__mockMotifResponse` /
- *     `input.__mockPhraseResponse` / `input.__mockResponse` (JSON strings) route
- *     Stage 3 / Stage 4 / Stage 5a / Stage 5b through their deterministic-fallback
+ *   - `input.__mockAestheticResponse` / `__mockHarmonyResponse` /
+ *     `__mockMotifResponse` / `__mockPhraseResponse` / `__mockResponse` (JSON
+ *     strings) route Stage 1 / 3 / 4 / 5a / 5b through their deterministic-fallback
  *     path instead of the network — the only way to exercise generation without an
- *     API call. (`__mockResponse` stays the TEXTURE channel for back-compat with
- *     Session 8.)
- *   - `input.onHarmonyTrace` / `input.onMotifTrace` / `input.onPhraseTrace` /
- *     `input.onTrace` are forwarded to Stage 3 / Stage 4 / Stage 5a / Stage 5b for
- *     inspector display.
+ *     API call. (`__mockResponse` stays the TEXTURE channel for back-compat.)
+ *     Stage 2 has no mock (it makes no network call); pass a literal
+ *     `input.macroParams` to skip it.
+ *   - `input.onAestheticTrace` / `onHarmonyTrace` / `onMotifTrace` /
+ *     `onPhraseTrace` / `onTrace` are forwarded to Stage 1 / 3 / 4 / 5a / 5b;
+ *     `input.onMacroTrace` is forwarded to Stage 2's soft-warning channel.
+ *   - `input.onArtifacts({ aesthetic, macroParams, harmonicPlan, motifs,
+ *     phrasePlan, texturePlan })` is called once with every resolved upstream
+ *     artifact just before the deterministic back-half runs (engines.js uses it
+ *     for pipelineMetadata).
  */
 export async function runPipelineGenerating(input, config = DEFAULT_CONFIG) {
+  // --- Stage 1 + 2: aesthetic → macroParams + the effective (knob-derived) config.
+  // Both are skipped when a literal macroParams is supplied (the hand-supplied
+  // path); then the passed-in config is used unchanged. The aesthetic is only
+  // needed to BUILD macroParams, so it too is skipped when macroParams is present.
+  let macroParams = input.macroParams;
+  let effectiveConfig = config;
+  let aesthetic = input.aesthetic;
+  if (!macroParams) {
+    if (!aesthetic) {
+      aesthetic = await generateAesthetic({
+        mood: input.mood,
+        guestName: input.guestName,
+        config,
+        __mockResponse: input.__mockAestheticResponse,
+        onTrace: input.onAestheticTrace,
+      });
+    }
+    effectiveConfig = deriveKnobs({ aesthetic, config });
+    macroParams = generateMacroParams({
+      aesthetic,
+      lengthBudget: input.lengthBudget,
+      config: effectiveConfig,
+      onTrace: input.onMacroTrace,
+    });
+  }
+
   // Pick the melody stage pair (phrase-motif by default; legacy cells for the
   // A/B audition). Only consulted when motifs / phrasePlan are generated.
-  const { generateMotifs: genMotifs, generatePhrasePlan: genPhrasePlan } = motifStagesFor(config);
+  const { generateMotifs: genMotifs, generatePhrasePlan: genPhrasePlan } = motifStagesFor(effectiveConfig);
 
   let harmonicPlan = input.harmonicPlan;
   if (!harmonicPlan) {
     harmonicPlan = await generateHarmonicPlan({
-      macroParams: input.macroParams,
-      config,
+      macroParams,
+      config: effectiveConfig,
       __mockResponse: input.__mockHarmonyResponse,
       onTrace: input.onHarmonyTrace,
     });
@@ -235,9 +282,9 @@ export async function runPipelineGenerating(input, config = DEFAULT_CONFIG) {
   let motifs = input.motifs;
   if (!motifs) {
     motifs = await genMotifs({
-      macroParams: input.macroParams,
+      macroParams,
       harmonicPlan,
-      config,
+      config: effectiveConfig,
       __mockResponse: input.__mockMotifResponse,
       onTrace: input.onMotifTrace,
     });
@@ -246,10 +293,10 @@ export async function runPipelineGenerating(input, config = DEFAULT_CONFIG) {
   let phrasePlan = input.phrasePlan;
   if (!phrasePlan) {
     phrasePlan = await genPhrasePlan({
-      macroParams: input.macroParams,
+      macroParams,
       motifs,
       harmonicPlan,
-      config,
+      config: effectiveConfig,
       __mockResponse: input.__mockPhraseResponse,
       onTrace: input.onPhraseTrace,
     });
@@ -258,15 +305,26 @@ export async function runPipelineGenerating(input, config = DEFAULT_CONFIG) {
   let texturePlan = input.texturePlan;
   if (!texturePlan) {
     texturePlan = await generateTexturePlan({
-      macroParams: input.macroParams,
+      macroParams,
       motifs,
       harmonicPlan,
       phrasePlan,
-      config,
+      config: effectiveConfig,
       __mockResponse: input.__mockResponse,
       onTrace: input.onTrace,
     });
   }
 
-  return runPipeline({ ...input, harmonicPlan, motifs, phrasePlan, texturePlan }, config);
+  // Inspection hook (never required): hand the fully-resolved upstream artifacts
+  // to the caller before the deterministic back-half runs. The dual-engine
+  // dispatcher (engines.js) uses this to attach pipelineMetadata to its result;
+  // the inspector could use it to show every stage's output.
+  if (typeof input.onArtifacts === 'function') {
+    input.onArtifacts({ aesthetic, macroParams, harmonicPlan, motifs, phrasePlan, texturePlan });
+  }
+
+  return runPipeline(
+    { ...input, macroParams, harmonicPlan, motifs, phrasePlan, texturePlan },
+    effectiveConfig
+  );
 }
