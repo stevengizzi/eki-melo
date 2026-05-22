@@ -155,6 +155,16 @@ const badTransform = clone(VALID);
 badTransform.sections.A.lead[1].transform = 'nope_transform';
 expectInvalid('a:unknown-transform', validatePhrasePlan(badTransform, MACRO, MOTIFS), 'unknown transform');
 
+// transpose_step without its REQUIRED integer "steps" param — caught at the seam
+// so the retry can fix it, rather than crashing Stage 6 ("steps ... got undefined").
+const missingSteps = clone(VALID);
+missingSteps.sections.A.lead[1] = { motif: 'a', transform: 'transpose_step', start_bar: 2, length_bars: 1 };
+expectInvalid('a:transpose-step-no-param', validatePhrasePlan(missingSteps, MACRO, MOTIFS), 'steps');
+// ...the object form with an explicit integer steps is fine
+const goodSteps = clone(VALID);
+goodSteps.sections.A.lead[1] = { motif: 'a', transform: { name: 'transpose_step', params: { steps: 2 } }, start_bar: 2, length_bars: 1 };
+expectOk('a:transpose-step-with-param', validatePhrasePlan(goodSteps, MACRO, MOTIFS));
+
 // B (contrast) section with no non-literal development (all literal, no adjacency)
 const noDev = clone(VALID);
 noDev.sections.B.lead = [

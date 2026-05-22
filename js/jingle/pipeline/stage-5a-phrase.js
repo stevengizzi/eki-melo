@@ -87,8 +87,8 @@ const PHRASE_STRUCTURES = new Set(Object.keys(PHRASE_STRUCTURE_DESCRIPTIONS));
 // cadential_gesture is the reserved end-slot, NOT a transformations.js export.
 const TRANSFORM_DESCRIPTIONS = {
   literal: 'play the motif as written',
-  transpose_step: 'up or down one scale step (params.steps, default +1)',
-  transpose_third: 'up or down a third (params.direction = "up" | "down")',
+  transpose_step: 'transpose by params.steps scale steps — REQUIRED non-zero integer (+ up, − down); for ±1 prefer sequence_up_step / sequence_down_step',
+  transpose_third: 'up or down a third (params.direction = "up" | "down", default "up")',
   sequence_up_step: 'repeat the motif a step higher — a typical phrase-extension move',
   sequence_down_step: 'repeat the motif a step lower',
   invert: "mirror the motif's contour around a pivot (params.pivot = a degree 1–7)",
@@ -166,6 +166,49 @@ function transformCanonical({ name, params }) {
   const keys = Object.keys(params ?? {}).sort();
   if (keys.length === 0) return String(name);
   return `${name}@${keys.map((k) => `${k}=${params[k]}`).join(',')}`;
+}
+
+// Catch a transform whose params would crash the theory-layer realization
+// (theory/transformations.js validates them at apply time and throws), so the
+// defect is caught at the seam — and fed to the retry — instead of blowing up in
+// Stage 6. Returns an error string, or null when the params are fine. Only the
+// params that are REQUIRED or type-constrained are checked; everything optional
+// with a sensible default (pivot, count, at_position) is validated for type only.
+function transformParamError(name, params = {}) {
+  switch (name) {
+    case 'transpose_step':
+      if (!Number.isInteger(params.steps)) {
+        return 'transform "transpose_step" requires an integer "steps" param '
+          + '(e.g. {"name":"transpose_step","params":{"steps":2}}); for ±1 use sequence_up_step / sequence_down_step.';
+      }
+      if (params.steps === 0) return 'transform "transpose_step" "steps" must be a non-zero integer.';
+      return null;
+    case 'transpose_third':
+      if (params.direction !== undefined && params.direction !== 'up' && params.direction !== 'down') {
+        return 'transform "transpose_third" "direction" must be "up" or "down" when present.';
+      }
+      return null;
+    case 'invert':
+      if (params.pivot !== undefined && (!Number.isInteger(params.pivot) || params.pivot === 0)) {
+        return 'transform "invert" "pivot" must be a non-zero integer scale degree when present.';
+      }
+      return null;
+    case 'fragment_head':
+    case 'fragment_tail':
+      if (params.count !== undefined && (!Number.isInteger(params.count) || params.count < 1)) {
+        return `transform "${name}" "count" must be a positive integer when present.`;
+      }
+      return null;
+    case 'ornament_upper_neighbor':
+    case 'ornament_lower_neighbor':
+    case 'ornament_chromatic_passing':
+      if (params.at_position !== undefined && (!Number.isInteger(params.at_position) || params.at_position < 0)) {
+        return `transform "${name}" "at_position" must be a non-negative integer when present.`;
+      }
+      return null;
+    default:
+      return null;
+  }
 }
 
 const motifDisplay = (motif) => (motif === null ? 'null' : `"${motif}"`);
@@ -478,7 +521,8 @@ function validateLead(lead, label, bars, motifNames, push) {
       );
     }
 
-    // transform: a recognized name (transformations.js export) or cadential_gesture
+    // transform: a recognized name (transformations.js export) or cadential_gesture,
+    // and — if recognized — params that won't crash the theory-layer realization.
     const parsed = parseTransformSpec(assignment.transform);
     if (!isRecognizedTransform(parsed.name)) {
       const shown = parsed.name !== undefined ? JSON.stringify(parsed.name) : JSON.stringify(assignment.transform);
@@ -486,6 +530,9 @@ function validateLead(lead, label, bars, motifNames, push) {
         `Section "${label}" lead assignment ${i}: unknown transform ${shown}. Allowed: `
           + `${[...RECOGNIZED_TRANSFORMS].join(', ')}, ${CADENTIAL_GESTURE}.`
       );
+    } else {
+      const paramError = transformParamError(parsed.name, parsed.params);
+      if (paramError) push(`Section "${label}" lead assignment ${i}: ${paramError}`);
     }
     if (
       assignment.transform
