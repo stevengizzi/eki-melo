@@ -47,11 +47,17 @@ remain the historical record.
 - **The jingle's mood line showed the full guest description** instead of a
   one-word mood. The pipeline's `FinalJingle.mood` now uses the canonical mood
   label from Stage 2 (e.g. "wistful"), not the raw vibe text.
-- **AABA was unreachable.** A 32-beat "downsize" rule forced any 4-section form
-  to AB, so AABA never appeared (and an explicit AABA choice was overridden).
-  Removed — AABA 2/2/2/2 is a known-good jingle form, so the chosen form is now
-  honored, improving form variety. (The "always ternary/96 BPM" report was this
-  plus the mood-field bug masking that the mood was in fact varying correctly.)
+- **Every guest sounded the same: ~96 BPM, always ternary.** Root cause: the
+  Stage-1 LLM *clusters its structural hints* — for ordinary personality
+  descriptions (most of a guest list) it returns the same safe tempo (≈96 BPM)
+  and form (ABA) almost deterministically, even when its own mood label varies.
+  Fix: Stage 2 now DERIVES tempo and form from mood + intensity and ignores the
+  LLM's `tempo_hint` / `form_hint` (the LLM keeps the calls it's reliable on —
+  mood, key, mode, title). Tempo spreads across slow/medium/fast tiers (96–152)
+  and forms spread across AABA / ternary / binary / ternary_varied, so a varied
+  guest list now gets varied tempos and structures. Also removed an over-eager
+  32-beat "downsize" that had made AABA unreachable (AABA 2/2/2/2 is a known-good
+  jingle form).
 - **Engine label.** The pipeline engine is now labeled **v2** in the UI (badge,
   selector, retry button); its stored id stays `pipeline` (no migration).
 

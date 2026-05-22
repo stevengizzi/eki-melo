@@ -8,13 +8,12 @@
         intensity 0.5, default 32-beat budget) the chosen tonic / mode / form /
         tempo land in the expected slots, the sections tile the form and sum to
         total_bars, and the result passes validateMacroParams.
-     b. FORMS ARE HONORED AT THE JINGLE LENGTH (no downsize) — an AABA-default mood
-        stays AABA at the 32-beat budget (4 sections × 2 bars), AABA at 64 beats is
-        4 bars/section, and an explicit AABA hint is honored at 32 beats (the bug
-        that previously forced it to binary).
-     c. HINT HONORING — explicit tonic / mode / tempo / form hints override the
-        mood defaults; the "AABB" hint resolves to binary with a note; a rondo hint
-        under 48 beats is replaced with ternary with a note.
+     b. FORMS ARE REALIZED AT THE JINGLE LENGTH (no downsize) — an AABA-default mood
+        stays AABA at the 32-beat budget (4 sections × 2 bars), and AABA at 64 beats
+        is 4 bars/section.
+     c. HINTS — tonic / mode hints are honored and the natural_minor alias maps to
+        aeolian; tempo_hint and form_hint are DELIBERATELY IGNORED (tempo + form are
+        mood-derived, because the LLM's tempo/form hints cluster — see Stage 2).
      d. deriveKnobs — intensity maps to the three-tier adventurousness knobs
         (tame / adventurous / wild), arrangement uses the raised two-level
         threshold, allow_modal_interchange tracks the harmonic level, and
@@ -73,18 +72,21 @@ const sum = (xs) => xs.reduce((t, x) => t + x, 0);
 // =================================================================
 // a. per-mood mapping (all-auto, intensity 0.5, default 32-beat budget)
 // =================================================================
-// Forms are honored as chosen at the jingle length — AABA stays AABA (2 bars/section).
+// Tempo + form are mood-derived (the LLM hints are ignored). Tiers: slow [96,112]
+// (calm/wistful/intimate), medium [112,132] (hopeful/mysterious/dark/playful), fast
+// [132,152] (energetic/triumphant/celebratory). Forms spread across AABA/ternary/
+// binary/ternary_varied. Forms realized at the jingle length (AABA stays AABA).
 const EXPECT = {
-  triumphant:  { tonic: 'C', mode: 'major',          form: 'AABA',           tempo: [130, 150] },
-  celebratory: { tonic: 'C', mode: 'major',          form: 'AABA',           tempo: [130, 150] },
-  playful:     { tonic: 'C', mode: 'major',          form: 'ternary',        tempo: [105, 125] },
-  hopeful:     { tonic: 'D', mode: 'major',          form: 'ternary',        tempo: [105, 125] },
-  mysterious:  { tonic: 'E', mode: 'harmonic_minor', form: 'ternary',        tempo: [105, 125] },
-  dark:        { tonic: 'E', mode: 'phrygian',       form: 'ternary',        tempo: [105, 125] },
-  calm:        { tonic: 'A', mode: 'dorian',         form: 'ternary',        tempo: [80, 100] },
-  energetic:   { tonic: 'G', mode: 'mixolydian',     form: 'ternary_varied', tempo: [130, 150] },
-  wistful:     { tonic: 'A', mode: 'aeolian',        form: 'ternary',        tempo: [80, 100] },
-  intimate:    { tonic: 'F', mode: 'major',          form: 'binary',         tempo: [80, 100] },
+  triumphant:  { tonic: 'C', mode: 'major',          form: 'AABA',           tempo: [132, 152] },
+  celebratory: { tonic: 'C', mode: 'major',          form: 'AABA',           tempo: [132, 152] },
+  playful:     { tonic: 'C', mode: 'major',          form: 'binary',         tempo: [112, 132] },
+  hopeful:     { tonic: 'D', mode: 'major',          form: 'AABA',           tempo: [112, 132] },
+  mysterious:  { tonic: 'E', mode: 'harmonic_minor', form: 'ternary',        tempo: [112, 132] },
+  dark:        { tonic: 'E', mode: 'phrygian',       form: 'ternary',        tempo: [112, 132] },
+  calm:        { tonic: 'A', mode: 'dorian',         form: 'binary',         tempo: [96, 112] },
+  energetic:   { tonic: 'G', mode: 'mixolydian',     form: 'ternary_varied', tempo: [132, 152] },
+  wistful:     { tonic: 'A', mode: 'aeolian',        form: 'ternary',        tempo: [96, 112] },
+  intimate:    { tonic: 'F', mode: 'major',          form: 'binary',         tempo: [96, 112] },
 };
 for (const [mood, want] of Object.entries(EXPECT)) {
   const { macro } = gen(aesthetic({ mood_label: mood }));
@@ -123,31 +125,18 @@ for (const [mood, want] of Object.entries(EXPECT)) {
   if (macro.total_bars !== 16) fail('b:aaba-64-bars', `64-beat budget should give 16 bars, got ${macro.total_bars}`);
   if (macro.sections.some((s) => s.bars !== 4)) fail('b:aaba-64-size', `AABA@64 should be 4 bars/section, got ${JSON.stringify(macro.sections.map((s) => s.bars))}`);
 }
-{
-  // an explicit AABA form_hint is honored at 32 beats (previously forced to binary).
-  const { macro } = gen(aesthetic({ mood_label: 'calm', form_hint: 'AABA' }));
-  if (macro.form !== 'AABA') fail('b:aaba-hint', `explicit AABA hint should be honored at 32 beats, got ${macro.form}`);
-}
 
 // =================================================================
-// c. hint honoring
+// c. hints: tonic + mode honored; tempo + form hints IGNORED (mood-derived)
 // =================================================================
 {
-  const { macro } = gen(aesthetic({ mood_label: 'calm', tonic_hint: 'Bb', mode_hint: 'lydian', tempo_hint: 100, form_hint: 'AB' }));
+  const { macro } = gen(aesthetic({ mood_label: 'calm', tonic_hint: 'Bb', mode_hint: 'lydian', tempo_hint: 100, form_hint: 'AABA' }));
   if (macro.tonic !== 'Bb') fail('c:tonic-hint', `tonic hint ignored, got ${macro.tonic}`);
   if (macro.mode !== 'lydian') fail('c:mode-hint', `mode hint ignored, got ${macro.mode}`);
-  if (macro.tempo !== 100) fail('c:tempo-hint', `tempo hint ignored, got ${macro.tempo}`);
-  if (macro.form !== 'binary') fail('c:form-hint', `AB hint should map to binary, got ${macro.form}`);
-}
-{
-  const { macro, warnings } = gen(aesthetic({ mood_label: 'playful', form_hint: 'AABB' }));
-  if (macro.form !== 'binary') fail('c:aabb', `AABB hint should resolve to binary, got ${macro.form}`);
-  if (!warnings.some((w) => w.toLowerCase().includes('aabb'))) fail('c:aabb-warn', `expected an AABB resolution note, got ${JSON.stringify(warnings)}`);
-}
-{
-  const { macro, warnings } = gen(aesthetic({ mood_label: 'energetic', form_hint: 'rondo' })); // 32 beats < 48
-  if (macro.form !== 'ternary') fail('c:rondo', `rondo under 48 beats should become ternary, got ${macro.form}`);
-  if (!warnings.some((w) => w.toLowerCase().includes('rondo'))) fail('c:rondo-warn', `expected a rondo substitution note, got ${JSON.stringify(warnings)}`);
+  // tempo_hint (100) and form_hint (AABA) must NOT win — calm derives a slow tempo + binary form.
+  if (macro.tempo === 100) fail('c:tempo-not-hinted', 'tempo_hint should be ignored (mood-derived), but got the hinted 100');
+  if (macro.tempo < 96 || macro.tempo > 112) fail('c:tempo-band', `calm tempo should be in slow band [96,112], got ${macro.tempo}`);
+  if (macro.form !== 'binary') fail('c:form-not-hinted', `form should be mood-derived (calm→binary), not the AABA hint, got ${macro.form}`);
 }
 {
   // natural_minor mode hint normalizes to the scales.json key aeolian.
@@ -214,10 +203,10 @@ if (failures.length > 0) {
   process.exit(1);
 }
 console.log(
-  'verify-stage2 PASSED — generateMacroParams maps all ten moods to the expected tonic/mode/form/tempo with '
-    + 'sections that tile and sum to total_bars; forms are honored at the jingle length (AABA stays AABA at '
-    + '2 bars/section, 4 bars at 64 beats, explicit AABA hint honored — no downsize); explicit hints '
-    + '(tonic/mode/tempo/form, AABB→binary, rondo→ternary, natural_minor→aeolian) are honored; deriveKnobs maps '
-    + 'intensity to the adventurousness knobs (and user_knobs_override is respected); validateMacroParams catches '
-    + 'the hard defects and warns on the soft ones.'
+  'verify-stage2 PASSED — generateMacroParams maps all ten moods to the expected mood-derived tonic/mode/form/'
+    + 'tempo (tempo in slow/medium/fast tiers, forms spread across AABA/ternary/binary/ternary_varied) with '
+    + 'sections that tile and sum to total_bars; AABA is realized at the jingle length (2 bars/section, 4 bars at '
+    + '64 beats — no downsize); tonic + mode hints are honored and natural_minor→aeolian, while tempo_hint and '
+    + 'form_hint are ignored (mood-derived); deriveKnobs maps intensity to the adventurousness knobs (and '
+    + 'user_knobs_override is respected); validateMacroParams catches the hard defects and warns on the soft ones.'
 );

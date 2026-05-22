@@ -3,14 +3,19 @@
    it turns the Aesthetic (Stage 1's small dict of hints + intensity) into the
    concrete MacroParams the rest of the pipeline runs on — a key, a mode, a form,
    a bar count, a per-section bar plan, a tempo, a register, and a harmonic-rhythm
-   hint. NO LLM CALL. Stage 1 already deferred every ambiguous field with the
-   "auto" sentinel, so Stage 2 just makes principled deterministic choices: honor
-   each hint when it is set, fall back to a mood-label-keyed default when it is
-   "auto". (The buildplan §3 floated an optional LLM tiebreak here; the "auto"
-   deferral makes it unnecessary.)
+   hint. NO LLM CALL. Stage 1 already deferred ambiguous CREATIVE fields with the
+   "auto" sentinel, so Stage 2 honors those hints (tonic, mode, register) when set
+   and falls back to a mood-keyed default when "auto". The STRUCTURAL fields — TEMPO
+   and FORM — are derived from mood + intensity REGARDLESS of the LLM's tempo_hint /
+   form_hint, because those two hints cluster badly: across ordinary personality
+   descriptions the model returns the same safe tempo (≈96 BPM) and the same form
+   (ABA) almost deterministically, which made every guest sound structurally alike.
+   Deriving them here is what gives a varied guest list varied tempos and forms.
+   (The buildplan §3 floated an optional LLM tiebreak; the "auto" deferral + this
+   structural derivation make it unnecessary.)
 
-   It is a SIBLING-SHAPED stage (generate* / validate* exports, an onTrace soft-
-   warning channel) but pure JS — so it has no prompt, no network, no retry.
+   It is a SIBLING-SHAPED stage (generate* / validate* exports) but pure JS — so it
+   has no prompt, no network, no retry, and no soft-warning channel.
 
      generateMacroParams({ aesthetic, lengthBudget?, config?, onTrace? }) → MacroParams
      validateMacroParams(macroParams) → { ok, errors, warnings }
@@ -90,57 +95,48 @@ function chooseMode(aesthetic) {
 }
 
 // =================================================================
-// 3. TEMPO — hint if set (clamped sane), else mood + intensity. Fast moods scale
-// UP with intensity; slow moods scale DOWN (calmer = slower); the rest sit medium.
+// 3. TEMPO — derived from mood + intensity. NOTE: the LLM's `tempo_hint` is
+// DELIBERATELY NOT honored here. Stage 1 returns it, but it CLUSTERS hard: across
+// "normal personality" descriptions (the bulk of a guest list) the model returns
+// the same safe value (≈96 BPM) almost deterministically, even at temperature 1,
+// and even when its own mood_label says "mysterious" (which should be mid-tempo).
+// Deriving tempo from mood + intensity — the calls the model IS reliable on — gives
+// the spread the per-guest variety needs. Three non-overlapping tiers, each scaling
+// up with intensity (more intensity = a bit faster, within the tier), all kept in an
+// arrival-jingle-appropriate range (nothing sleepier than ~96):
+//   slow   (calm/wistful/intimate):            96–112
+//   medium (hopeful/mysterious/dark/playful):  112–132
+//   fast   (energetic/triumphant/celebratory): 132–152
 // =================================================================
 const FAST_MOODS = new Set(['energetic', 'triumphant', 'celebratory']);
 const SLOW_MOODS = new Set(['calm', 'wistful', 'intimate']);
 
 function chooseTempo(aesthetic) {
-  if (typeof aesthetic.tempo_hint === 'number') return clamp(Math.round(aesthetic.tempo_hint), 60, 200);
   const intensity = clamp(aesthetic.intensity ?? 0.5, 0, 1);
-  if (FAST_MOODS.has(aesthetic.mood_label)) return Math.round(130 + 20 * intensity); // 130–150
-  if (SLOW_MOODS.has(aesthetic.mood_label)) return Math.round(100 - 20 * intensity); // 80–100, inverse
-  return Math.round(105 + 20 * intensity); // 105–125, medium
+  if (FAST_MOODS.has(aesthetic.mood_label)) return Math.round(132 + 20 * intensity); // 132–152
+  if (SLOW_MOODS.has(aesthetic.mood_label)) return Math.round(96 + 16 * intensity); //  96–112
+  return Math.round(112 + 20 * intensity); // 112–132, medium
 }
 
 // =================================================================
-// 4. FORM — hint (mapped to a real forms.json name) if set, else per-mood default.
-// The Stage-1 hint vocabulary is user-facing shorthand ("AB", "ABA", "AABB") that
-// maps onto the library's canonical form names; the moods that have no explicit
-// default fall back to ternary (a balanced ABA). rondo is too long for a jingle —
-// if hinted under 48 beats it is replaced with ternary.
+// 4. FORM — derived from mood. Like tempo, the LLM's `form_hint` is NOT honored:
+// it clusters too (mellow vibes nearly always come back "ABA" → ternary), which is
+// exactly what made every contemplative guest sound structurally identical. The
+// per-mood mapping below spreads the ten moods deliberately across four forms so a
+// varied guest list gets varied structures: AABA (the anthem/return), ternary
+// (balanced ABA), binary (AB — short/simple), and ternary_varied (ABA with an
+// ornamented return). All are valid forms.json keys realizable at the 32-beat budget
+// (AABA = 2 bars/section, etc.).
 // =================================================================
-const FORM_HINT_TO_CANONICAL = {
-  AABA: 'AABA',
-  ABA: 'ternary',
-  AB: 'binary',
-  AABB: 'binary', // no AABB form in the library; collapses to a doubled binary
-  ternary: 'ternary',
-  ternary_varied: 'ternary_varied',
-  rondo: 'rondo',
-};
-const MOOD_FORM_DEFAULT = {
-  triumphant: 'AABA', celebratory: 'AABA',
-  hopeful: 'ternary', calm: 'ternary', dark: 'ternary', mysterious: 'ternary',
-  intimate: 'binary',
+const MOOD_FORM = {
+  triumphant: 'AABA', celebratory: 'AABA', hopeful: 'AABA',
   energetic: 'ternary_varied',
-  // playful + wistful (unclassified) fall through to ternary below.
+  playful: 'binary', calm: 'binary', intimate: 'binary',
+  mysterious: 'ternary', dark: 'ternary', wistful: 'ternary',
 };
 
-function chooseForm(aesthetic, lengthBudget, warn) {
-  let form;
-  if (aesthetic.form_hint && aesthetic.form_hint !== 'auto') {
-    form = FORM_HINT_TO_CANONICAL[aesthetic.form_hint] ?? 'ternary';
-    if (aesthetic.form_hint === 'AABB') warn('form hint "AABB" has no exact library form; resolved to AB (binary).');
-  } else {
-    form = MOOD_FORM_DEFAULT[aesthetic.mood_label] ?? 'ternary';
-  }
-  if (form === 'rondo' && lengthBudget < 48) {
-    warn('rondo needs ≥48 beats to breathe; at this length it was replaced with ternary (ABA).');
-    form = 'ternary';
-  }
-  return form;
+function chooseForm(aesthetic) {
+  return MOOD_FORM[aesthetic.mood_label] ?? 'ternary';
 }
 
 // =================================================================
@@ -208,24 +204,23 @@ export function deriveKnobs({ aesthetic, config = DEFAULT_CONFIG } = {}) {
 
 /**
  * Turn an Aesthetic into MacroParams. `lengthBudget` is the total piece length in
- * beats (default 32 — the jingle length cap); `config` is accepted for parity but
- * does not affect the §3 fields (knobs are deriveKnobs's job). `onTrace`, if
- * supplied, receives `{ attempt: 'soft-note', warnings }` once if any soft
- * warning fired (the AABB / rondo form-substitution notes).
+ * beats (default 32 — the jingle length cap); `config` and `onTrace` are accepted
+ * for sibling-parity but do not affect the §3 fields (knobs are deriveKnobs's job,
+ * and the stage no longer emits soft warnings).
  *
- * The form the chooser (or an explicit hint) picks is honored as-is at the chosen
- * length — including AABA at 2 bars/section under the 32-beat budget. (An earlier
- * §7.7 "downsize 4-section forms to AB" rule was removed: it made AABA unreachable
- * and overrode explicit form choices, while AABA 2/2/2/2 is a known-good fixture.)
+ * Tempo and form are derived from mood + intensity (see chooseTempo / chooseForm);
+ * the LLM's tempo_hint / form_hint are intentionally NOT honored because they
+ * cluster. Tonic, mode, and register DO honor their hints. The form is realized at
+ * the chosen length as-is — including AABA at 2 bars/section under the 32-beat
+ * budget (a known-good fixture; an earlier §7.7 "downsize 4-section forms" rule was
+ * removed because it made AABA unreachable).
  */
 export function generateMacroParams({ aesthetic, lengthBudget = 32, config, onTrace } = {}) {
   void config; // §3 fields don't read knobs; accepted for sibling-parity.
+  void onTrace; // the stage no longer emits soft warnings; accepted for parity.
   if (!aesthetic || typeof aesthetic !== 'object' || Array.isArray(aesthetic)) {
     throw new Error('generateMacroParams requires an aesthetic object (Stage 1 output).');
   }
-  const trace = typeof onTrace === 'function' ? onTrace : () => {};
-  const warnings = [];
-  const warn = (m) => warnings.push(m);
 
   const mood = aesthetic.mood_label;
   const intensity = clamp(typeof aesthetic.intensity === 'number' ? aesthetic.intensity : 0.5, 0, 1);
@@ -237,21 +232,11 @@ export function generateMacroParams({ aesthetic, lengthBudget = 32, config, onTr
   const tonic = chooseTonic(aesthetic);
   const mode = chooseMode(aesthetic);
   const tempo = chooseTempo(aesthetic);
-  const form = chooseForm(aesthetic, lengthBudget, warn);
+  const form = chooseForm(aesthetic);
 
-  // Per-section bar plan. NOTE: no 32-beat "downsize" — an earlier revision dropped
-  // any 4-section form (AABA, …) to AB when every section would be ≤2 bars, on the
-  // §7.7 theory that ≤2 bars/section is too cramped for harmonic variety. In
-  // practice that made AABA UNREACHABLE at the jingle length (it always became
-  // binary) and overrode the LLM's explicit form choice — yet AABA at 2/2/2/2 is a
-  // known-good shipped fixture (the Session-9 "Sunrise" case), since the
-  // phrase-motif model fills each 2-bar section with a real phrase. So the downsize
-  // was removed; the form the chooser/hint picks is honored as-is.
   const counts = distributeBars(form, total_bars);
   const labels = getForm(form).section_labels;
   const sections = labels.map((label, i) => ({ label, bars: counts[i] }));
-
-  if (warnings.length > 0) trace({ attempt: 'soft-note', warnings });
 
   return {
     tonic,

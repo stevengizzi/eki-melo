@@ -4118,5 +4118,28 @@ Four real fixes landed:
 
 All fourteen verifiers still pass offline; an updated e2e smoke confirms the title
 (LLM + fallback), the mood label, and the v2 label thread through. composition.js /
-api.js / render.js / synth.js still untouched. The human deployment-verification
-checkpoint remains open.
+api.js / render.js / synth.js still untouched.
+
+**Second pass — the real "always 96 BPM + ternary" cause: the LLM clusters its
+structural hints.** After the first fixes, Steven re-tested and the mood/key/mode
+were now varying correctly, but tempo was STILL pinned at 96 and form at ternary
+across different moods. A live diagnostic settled it: the same contemplative vibe
+returned `tempo_hint: 96` three times in a row (temperature 1.0), and mellow vibes
+almost always return `form_hint: ABA` — even when the model's own mood_label is
+"mysterious" (which should be mid-tempo). So the model is RELIABLE on the creative
+calls (mood, key, mode, title — all varied well) but CLUSTERS on the structural ones
+(tempo, form) for the "nice personality" descriptions that make up most of a guest
+list. v1 never had this because it composed freely instead of categorizing. Fix:
+**Stage 2 now OWNS tempo + form, derived from mood + intensity, and ignores the LLM's
+tempo_hint / form_hint.** Tempo uses three non-overlapping arrival-appropriate tiers
+(slow 96–112 / medium 112–132 / fast 132–152, each scaling with intensity); form
+maps the ten moods deliberately across AABA / ternary / binary / ternary_varied. The
+32-beat AABA downsize was also removed in this pass (it had made AABA unreachable).
+Live re-test of the same five vibes now: mysterious→120/ternary, calm→102/binary,
+wistful→101/ternary, celebratory→147/AABA, triumphant→149/AABA — real spread. The
+tempo_hint/form_hint fields remain in Stage 1's output (advisory / recorded in
+pipelineMetadata) but are no longer authoritative; tonic/mode/register hints are
+still honored. verify-stage2 re-pinned to the mood-derived tempo tiers + form spread
+and to assert tempo_hint/form_hint are ignored. All fourteen verifiers green.
+
+The human deployment-verification checkpoint remains open.
