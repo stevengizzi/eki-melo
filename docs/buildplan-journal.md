@@ -3393,3 +3393,50 @@ reserve; (2) test the bland harmony with a longer fixture before any Stage-3 pro
 All twelve verifiers pass offline. Checkpoint OPEN: re-listen to confirm the A3-style clash
 is gone (the guard forces it), and A/B the 8-bar vs 16-bar harmony to confirm the blandness
 is the section-length cage.
+
+### Checkpoint findings (2026-05-22, 16-bar run — harmony confirmed, coherence ceiling reached, phrase-motif rework COMMITTED)
+
+Steven ran the 16-bar (4-bar-section) incl.-harmony case, plus hit a separate abort. Two
+findings + two decisions.
+
+**Confirmed: the bland harmony WAS the 2-bar cage.** At 4 bars/section Stage 3 produced
+genuinely varied, functional progressions — `A1: I-vi-ii-V`, `A2: I-vi-IV-V` (deceptive),
+`B: vi-vi-IV-V` (half), `A3: I-bVII-IV-V` (PAC, with a tasteful bVII borrow) — a real
+contour with a B contrast and a non-PAC cadence. So the earlier I-V-everywhere blandness was
+the section-length cage (32-beat cap / 4 sections = 2 bars each), NOT the Stage-3 prompt. The
+lever for richer harmony is section length (Session 12 / form choice), confirmed.
+
+**Finding A — a stylistic rule aborted a 3-call run (FIXED — `ce384d4`).** A different attempt
+died with "Section A1 has adjacent identical assignments at bars 1 and 2: motif a with
+transform literal repeated" — after the one retry, so the whole run (harmony + motifs + phrase)
+was thrown away over a back-to-back bar repeat. Per Steven's steer (demote adjacent-identical
+only; keep the form-integrity rules hard), the adjacent-identical check is now a SOFT warning:
+`validatePhrasePlan` gained a `{ ok, errors, warnings }` channel, the check routes to `warn`,
+`generatePhrasePlan` emits it via onTrace + console, and the prompt's DEVELOPMENT RULES moves
+it to an advisory "prefer variety" note. The contrast-must-develop, reprise-must-reuse, and
+overlap/overflow rules stay hard. verify-stage5a asserts the repeat now passes with a warning.
+
+**Finding B — melody/harmony coherence is the cell-vs-moving-harmony CEILING (decision: commit
+to the phrase-motif rework).** Steven still heard A1/A2/first-half-B mismatch. Tracing A1
+(`I-vi-ii-V`, motif a = `[1,3,5,8,5,3]`, a I-arpeggio): bar 1 (I) fits perfectly; bar 2 (vi)
+`sequence_up_step` = D-F-A, only the A is a chord tone (downbeat D clashes) — passed the guard
+because ≥1 chord tone; bar 3 (ii) `fragment_head` = C-E-G = ZERO chord tones of Dm but EXEMPT
+because fragment isn't a transposing transform; bar 4 (V) only G fits. So the chord-fit guard
+works as designed (it forced the retry on the gross transpose_third-over-IV = zero case) but
+the mismatch is the BROADER problem: a fixed I-arpeggio cell scattered over a moving
+`I-vi-ii-V` can't fit three of the four chords. Crucially, **richer harmony made coherence
+WORSE** — the cell now spans more chords. And the two levers pull apart: enforce chord-fit
+harder (extend the guard to all transforms / the downbeat) and runs abort constantly (a
+I-arpeggio simply can't fit ii/IV); enforce less and it clashes. That tension IS the
+cell+development architecture hitting its ceiling on coherence (not just memorability). Cheap
+patches are exhausted. Steven chose to STOP patching and COMMIT to the deferred phrase-motif
+rework (buildplan §7.7, now marked committed) — author the melody against the whole
+progression (framing B), which fixes coherence and memorability together — rather than add a
+deterministic Stage-6 align pass (which would alter the melody) or keep prompt-tuning. The
+Session-11 chord-fit guard + harmony-aware Stage-5a prompt stay as the interim floor.
+
+All twelve verifiers pass offline. Net Session-11 state: Stage 3 (the harmony stage, this
+session's actual deliverable) works end-to-end, validates robustly, exposes the
+harmonic_adventurousness knob, and produces audibly varied progressions when section length
+allows. The melody/harmony coherence gap is now correctly diagnosed as a pre-existing
+architectural ceiling and routed to its own committed session, not a Stage-3 defect.

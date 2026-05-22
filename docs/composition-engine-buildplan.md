@@ -1187,7 +1187,7 @@ These don't block any session; flagging them for later attention:
    pipeline's output? Lightweight, useful for regression detection.
    Defer to Session 12 close-out.
 
-7. **Phrase-length motifs (recommended dedicated session — e.g. "10b").**
+7. **Phrase-length motifs (COMMITTED dedicated session — e.g. "10b").**
    Surfaced at the Session-10 human checkpoint. Today a motif is a MICRO cell
    (≤ 1 bar) and the macro melody is built by Stage 5a developing it; this is
    coherent and reliable but is plausibly the ceiling on *memorability* (v1's
@@ -1201,6 +1201,20 @@ These don't block any session; flagging them for later attention:
    (2026-05-22). Steven's decision: do this as its own session with its own
    prompt, not folded into Session 10. The Session-10 pitch-range fix (motifs
    may now reach/exceed the octave) is the half that was done immediately.
+
+   **Session-11 update (2026-05-22): COMMITTED as the next session.** The
+   Session-11 checkpoint added a SECOND, independent reason beyond memorability:
+   melody/HARMONY COHERENCE. Once Stage 3 generates richer, *moving* harmony
+   (e.g. a 4-bar `I-vi-ii-V` instead of a 2-bar `I-V`), a single fixed cell can
+   only fit the one bar it was written for and clashes on the rest — and no cheap
+   patch closes it (a prompt steer leaks; a chord-fit guard either misses the
+   non-gross cases or, tightened, rejects nearly every non-home placement and
+   aborts runs). So richer harmony made coherence WORSE, confirming the
+   cell+development model caps *both* memorability and coherence. Authoring the
+   melody against the whole progression (framing B) fixes both at once. Steven
+   committed to this as the next session in place of further coherence patching.
+   The Session-11 chord-fit guard + harmony-aware Stage-5a prompt remain as the
+   interim floor until then.
 
 ---
 
