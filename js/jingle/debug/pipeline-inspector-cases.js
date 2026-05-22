@@ -49,14 +49,14 @@ export const CASES = [
       tonic: 'C',
       mode: 'major',
       form: 'AABA',
-      total_bars: 16,
+      total_bars: 8,
       register_center: 'C5',
       harmonic_rhythm: [1, 1, 1, 1],
       sections: [
-        { label: 'A1', bars: 4 },
-        { label: 'A2', bars: 4 },
-        { label: 'B', bars: 4 },
-        { label: 'A3', bars: 4 },
+        { label: 'A1', bars: 2 },
+        { label: 'A2', bars: 2 },
+        { label: 'B', bars: 2 },
+        { label: 'A3', bars: 2 },
       ],
     },
     motifs: {
@@ -89,17 +89,13 @@ export const CASES = [
         lead: [
           { motif: 'a', transform: 'literal', start_bar: 1, length_bars: 1 },
           { motif: 'a', transform: 'sequence_up_step', start_bar: 2, length_bars: 1 },
-          { motif: 'a', transform: { name: 'transpose_third', params: { direction: 'up' } }, start_bar: 3, length_bars: 1 },
-          { motif: 'a', transform: 'fragment_tail', start_bar: 4, length_bars: 1 },
         ],
       },
       A2: {
         phrase_structure: 'period',
         lead: [
           { motif: 'a', transform: 'literal', start_bar: 1, length_bars: 1 },
-          { motif: 'a', transform: 'sequence_up_step', start_bar: 2, length_bars: 1 },
-          { motif: 'a', transform: 'invert', start_bar: 3, length_bars: 1 },
-          { motif: 'a', transform: 'fragment_head', start_bar: 4, length_bars: 1 },
+          { motif: 'a', transform: 'invert', start_bar: 2, length_bars: 1 },
         ],
       },
       B: {
@@ -107,44 +103,34 @@ export const CASES = [
         lead: [
           { motif: 'b', transform: 'literal', start_bar: 1, length_bars: 1 },
           { motif: 'b', transform: 'sequence_down_step', start_bar: 2, length_bars: 1 },
-          { motif: 'b', transform: { name: 'transpose_third', params: { direction: 'up' } }, start_bar: 3, length_bars: 1 },
-          { motif: 'b', transform: 'retrograde', start_bar: 4, length_bars: 1 },
         ],
       },
       A3: {
         phrase_structure: 'period',
         lead: [
           { motif: 'a', transform: 'literal', start_bar: 1, length_bars: 1 },
-          { motif: 'a', transform: 'sequence_up_step', start_bar: 2, length_bars: 1 },
-          { motif: 'a', transform: { name: 'transpose_third', params: { direction: 'up' } }, start_bar: 3, length_bars: 1 },
-          { motif: 'a', transform: 'ornament_upper_neighbor', start_bar: 4, length_bars: 1 },
+          { motif: 'a', transform: { name: 'transpose_third', params: { direction: 'up' } }, start_bar: 2, length_bars: 1 },
         ],
       },
     },
     texturePlan: {
       A1: {
-        harmony: [{ bars: [1, 4], mode: 'parallel_thirds_below' }],
-        bass: [
-          { bars: [1, 3], pattern: 'root_fifth' },
-          { bars: [4, 4], pattern: 'cadential_5_1' },
-        ],
+        harmony: [{ bars: [1, 2], mode: 'parallel_thirds_below' }],
+        bass: [{ bars: [1, 2], pattern: 'root_fifth' }],
       },
       A2: {
-        harmony: [{ bars: [1, 4], mode: 'parallel_thirds_below' }],
-        bass: [
-          { bars: [1, 2], pattern: 'arpeggio' },
-          { bars: [3, 4], pattern: 'walking' },
-        ],
+        harmony: [{ bars: [1, 2], mode: 'parallel_thirds_below' }],
+        bass: [{ bars: [1, 2], pattern: 'arpeggio' }],
       },
       B: {
-        harmony: [{ bars: [1, 4], mode: 'parallel_thirds_below' }],
-        bass: [{ bars: [1, 4], pattern: 'root_fifth' }],
+        harmony: [{ bars: [1, 2], mode: 'parallel_thirds_below' }],
+        bass: [{ bars: [1, 2], pattern: 'root_fifth' }],
       },
       A3: {
-        harmony: [{ bars: [1, 3], mode: 'parallel_thirds_below' }],
+        harmony: [{ bars: [1, 2], mode: 'parallel_thirds_below' }],
         bass: [
-          { bars: [1, 3], pattern: 'walking' },
-          { bars: [4, 4], pattern: 'cadential_5_1' },
+          { bars: [1, 1], pattern: 'walking' },
+          { bars: [2, 2], pattern: 'cadential_5_1' },
         ],
       },
     },
@@ -161,13 +147,13 @@ export const CASES = [
       tonic: 'D',
       mode: 'dorian',
       form: 'ternary',
-      total_bars: 12,
+      total_bars: 8,
       register_center: 'D5',
       harmonic_rhythm: [1, 1, 1, 1],
       sections: [
-        { label: 'A', bars: 4 },
-        { label: 'B', bars: 4 },
-        { label: "A'", bars: 4 },
+        { label: 'A', bars: 3 },
+        { label: 'B', bars: 2 },
+        { label: "A'", bars: 3 },
       ],
     },
     motifs: {
@@ -200,7 +186,6 @@ export const CASES = [
           { motif: 'a', transform: 'literal', start_bar: 1, length_bars: 1 },
           { motif: 'a', transform: 'sequence_up_step', start_bar: 2, length_bars: 1 },
           { motif: 'a', transform: { name: 'transpose_third', params: { direction: 'up' } }, start_bar: 3, length_bars: 1 },
-          { motif: 'a', transform: 'fragment_tail', start_bar: 4, length_bars: 1 },
         ],
       },
       B: {
@@ -208,8 +193,6 @@ export const CASES = [
         lead: [
           { motif: 'b', transform: 'literal', start_bar: 1, length_bars: 1 },
           { motif: 'b', transform: 'invert', start_bar: 2, length_bars: 1 },
-          { motif: 'b', transform: 'sequence_down_step', start_bar: 3, length_bars: 1 },
-          { motif: 'b', transform: 'retrograde', start_bar: 4, length_bars: 1 },
         ],
       },
       "A'": {
@@ -218,30 +201,26 @@ export const CASES = [
           { motif: 'a', transform: 'literal', start_bar: 1, length_bars: 1 },
           { motif: 'a', transform: 'sequence_up_step', start_bar: 2, length_bars: 1 },
           { motif: 'a', transform: 'ornament_lower_neighbor', start_bar: 3, length_bars: 1 },
-          { motif: 'a', transform: 'fragment_head', start_bar: 4, length_bars: 1 },
         ],
       },
     },
     texturePlan: {
       A: {
-        harmony: [{ bars: [1, 4], mode: 'parallel_thirds_below' }],
+        harmony: [{ bars: [1, 3], mode: 'parallel_thirds_below' }],
         bass: [
           { bars: [1, 2], pattern: 'root_fifth' },
-          { bars: [3, 4], pattern: 'walking' },
+          { bars: [3, 3], pattern: 'walking' },
         ],
       },
       B: {
         // Session 6: a held drone over the B section (chord root, rearticulated
         // per bar) to audition oblique_held end-to-end through the pipeline.
-        harmony: [{ bars: [1, 4], mode: 'oblique_held' }],
-        bass: [{ bars: [1, 4], pattern: 'pedal', degree: 1 }],
+        harmony: [{ bars: [1, 2], mode: 'oblique_held' }],
+        bass: [{ bars: [1, 2], pattern: 'pedal', degree: 1 }],
       },
       "A'": {
         harmony: [{ bars: [1, 3], mode: 'parallel_thirds_below' }],
-        bass: [
-          { bars: [1, 3], pattern: 'root_fifth' },
-          { bars: [4, 4], pattern: 'cadential_5_1' },
-        ],
+        bass: [{ bars: [1, 3], pattern: 'root_fifth' }],
       },
     },
   },
@@ -257,13 +236,13 @@ export const CASES = [
       tonic: 'E',
       mode: 'phrygian_dominant',
       form: 'ternary',
-      total_bars: 12,
+      total_bars: 8,
       register_center: 'E5',
       harmonic_rhythm: [1, 1, 1, 1],
       sections: [
-        { label: 'A', bars: 4 },
-        { label: 'B', bars: 4 },
-        { label: "A'", bars: 4 },
+        { label: 'A', bars: 3 },
+        { label: 'B', bars: 2 },
+        { label: "A'", bars: 3 },
       ],
     },
     motifs: {
@@ -296,7 +275,6 @@ export const CASES = [
           { motif: 'a', transform: 'literal', start_bar: 1, length_bars: 1 },
           { motif: 'a', transform: 'sequence_up_step', start_bar: 2, length_bars: 1 },
           { motif: 'a', transform: { name: 'transpose_third', params: { direction: 'up' } }, start_bar: 3, length_bars: 1 },
-          { motif: 'a', transform: 'fragment_tail', start_bar: 4, length_bars: 1 },
         ],
       },
       B: {
@@ -304,8 +282,6 @@ export const CASES = [
         lead: [
           { motif: 'b', transform: 'literal', start_bar: 1, length_bars: 1 },
           { motif: 'b', transform: 'invert', start_bar: 2, length_bars: 1 },
-          { motif: 'b', transform: 'sequence_down_step', start_bar: 3, length_bars: 1 },
-          { motif: 'b', transform: 'retrograde', start_bar: 4, length_bars: 1 },
         ],
       },
       "A'": {
@@ -314,30 +290,26 @@ export const CASES = [
           { motif: 'a', transform: 'literal', start_bar: 1, length_bars: 1 },
           { motif: 'a', transform: { name: 'ornament_chromatic_passing', params: { at_position: 1 } }, start_bar: 2, length_bars: 1 },
           { motif: 'a', transform: 'ornament_upper_neighbor', start_bar: 3, length_bars: 1 },
-          { motif: 'a', transform: 'fragment_head', start_bar: 4, length_bars: 1 },
         ],
       },
     },
     texturePlan: {
       A: {
-        harmony: [{ bars: [1, 4], mode: 'parallel_thirds_below' }],
+        harmony: [{ bars: [1, 3], mode: 'parallel_thirds_below' }],
         bass: [
           { bars: [1, 2], pattern: 'root_fifth' },
-          { bars: [3, 4], pattern: 'arpeggio' },
+          { bars: [3, 3], pattern: 'arpeggio' },
         ],
       },
       B: {
-        harmony: [{ bars: [1, 4], mode: 'parallel_thirds_below' }],
-        bass: [{ bars: [1, 4], pattern: 'pedal', degree: 1 }],
+        harmony: [{ bars: [1, 2], mode: 'parallel_thirds_below' }],
+        bass: [{ bars: [1, 2], pattern: 'pedal', degree: 1 }],
       },
       "A'": {
         // Session 6: a one-beat-delay canon over the recap, transposed to the
         // chord tone — auditions imitation_one_beat_delay end-to-end.
         harmony: [{ bars: [1, 3], mode: 'imitation_one_beat_delay' }],
-        bass: [
-          { bars: [1, 3], pattern: 'root_fifth' },
-          { bars: [4, 4], pattern: 'cadential_5_1' },
-        ],
+        bass: [{ bars: [1, 3], pattern: 'root_fifth' }],
       },
     },
   },

@@ -34,7 +34,7 @@
 import { resolveRoman, isValidInMode, listAvailableChords } from './roman-numeral.js';
 import { CADENCE_FORMULAS } from './cadence-formulas.js';
 import { toScoreString } from './pitch.js';
-import { realizeVoices } from '../pipeline/stage-6-voice.js';
+import { realizeVoices, computeSectionPlan } from '../pipeline/stage-6-voice.js';
 import { enforceCadences } from '../pipeline/stage-8-cadence.js';
 import { runPipeline } from '../pipeline/pipeline-runner.js';
 import { noteToFreq } from '../synth.js';
@@ -179,21 +179,29 @@ for (const voice of ['lead', 'harmony', 'bass']) {
 }
 
 // Sunrise A3 = PAC. After the cadence-manifestation revision the cadence
-// overwrites only the final two beats (62–64): its last lead event resolves to
+// overwrites only the section's final two beats: its last lead event resolves to
 // the tonic C (in whatever octave the approaching melody placed it — no longer
-// pinned to C5), and the A3 motif material in the first half of the final bar
+// pinned to C5), and the A3 motif material in the first part of the final bar
 // SURVIVES and leads into the cadence (the flow-in the Session-9 checkpoint asked
-// for) instead of the whole bar going static.
+// for) instead of the whole bar going static. Beats are derived from the case so
+// this stays correct regardless of the section's length.
+const sunrisePlan = computeSectionPlan(sunrise.macroParams);
+const sunriseBpb = sunrise.macroParams.meter.numerator;
+const a3 = sunrisePlan[sunrisePlan.length - 1];
+const a3End = (a3.startBar + a3.bars) * sunriseBpb;
+const a3CadenceWindow = a3End - 2;
+const a3FinalBarStart = a3End - sunriseBpb;
+
 const lastLead = tracks8.lead[tracks8.lead.length - 1];
 if (!(lastLead.pitch && lastLead.pitch.letter === 'C' && lastLead.pitch.accidental === 0)) {
   fail('stage8:PAC-lands-on-tonic', `last lead event ${toScoreString(lastLead.pitch)} is not the tonic C (any octave)`);
 }
-if (!(lastLead.beat >= 62 - 1e-9)) {
-  fail('stage8:PAC-final-beat', `last lead event starts at beat ${lastLead.beat}, expected the cadence window (≥62)`);
+if (!(lastLead.beat >= a3CadenceWindow - 1e-9)) {
+  fail('stage8:PAC-final-beat', `last lead event starts at beat ${lastLead.beat}, expected the cadence window (≥${a3CadenceWindow})`);
 }
-// Flow-in: the final bar (beats 60–64) keeps lead material before the cadence
-// window (beats 60–62), rather than being wholly overwritten.
-const leadsIntoCadence = tracks8.lead.some((e) => e.pitch && e.beat >= 60 - 1e-9 && e.beat < 62 - 1e-9);
+// Flow-in: the final bar keeps lead material before the cadence window, rather
+// than being wholly overwritten.
+const leadsIntoCadence = tracks8.lead.some((e) => e.pitch && e.beat >= a3FinalBarStart - 1e-9 && e.beat < a3CadenceWindow - 1e-9);
 if (!leadsIntoCadence) {
   fail('stage8:flow-in', 'expected lead material in the final bar before the cadence window (the melody leading into the cadence)');
 }

@@ -269,74 +269,78 @@ function buildValidWrappedTexture(macroParams) {
   return { sections };
 }
 
+// The fully-generated case must exist and omit BOTH plans (independent of its
+// length — the inspector cases were shortened to <=32 beats, so this section
+// runs the e2e on the SELF-CONTAINED MACRO fixture above rather than the case).
 const wanderer = GENERATED_CASES.find((c) => c.id === 'wanderer-fully-generated');
 if (!wanderer) {
   fail('b:setup', 'GENERATED_CASES is missing wanderer-fully-generated');
 } else {
   if (wanderer.phrasePlan !== undefined) fail('b:setup', 'wanderer-fully-generated should OMIT phrasePlan');
   if (wanderer.texturePlan !== undefined) fail('b:setup', 'wanderer-fully-generated should OMIT texturePlan');
-
-  const expectedLabels = computeSectionPlan(wanderer.macroParams).map((s) => s.label);
-  const validPhraseMock = JSON.stringify(VALID);
-  const validTextureMock = JSON.stringify(buildValidWrappedTexture(wanderer.macroParams));
-
-  // (b1) valid phrase mock → flat plan (keys = labels, no `sections` wrapper).
-  const flat = await generatePhrasePlan({ ...wanderer, __mockResponse: validPhraseMock });
-  if (flat.sections !== undefined) fail('b1:flat', 'returned plan still has a `sections` wrapper — should be flat');
-  if (JSON.stringify(Object.keys(flat).sort()) !== JSON.stringify([...expectedLabels].sort())) {
-    fail('b1:keys', `flat plan keys ${JSON.stringify(Object.keys(flat))} != section labels ${JSON.stringify(expectedLabels)}`);
-  }
-
-  // (b2) valid phrase + texture mocks threaded through the runner → end-to-end
-  //      FinalJingle. Both LLM stages run via their offline mock; no network.
-  let jingle;
-  try {
-    jingle = await runPipelineGenerating({
-      ...wanderer,
-      __mockPhraseResponse: validPhraseMock,
-      __mockResponse: validTextureMock,
-    });
-  } catch (error) {
-    fail('b2:e2e', `runPipelineGenerating threw on valid mocks: ${error.message}`);
-  }
-  if (jingle) {
-    const lengths = ['lead', 'harmony', 'bass'].map((voice) => {
-      let length = 0;
-      jingle[voice].forEach(([note, duration], i) => {
-        length += duration;
-        if (!(typeof duration === 'number' && duration > 0)) {
-          fail(`b2:${voice}`, `event ${i} duration not positive: ${duration}`);
-        }
-        if (note !== 'rest') {
-          const freq = noteToFreq(note);
-          if (!Number.isFinite(freq) || freq <= 0) fail(`b2:${voice}`, `event ${i} "${note}" → bad freq ${freq}`);
-        }
-      });
-      return length;
-    });
-    if (Math.max(...lengths) - Math.min(...lengths) > 1e-6) {
-      fail('b2:align', `track beat-lengths disagree: ${JSON.stringify(lengths)}`);
-    }
-  }
-
-  // (b3) malformed phrase mock (not JSON) → throws.
-  await expectThrows('b3:bad-json', () => generatePhrasePlan({ ...wanderer, __mockResponse: 'this is not json {{{' }));
-
-  // (b4) semantically invalid phrase mock (B contrast with no development) → throws.
-  const semNoDev = clone(VALID);
-  semNoDev.sections.B.lead = [
-    { motif: 'b', transform: 'literal', start_bar: 1, length_bars: 1 },
-    { motif: 'a', transform: 'literal', start_bar: 2, length_bars: 1 },
-    { motif: 'b', transform: 'literal', start_bar: 3, length_bars: 1 },
-    { motif: null, transform: 'cadential_gesture', start_bar: 4, length_bars: 1 },
-  ];
-  await expectThrows('b4:no-dev', () => generatePhrasePlan({ ...wanderer, __mockResponse: JSON.stringify(semNoDev) }));
-
-  // (b5) semantically invalid phrase mock (unknown transform) → throws.
-  const semBadTransform = clone(VALID);
-  semBadTransform.sections.A.lead[1].transform = 'no_such_transform';
-  await expectThrows('b5:bad-transform', () => generatePhrasePlan({ ...wanderer, __mockResponse: JSON.stringify(semBadTransform) }));
 }
+
+const E2E = { macroParams: MACRO, motifs: MOTIFS, harmonicPlan: HARMONIC, title: 'verify-5a', mood: 'test' };
+const expectedLabels = computeSectionPlan(MACRO).map((s) => s.label);
+const validPhraseMock = JSON.stringify(VALID);
+const validTextureMock = JSON.stringify(buildValidWrappedTexture(MACRO));
+
+// (b1) valid phrase mock → flat plan (keys = labels, no `sections` wrapper).
+const flat = await generatePhrasePlan({ ...E2E, __mockResponse: validPhraseMock });
+if (flat.sections !== undefined) fail('b1:flat', 'returned plan still has a `sections` wrapper — should be flat');
+if (JSON.stringify(Object.keys(flat).sort()) !== JSON.stringify([...expectedLabels].sort())) {
+  fail('b1:keys', `flat plan keys ${JSON.stringify(Object.keys(flat))} != section labels ${JSON.stringify(expectedLabels)}`);
+}
+
+// (b2) valid phrase + texture mocks threaded through the runner → end-to-end
+//      FinalJingle. Both LLM stages run via their offline mock; no network.
+let jingle;
+try {
+  jingle = await runPipelineGenerating({
+    ...E2E,
+    __mockPhraseResponse: validPhraseMock,
+    __mockResponse: validTextureMock,
+  });
+} catch (error) {
+  fail('b2:e2e', `runPipelineGenerating threw on valid mocks: ${error.message}`);
+}
+if (jingle) {
+  const lengths = ['lead', 'harmony', 'bass'].map((voice) => {
+    let length = 0;
+    jingle[voice].forEach(([note, duration], i) => {
+      length += duration;
+      if (!(typeof duration === 'number' && duration > 0)) {
+        fail(`b2:${voice}`, `event ${i} duration not positive: ${duration}`);
+      }
+      if (note !== 'rest') {
+        const freq = noteToFreq(note);
+        if (!Number.isFinite(freq) || freq <= 0) fail(`b2:${voice}`, `event ${i} "${note}" → bad freq ${freq}`);
+      }
+    });
+    return length;
+  });
+  if (Math.max(...lengths) - Math.min(...lengths) > 1e-6) {
+    fail('b2:align', `track beat-lengths disagree: ${JSON.stringify(lengths)}`);
+  }
+}
+
+// (b3) malformed phrase mock (not JSON) → throws.
+await expectThrows('b3:bad-json', () => generatePhrasePlan({ ...E2E, __mockResponse: 'this is not json {{{' }));
+
+// (b4) semantically invalid phrase mock (B contrast with no development) → throws.
+const semNoDev = clone(VALID);
+semNoDev.sections.B.lead = [
+  { motif: 'b', transform: 'literal', start_bar: 1, length_bars: 1 },
+  { motif: 'a', transform: 'literal', start_bar: 2, length_bars: 1 },
+  { motif: 'b', transform: 'literal', start_bar: 3, length_bars: 1 },
+  { motif: null, transform: 'cadential_gesture', start_bar: 4, length_bars: 1 },
+];
+await expectThrows('b4:no-dev', () => generatePhrasePlan({ ...E2E, __mockResponse: JSON.stringify(semNoDev) }));
+
+// (b5) semantically invalid phrase mock (unknown transform) → throws.
+const semBadTransform = clone(VALID);
+semBadTransform.sections.A.lead[1].transform = 'no_such_transform';
+await expectThrows('b5:bad-transform', () => generatePhrasePlan({ ...E2E, __mockResponse: JSON.stringify(semBadTransform) }));
 
 // Sanity: hand-supplied CASES still carry BOTH a phrasePlan and a texturePlan
 // (the prior verifiers depend on this; a stray edit to the data module surfaces here).
@@ -355,7 +359,7 @@ if (failures.length > 0) {
 }
 console.log(
   'verify-stage5a PASSED — validatePhrasePlan catches every documented defect '
-    + '(unknown motif/transform, B-section development, reprise motif, adjacency, overlap, cadence-bar, schema); '
-    + 'generatePhrasePlan(__mockResponse) parses/validates offline, returns the flat plan, '
+    + '(unknown motif/transform, missing transform params, B-section development, reprise motif, adjacency, '
+    + 'overlap, schema); generatePhrasePlan(__mockResponse) parses/validates offline, returns the flat plan, '
     + 'runs end-to-end through the pipeline (Stage 5b also mocked), and throws on malformed/invalid mocks.'
 );
