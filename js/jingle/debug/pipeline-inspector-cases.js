@@ -420,4 +420,37 @@ export const GENERATED_CASES = [
     id: 'sunrise-fully-llm-harmony',
     title: 'Sunrise Fanfare — fully LLM (incl. harmony)',
   }),
+  // ---------------------------------------------------------------- Session 11
+  // HARMONY-ROOM DIAGNOSTIC: a 16-bar AABA with 4-bar sections (vs. the 8-bar
+  // case's 2-bar sections), fully LLM incl. harmony. Surfaced at the Session-11
+  // checkpoint: the 8-bar case's harmony came out bland (I–V every A section),
+  // but with 2-bar sections a PAC section can only hold two chords (I→V) — there
+  // is no room for I–V–vi–IV. This case gives Stage 3 four bars per section to
+  // test whether the richer, named progressions actually appear when there's
+  // space. NOTE: 16 bars (64 beats) deliberately EXCEEDS the ~32-beat arrival
+  // jingle cap ([[jingle-length-cap-32-beats]]); it is a diagnostic to isolate
+  // "is the blandness the 2-bar cage or the prompt?", not a production length.
+  {
+    id: 'sunrise-16bar-fully-llm-harmony',
+    title: 'Sunrise (16-bar, 4-bar sections) — fully LLM (incl. harmony)',
+    mood: 'triumphant',
+    generated: true,
+    macroParams: {
+      tempo: 132,
+      meter: { numerator: 4, denominator: 4, grouping: [4] },
+      tonic: 'C',
+      mode: 'major',
+      form: 'AABA',
+      total_bars: 16,
+      register_center: 'C5',
+      harmonic_rhythm: [1, 1, 1, 1],
+      mood: 'triumphant',
+      sections: [
+        { label: 'A1', bars: 4 },
+        { label: 'A2', bars: 4 },
+        { label: 'B', bars: 4 },
+        { label: 'A3', bars: 4 },
+      ],
+    },
+  },
 ];
