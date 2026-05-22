@@ -113,19 +113,28 @@
 <body>
   <h1>♪ Pipeline Inspector</h1>
   <p class="subtitle">
-    Session 10 — Stage 4 (motivic material) is the third LLM stage: the melodies themselves.
-    <code>stage-4-motifs.js</code> → <code>stage-5a-phrase.js</code> → <code>stage-5b-texture.js</code> →
-    <code>stage-6-voice.js</code> → <code>stage-7-leading.js</code> →
+    Session 11 — Stage 3 (harmonic plan) is the fourth LLM stage: the chords themselves.
+    <code>stage-3-harmony.js</code> → <code>stage-4-motifs.js</code> → <code>stage-5a-phrase.js</code> →
+    <code>stage-5b-texture.js</code> → <code>stage-6-voice.js</code> → <code>stage-7-leading.js</code> →
     <code>stage-8-cadence.js</code> → <code>toSynthString</code> → <code>LiveSynth</code>.
     Hand-supplied cases skip the LLM stages; <b>generated</b> cases hit the live LLM for the
-    artifacts they omit — texture only, phrase + texture (<b>fully generated</b>), or the
-    <b>fully LLM</b> case (motifs + phrase + texture, the entire creative content).
+    artifacts they omit — texture only, phrase + texture (<b>fully generated</b>), motifs + phrase +
+    texture (<b>fully LLM</b>), or harmony + motifs + phrase + texture (<b>fully LLM incl. harmony</b>,
+    the entire creative content).
   </p>
 
   <div class="controls">
     <div class="field">
       <label for="case-select">Test case</label>
       <select id="case-select"></select>
+    </div>
+    <div class="field">
+      <label for="harmonic-adventurousness-select">Harmonic adventurousness (incl.-harmony case)</label>
+      <select id="harmonic-adventurousness-select">
+        <option value="tame">tame</option>
+        <option value="adventurous" selected>adventurous</option>
+        <option value="wild">wild</option>
+      </select>
     </div>
     <div class="field">
       <label for="motif-adventurousness-select">Motif adventurousness (fully LLM)</label>
@@ -171,6 +180,23 @@
     <div class="guest-card" data-id="inspector">
       <div id="piano-roll-host"></div>
     </div>
+  </div>
+
+  <div class="stage" id="stage3">
+    <h2>Stage 3 — Harmonic plan (LLM)</h2>
+    <p class="note">Fourth LLM stage (Session 11) — the chords themselves. For the <b>fully LLM (incl. harmony)</b> case this calls <code>generateHarmonicPlan</code> (live model) and the generated harmonic plan flows into Stage 4 + 5a + 5b + Stage 6/8. For cases that supply a harmonicPlan it shows n/a. The prompt (built by <code>buildHarmonicPlanPrompt</code>) gives the model the available diatonic chords for the mode, the cadence/mode compatibility table, the memorable-progression exemplars, and explicit guidance on harmonic function + harmonic rhythm + B-section contrast; the raw response is parsed + validated (Roman-numeral validity, bar coverage, cadence/final-chord + mode compatibility), retried once on a validation error. Soft notes (all-tonic, static section, modal borrows) surface below, never a failure.</p>
+    <p class="repairs-summary" id="stage3-status"></p>
+    <p class="note" id="stage3-warnings" style="color:var(--accent-yellow);"></p>
+    <details>
+      <summary style="cursor:pointer;color:var(--accent-blue);font-size:12px;">prompt (system + user)</summary>
+      <pre id="stage3-prompt"></pre>
+    </details>
+    <details>
+      <summary style="cursor:pointer;color:var(--accent-blue);font-size:12px;">raw model response(s)</summary>
+      <pre id="stage3-raw"></pre>
+    </details>
+    <p class="note">Generated HarmonicPlan (the §3 array Stage 4 + 5a + 5b + 6 + 8 consume — per-section progression expanded one chord per bar + cadence):</p>
+    <pre id="stage3-plan"></pre>
   </div>
 
   <div class="stage" id="stage4">
@@ -257,6 +283,7 @@
   import { runPipeline } from '../pipeline/pipeline-runner.js';
   import { realizeVoices } from '../pipeline/stage-6-voice.js';
   import { enforceCadences } from '../pipeline/stage-8-cadence.js';
+  import { generateHarmonicPlan, buildHarmonicPlanPrompt } from '../pipeline/stage-3-harmony.js';
   import { generateMotifs, buildMotifsPrompt } from '../pipeline/stage-4-motifs.js';
   import { generatePhrasePlan, buildPhrasePlanPrompt } from '../pipeline/stage-5a-phrase.js';
   import { generateTexturePlan, buildTexturePlanPrompt } from '../pipeline/stage-5b-texture.js';
@@ -272,6 +299,7 @@
   const adventurousnessSelect = document.getElementById('adventurousness-select');
   const phraseAdventurousnessSelect = document.getElementById('phrase-adventurousness-select');
   const motifAdventurousnessSelect = document.getElementById('motif-adventurousness-select');
+  const harmonicAdventurousnessSelect = document.getElementById('harmonic-adventurousness-select');
   const errorBox = document.getElementById('error');
   const caseMeta = document.getElementById('case-meta');
   const pianoHost = document.getElementById('piano-roll-host');
@@ -298,6 +326,32 @@
   }
 
   let currentJingle = null;
+
+  // Render the Stage-3 panel. For cases that supply a harmonicPlan it reads n/a;
+  // for the incl.-harmony case it shows the built prompt, the raw model
+  // response(s), the validated §3 HarmonicPlan that flowed into Stage 4/5a/5b/6/8,
+  // and any soft notes (all-tonic, static section, modal borrows) — diagnostics,
+  // not failures. Model round-trips carry a numeric `attempt`; the soft-note trace
+  // carries `attempt: 'soft-note'` and a `warnings` array — split them here.
+  function showStage3({ generated, prompt, traces, plan, status, statusClean }) {
+    const statusEl = document.getElementById('stage3-status');
+    statusEl.textContent = status;
+    statusEl.classList.toggle('clean', !!statusClean);
+    const roundTrips = (traces ?? []).filter((t) => typeof t.attempt === 'number');
+    const warnings = (traces ?? []).flatMap((t) => t.warnings ?? []);
+    document.getElementById('stage3-warnings').textContent = warnings.length
+      ? `soft notes: ${warnings.join(' · ')}`
+      : '';
+    document.getElementById('stage3-prompt').textContent = prompt
+      ? `SYSTEM:\n${prompt.system}\n\nUSER:\n${prompt.user}`
+      : (generated ? '' : 'n/a — harmonicPlan supplied with the case');
+    document.getElementById('stage3-raw').textContent = roundTrips.length
+      ? roundTrips.map((t) => `# attempt ${t.attempt} — ${t.ok ? 'valid' : 'INVALID: ' + t.errors.join('; ')}\n${t.raw}`).join('\n\n')
+      : (generated ? '' : 'n/a — harmonicPlan supplied with the case');
+    document.getElementById('stage3-plan').textContent = plan
+      ? JSON.stringify(plan, null, 1)
+      : (generated ? '' : 'n/a — harmonicPlan supplied with the case');
+  }
 
   // Render the Stage-4 panel. For cases that supply motifs it reads n/a; for the
   // fully-LLM case it shows the built prompt, the raw model response(s), the
@@ -368,9 +422,12 @@
     const adventurousness = adventurousnessSelect.value;
     const phraseAdventurousness = phraseAdventurousnessSelect.value;
     const motifAdventurousness = motifAdventurousnessSelect.value;
+    const harmonicAdventurousness = harmonicAdventurousnessSelect.value;
     // The pipeline config — DEFAULT_CONFIG with the chosen voice-leading preset
-    // (Stage 7 reads knobs.voice_leading_strictness) and, for generated cases,
-    // the chosen motif + phrase + texture adventurousness (Stage 4 / 5a / 5b read them).
+    // (Stage 7 reads knobs.voice_leading_strictness) and, for generated cases, the
+    // chosen harmonic + motif + phrase + texture adventurousness (Stage 3 / 4 / 5a /
+    // 5b read them). allow_modal_interchange rides with the balanced default (ON);
+    // Stage 3's validator + prompt read it.
     const config = {
       ...DEFAULT_CONFIG,
       knobs: {
@@ -379,6 +436,7 @@
         texture_adventurousness: adventurousness,
         phrase_adventurousness: phraseAdventurousness,
         motif_adventurousness: motifAdventurousness,
+        harmonic_adventurousness: harmonicAdventurousness,
       },
     };
     try {
@@ -389,10 +447,34 @@
       // complete input whether it was hand-supplied or LLM-generated.
       let effectiveCase = testCase;
 
-      // Stage 4 — generate the motifs if the case omits them (fully-LLM case).
-      // Must run FIRST: the Stage-5a and Stage-5b prompts both reference the
-      // motifs, so the (possibly just-generated) motif map has to be folded into
+      // Stage 3 — generate the harmonic plan if the case omits it (incl.-harmony
+      // case). Must run FIRST: Stage 4/5a/5b prompts all reference the harmony, so
+      // the (possibly just-generated) §3 HarmonicPlan has to be folded into
       // effectiveCase before those stages build their prompts.
+      if (!effectiveCase.harmonicPlan) {
+        const prompt = buildHarmonicPlanPrompt({ ...effectiveCase, config });
+        showStage3({ generated: true, prompt, traces: [], plan: null, status: `Calling Stage 3 LLM (${harmonicAdventurousness})…` });
+        caseMeta.innerHTML = `<b>${testCase.title}</b> · calling Stage 3 LLM (${harmonicAdventurousness})…`;
+        const traces = [];
+        const harmonicPlan = await generateHarmonicPlan({
+          ...effectiveCase,
+          config,
+          onTrace: (t) => traces.push(t),
+        });
+        effectiveCase = { ...effectiveCase, harmonicPlan };
+        const roundTrips = traces.filter((t) => typeof t.attempt === 'number').length;
+        showStage3({
+          generated: true, prompt, traces, plan: harmonicPlan,
+          status: `Stage 3 OK (${harmonicAdventurousness}) — ${roundTrips} model round-trip(s).`, statusClean: true,
+        });
+      } else {
+        showStage3({ generated: false, prompt: null, traces: null, plan: null, status: '' });
+      }
+
+      // Stage 4 — generate the motifs if the case omits them (fully-LLM case).
+      // Runs after Stage 3: the Stage-4/5a/5b prompts reference the harmony, so the
+      // (possibly just-generated) harmonicPlan is already in effectiveCase. The
+      // motif map likewise must be folded in before 5a/5b build their prompts.
       if (!effectiveCase.motifs) {
         const prompt = buildMotifsPrompt({ ...effectiveCase, config });
         showStage4({ generated: true, prompt, traces: [], motifs: null, status: `Calling Stage 4 LLM (${motifAdventurousness})…` });
@@ -509,6 +591,7 @@
   adventurousnessSelect.addEventListener('change', () => { synth.stop(); run(); });
   phraseAdventurousnessSelect.addEventListener('change', () => { synth.stop(); run(); });
   motifAdventurousnessSelect.addEventListener('change', () => { synth.stop(); run(); });
+  harmonicAdventurousnessSelect.addEventListener('change', () => { synth.stop(); run(); });
 
   run();
 </script>

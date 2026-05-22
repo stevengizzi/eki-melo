@@ -40,6 +40,12 @@
    LLM" (motifs + phrasePlan + texturePlan all omitted): the whole creative
    content is generated (Stage 4 → 5a → 5b), only macroParams + harmonicPlan are
    hand-supplied. This is the Session-10 human-checkpoint case.
+
+   SESSION 11. `GENERATED_CASES` gains "Sunrise Fanfare — fully LLM (incl. harmony)"
+   (harmonicPlan + motifs + phrasePlan + texturePlan ALL omitted): now the harmony
+   itself is generated too (Stage 3 → 4 → 5a → 5b), only macroParams hand-supplied.
+   This is the Session-11 human-checkpoint case, A/B'd against the Session-10
+   fully-LLM case (hand-supplied harmony) to judge the generated harmony.
    ================================================================= */
 
 export const CASES = [
@@ -369,6 +375,30 @@ function fullyLLMCase(base, overrides) {
   };
 }
 
+// ---------------------------------------------------------------- Session 11
+// FULLY-LLM-INCLUDING-HARMONY case: the same macroParams as the matching hand-
+// supplied case, but with harmonicPlan, motifs, phrasePlan, AND texturePlan all
+// OMITTED. The inspector calls Stage 3 (generateHarmonicPlan) to write the chords
+// + cadences, then Stage 4 (motifs), Stage 5a (phrase), Stage 5b (texture) — the
+// ENTIRE creative content, harmony included, is LLM-generated; only the macro
+// params are hand-supplied. This is the case the Session-11 human checkpoint A/Bs
+// against the Session-10 fully-LLM case (which had hand-supplied harmony), to hear
+// whether the generated harmony reads as functionally clearer / more memorable.
+//
+// Stage 3 reads `macroParams.mood` (its strongest harmonic-language signal) — and
+// Stages 4/5a/5b read it downstream — so the case's mood is surfaced INTO
+// macroParams (forward-looking: Stage 2 will set it from the AestheticBrief). The
+// top-level `mood` is kept for FinalJingle metadata, exactly as the runner reads it.
+function fullyLLMWithHarmonyCase(base, overrides) {
+  const { harmonicPlan, motifs, phrasePlan, texturePlan, ...rest } = base;
+  return {
+    ...rest,
+    macroParams: { ...rest.macroParams, mood: base.mood },
+    generated: true,
+    ...overrides,
+  };
+}
+
 export const GENERATED_CASES = [
   withoutTexturePlan(CASES[0], {
     id: 'sunrise-generated',
@@ -385,5 +415,9 @@ export const GENERATED_CASES = [
   fullyLLMCase(CASES[0], {
     id: 'sunrise-fully-llm',
     title: 'Sunrise Fanfare — fully LLM',
+  }),
+  fullyLLMWithHarmonyCase(CASES[0], {
+    id: 'sunrise-fully-llm-harmony',
+    title: 'Sunrise Fanfare — fully LLM (incl. harmony)',
   }),
 ];
