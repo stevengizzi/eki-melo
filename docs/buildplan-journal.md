@@ -3346,3 +3346,50 @@ flagged two things. Both fixed in-pass; the checkpoint stays OPEN for the re-lis
 All twelve verifiers still pass offline after both fixes. Checkpoint OPEN pending Steven's
 re-listen on whether the melody now sits on the harmony and whether the generated harmony
 A/Bs favorably against the Session-10 hand-supplied harmony.
+
+### Checkpoint findings (2026-05-22, re-listen — the prompt steer leaked; deterministic guard added)
+
+A fresh incl.-harmony run confirmed the Stage-5a prompt steer (above) WORKED partially —
+the home-motif fix held (A-sections all used motif a, B used b; no more cross-section
+clash) and motif a came out as a clean triad-arpeggio-to-the-octave fanfare that fits I
+perfectly — but the chord-blind transpose LEAKED once more, in the worst spot: A3 (the
+reprise) opened on `a/sequence_up_step` over the I chord, shifting a's arpeggio to a
+ii-arpeggio (D-F-A) over C major — a wholesale clash, and the imitation texture doubled it.
+Galling detail: the model put the chord-fitting `literal` in bar 2 (over V) and the
+off-chord `sequence_up_step` in bar 1 (over I); swapping them would have opened cleanly.
+Diagnosis: an LLM doing degree-space chord-tone arithmetic in-prompt will keep leaking; the
+prompt turned a pervasive problem into an occasional one but can't close it.
+
+Steven's steer (asked, two questions): (1) escalate to the DETERMINISTIC guard we held in
+reserve; (2) test the bland harmony with a longer fixture before any Stage-3 prompt tuning.
+
+1. **Deterministic chord-fit guard (FIXED — `70eb130`, Stage 5a validator).** A HARD,
+   retry-actionable rule: for the TRANSPOSING transforms (sequence_up_step,
+   sequence_down_step, transpose_step, transpose_third), realize the transformed motif and
+   reject the assignment if NONE of its notes are chord tones of that bar's chord — the
+   gross "shifted entirely off the chord" case (A3's D-F-A over I = zero chord tones). A
+   partial fit (≥1 chord tone — passing/colour tones over real chord tones) passes; the
+   non-shifting transforms (literal/retrograde/fragment/invert/ornament/augment/diminute)
+   are exempt because they keep the motif's authored pitches. It alters NO melodies — the
+   LLM corrects it on the one retry with a message naming the degree and the bar's chord
+   tones. `validatePhrasePlan` gains an optional 4th arg (the §3 harmonicPlan); absent it,
+   the guard is skipped (back-compatible 3-arg form, which is why the prior verifier tests
+   that call it 3-arg still pass). The threshold is deliberately conservative (zero, not
+   "below k") so it catches the wholesale clash without false-positiving on expressive
+   colour; it can be tightened if clashes persist. verify-stage5a covers the reject, a
+   partial-fit pass, and the 3-arg skip.
+
+2. **Bland harmony is (mostly) the 2-bar cage — diagnostic fixture added (`bcc1825`).** The
+   8-bar AABA's harmony was I-V in every A section. But with 2-bar sections, a PAC section
+   can hold exactly two chords (I→V) — there is mathematically NO room for I-V-vi-IV, so the
+   "memorable progressions" guidance can't apply. This is the ~32-beat length cap interacting
+   with a 4-section form: 32 beats / 4 sections = 2 bars each. Added a 16-bar AABA
+   (4 bars/section) "harmony-room" diagnostic to GENERATED_CASES to confirm the richer
+   progressions appear when there's space; it intentionally exceeds the 32-beat cap (a probe,
+   not a production length). If harmony blooms at 4 bars/section, the real lever is
+   macro/section-length (Session 12 / the cap + form choice), NOT the Stage-3 prompt. Steven
+   to A/B the 8-bar vs 16-bar cases.
+
+All twelve verifiers pass offline. Checkpoint OPEN: re-listen to confirm the A3-style clash
+is gone (the guard forces it), and A/B the 8-bar vs 16-bar harmony to confirm the blandness
+is the section-length cage.
