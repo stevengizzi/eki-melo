@@ -30,6 +30,16 @@
    motif SHAPES themselves are (conjunct stepwise cells vs. wide leaps, byzantine
    flourishes, colour degrees, chromatic anomalies). Modeled on the two
    adventurousness knobs above; additive — no other stage reads it.
+
+   SESSION 11 ADDITION. `harmonic_adventurousness` ({ tame | adventurous | wild })
+   is the knob the fourth LLM stage (Stage 3 harmonic plan) reads — how bold the
+   PROGRESSIONS are (functional pop cells vs. modal interchange + non-PAC cadences
+   vs. chromatic mediants + modal mixture). It mirrors the three knobs above. The
+   existing `allow_modal_interchange` knob is now CONSUMED for the first time (by
+   Stage 3's validator + prompt), so it is aligned to the harmonic level: OFF for
+   tame (conservative), ON for adventurous/wild (balanced/adventurous/wild). That
+   flips the `balanced` preset's `allow_modal_interchange` false→true — safe,
+   because no stage read the flag before this session.
    ================================================================= */
 
 // Preset knob bundles. `balanced` is the default; the others widen or narrow
@@ -45,6 +55,7 @@ export const PRESETS = {
     texture_adventurousness: 'tame',
     phrase_adventurousness: 'tame',
     motif_adventurousness: 'tame',
+    harmonic_adventurousness: 'tame',
     voice_leading_strictness: 'cpp_strict',
     anomaly_budget_per_motif: 0,
     anomaly_budget_per_section: 0,
@@ -53,12 +64,13 @@ export const PRESETS = {
   balanced: {
     max_leap_degrees: 5,
     cadence_palette: ['PAC', 'modal_iv_i', 'half', 'deceptive'],
-    allow_modal_interchange: false,
+    allow_modal_interchange: true,
     allow_secondary_dominants: false,
     texture_change_rate: 'medium',
     texture_adventurousness: 'adventurous',
     phrase_adventurousness: 'adventurous',
     motif_adventurousness: 'adventurous',
+    harmonic_adventurousness: 'adventurous',
     voice_leading_strictness: 'chiptune_idiomatic',
     anomaly_budget_per_motif: 1,
     anomaly_budget_per_section: 1,
@@ -73,6 +85,7 @@ export const PRESETS = {
     texture_adventurousness: 'adventurous',
     phrase_adventurousness: 'adventurous',
     motif_adventurousness: 'adventurous',
+    harmonic_adventurousness: 'adventurous',
     voice_leading_strictness: 'chiptune_idiomatic',
     anomaly_budget_per_motif: 1,
     anomaly_budget_per_section: 2,
@@ -87,6 +100,7 @@ export const PRESETS = {
     texture_adventurousness: 'wild',
     phrase_adventurousness: 'wild',
     motif_adventurousness: 'wild',
+    harmonic_adventurousness: 'wild',
     voice_leading_strictness: 'chiptune_idiomatic',
     anomaly_budget_per_motif: 2,
     anomaly_budget_per_section: 3,

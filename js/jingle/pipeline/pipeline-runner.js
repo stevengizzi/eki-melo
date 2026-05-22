@@ -11,22 +11,24 @@
    The upstream LLM/rule stages (1–5b) that will eventually produce this are
    built in later sessions; here they are pre-supplied.
 
-   TWO ENTRY POINTS (Session 8, extended Sessions 9 + 10). `runPipeline` is
-   SYNCHRONOUS and requires `input.motifs`, `input.phrasePlan`, AND
-   `input.texturePlan` — the Session 4–7 hand-supplied path, bit-for-bit
-   unchanged (every existing verifier + the inspector's hand-supplied cases call
-   it synchronously). `runPipelineGenerating` is its ASYNC sibling: it fills any
-   absent upstream artifact via its LLM stage, in dependency order, then delegates
-   to the synchronous core:
-     1. no motifs     → Stage 4  (`generateMotifs`) writes the melodic cells.
-     2. no phrasePlan → Stage 5a (`generatePhrasePlan`) shapes how they develop,
-        receiving the (now-resolved) motifs as upstream context.
-     3. no texturePlan → Stage 5b (`generateTexturePlan`) choreographs textures,
-        receiving the (now-resolved) motifs + phrasePlan as upstream context.
+   TWO ENTRY POINTS (Session 8, extended Sessions 9 + 10 + 11). `runPipeline` is
+   SYNCHRONOUS and requires `input.harmonicPlan`, `input.motifs`,
+   `input.phrasePlan`, AND `input.texturePlan` — the Session 4–7 hand-supplied
+   path, bit-for-bit unchanged (every existing verifier + the inspector's
+   hand-supplied cases call it synchronously). `runPipelineGenerating` is its
+   ASYNC sibling: it fills any absent upstream artifact via its LLM stage, in
+   dependency order, then delegates to the synchronous core:
+     1. no harmonicPlan → Stage 3 (`generateHarmonicPlan`) writes the chords.
+     2. no motifs     → Stage 4  (`generateMotifs`) writes the melodic cells,
+        receiving the (now-resolved) harmonicPlan as upstream context.
+     3. no phrasePlan → Stage 5a (`generatePhrasePlan`) shapes how they develop,
+        receiving the (now-resolved) harmonicPlan + motifs as upstream context.
+     4. no texturePlan → Stage 5b (`generateTexturePlan`) choreographs textures,
+        receiving the (now-resolved) harmonicPlan + motifs + phrasePlan.
    Present-supplied input always wins; otherwise the LLM stage runs. This is the
-   pattern the remaining LLM stages (1, 2, 3) follow as they land. Keeping the
-   core synchronous means adding an LLM stage never changes the calling convention
-   of the deterministic back-half.
+   pattern the remaining LLM stages (1, 2) follow as they land. Keeping the core
+   synchronous means adding an LLM stage never changes the calling convention of
+   the deterministic back-half.
 
    Flow:
      1. Stage 6  — realizeVoices → VoiceTracks of beat-stamped { pitch, beat,
@@ -52,6 +54,7 @@ import { toSynthString } from '../theory/synth-rendering.js';
 import { realizeVoices, computeSectionPlan, toSequence, pieceTotalBeats } from './stage-6-voice.js';
 import { applyVoiceLeading } from './stage-7-leading.js';
 import { enforceCadences } from './stage-8-cadence.js';
+import { generateHarmonicPlan } from './stage-3-harmony.js';
 import { generateMotifs } from './stage-4-motifs.js';
 import { generatePhrasePlan } from './stage-5a-phrase.js';
 import { generateTexturePlan } from './stage-5b-texture.js';
@@ -113,6 +116,12 @@ function sectionMarkers(macroParams) {
 export function runPipeline(input, config = DEFAULT_CONFIG) {
   const { macroParams } = input;
 
+  if (!input.harmonicPlan) {
+    throw new Error(
+      'runPipeline requires input.harmonicPlan. To generate one via the Stage 3 LLM call, '
+        + 'use runPipelineGenerating (async) instead.'
+    );
+  }
   if (!input.motifs) {
     throw new Error(
       'runPipeline requires input.motifs. To generate them via the Stage 4 LLM call, '
@@ -161,35 +170,50 @@ export function runPipeline(input, config = DEFAULT_CONFIG) {
 }
 
 /**
- * Async sibling of `runPipeline` (Session 8, extended Sessions 9 + 10). Any
+ * Async sibling of `runPipeline` (Session 8, extended Sessions 9 + 10 + 11). Any
  * upstream artifact that is present is trusted; any that is absent is generated
  * by its LLM stage, in dependency order, before delegating to the synchronous
  * core:
- *   1. no `input.motifs` → Stage 4 (`generateMotifs`), honoring
- *      `config.knobs.motif_adventurousness`.
- *   2. no `input.phrasePlan` → Stage 5a (`generatePhrasePlan`), honoring
+ *   1. no `input.harmonicPlan` → Stage 3 (`generateHarmonicPlan`), honoring
+ *      `config.knobs.harmonic_adventurousness` + `allow_modal_interchange`.
+ *   2. no `input.motifs` → Stage 4 (`generateMotifs`), honoring
+ *      `config.knobs.motif_adventurousness` and receiving the now-resolved
+ *      harmonicPlan as upstream context.
+ *   3. no `input.phrasePlan` → Stage 5a (`generatePhrasePlan`), honoring
  *      `config.knobs.phrase_adventurousness` and receiving the now-resolved
- *      motifs as upstream context.
- *   3. no `input.texturePlan` → Stage 5b (`generateTexturePlan`), honoring
+ *      harmonicPlan + motifs as upstream context.
+ *   4. no `input.texturePlan` → Stage 5b (`generateTexturePlan`), honoring
  *      `config.knobs.texture_adventurousness` and receiving the now-resolved
- *      motifs + phrasePlan as upstream context.
- * When all three are supplied the output is identical to `runPipeline`.
+ *      harmonicPlan + motifs + phrasePlan as upstream context.
+ * When all four are supplied the output is identical to `runPipeline`.
  *
  * Offline / debug hooks (never required):
- *   - `input.__mockMotifResponse` / `input.__mockPhraseResponse` /
- *     `input.__mockResponse` (JSON strings) route Stage 4 / Stage 5a / Stage 5b
- *     through their deterministic-fallback path instead of the network — the only
- *     way to exercise generation without an API call. (`__mockResponse` stays the
- *     TEXTURE channel for back-compat with Session 8.)
- *   - `input.onMotifTrace` / `input.onPhraseTrace` / `input.onTrace` are forwarded
- *     to Stage 4 / Stage 5a / Stage 5b for inspector display.
+ *   - `input.__mockHarmonyResponse` / `input.__mockMotifResponse` /
+ *     `input.__mockPhraseResponse` / `input.__mockResponse` (JSON strings) route
+ *     Stage 3 / Stage 4 / Stage 5a / Stage 5b through their deterministic-fallback
+ *     path instead of the network — the only way to exercise generation without an
+ *     API call. (`__mockResponse` stays the TEXTURE channel for back-compat with
+ *     Session 8.)
+ *   - `input.onHarmonyTrace` / `input.onMotifTrace` / `input.onPhraseTrace` /
+ *     `input.onTrace` are forwarded to Stage 3 / Stage 4 / Stage 5a / Stage 5b for
+ *     inspector display.
  */
 export async function runPipelineGenerating(input, config = DEFAULT_CONFIG) {
+  let harmonicPlan = input.harmonicPlan;
+  if (!harmonicPlan) {
+    harmonicPlan = await generateHarmonicPlan({
+      macroParams: input.macroParams,
+      config,
+      __mockResponse: input.__mockHarmonyResponse,
+      onTrace: input.onHarmonyTrace,
+    });
+  }
+
   let motifs = input.motifs;
   if (!motifs) {
     motifs = await generateMotifs({
       macroParams: input.macroParams,
-      harmonicPlan: input.harmonicPlan,
+      harmonicPlan,
       config,
       __mockResponse: input.__mockMotifResponse,
       onTrace: input.onMotifTrace,
@@ -201,7 +225,7 @@ export async function runPipelineGenerating(input, config = DEFAULT_CONFIG) {
     phrasePlan = await generatePhrasePlan({
       macroParams: input.macroParams,
       motifs,
-      harmonicPlan: input.harmonicPlan,
+      harmonicPlan,
       config,
       __mockResponse: input.__mockPhraseResponse,
       onTrace: input.onPhraseTrace,
@@ -213,7 +237,7 @@ export async function runPipelineGenerating(input, config = DEFAULT_CONFIG) {
     texturePlan = await generateTexturePlan({
       macroParams: input.macroParams,
       motifs,
-      harmonicPlan: input.harmonicPlan,
+      harmonicPlan,
       phrasePlan,
       config,
       __mockResponse: input.__mockResponse,
@@ -221,5 +245,5 @@ export async function runPipelineGenerating(input, config = DEFAULT_CONFIG) {
     });
   }
 
-  return runPipeline({ ...input, motifs, phrasePlan, texturePlan }, config);
+  return runPipeline({ ...input, harmonicPlan, motifs, phrasePlan, texturePlan }, config);
 }
