@@ -2954,3 +2954,350 @@ proxy/transport fixes also landed. All eleven verifiers pass offline. The phrase
 is the recommended next session (notes above + buildplan §7). Cleared for the Claude.ai-side review and,
 after that, Session 11 (Stage 3 — harmonic plan) or the phrase-motif session, at Steven's direction. Do
 NOT start the next session automatically.**
+
+**Claude.ai-side verification (Steven + Claude Opus 4.7):**
+- All eleven verify scripts re-run independently — PASSED:
+  verify-spelling, verify-forms, verify-motif, verify-stage6,
+  verify-stage8, verify-textures, verify-stage7, verify-stage5b,
+  verify-stage5a, verify-stage4, verify-llm-call (all exit 0,
+  all offline).
+- The "schema-hard / style-soft" unification across the Stage-4
+  validator is the right discipline emerging from the audition
+  iteration. Hard checks reserved for "would break realization
+  or violate the schema"; everything else (contour-trajectory
+  match, anomaly reality, chord-tone ending, rhythm sameness)
+  is a soft warning surfaced via onTrace but not a retry
+  trigger. Removes a class of spurious aborts on cosmetic
+  metadata while preserving every structural invariant.
+- Two theory-layer fixes (Sessions 6 deliverables) made in-pass:
+  · imitation_one_beat_delay's chromatic transposition →
+    diatonic / "tonal answer" via pitchFromLinear. Real
+    correctness bug exposed by the fully-LLM audition; the
+    Desert Caravan cpp_strict count baseline dropped 9 → 8
+    with the snap_to_mode removed (re-pinned with a comment).
+  · heterophony's universal-split-into-two-events reshaped to
+    "octave-below shadow with at-most-one sixteenth passing
+    tone on longer notes that actually move." Texture keeps
+    its identity and its distinctness from voice_exchange,
+    without the 32nd-note artifacts or repeated-pitch stutters.
+- Infrastructure investment (transport retry-with-backoff via
+  shared llm-call.js + proxy body cap raised to 64 KiB) is
+  load-bearing for the remaining LLM stages and was correctly
+  scoped to its own commit.
+- Steven's verdict ("It's sounding good!" + "A1 and B are solid"
+  + the standing "less memorable than v1" reservation
+  correctly diagnosed as cell+development ceiling) is the
+  right read of what Session 10 ships.
+
+**Verdict: Session 10 complete and verified. Stage 4 is live,
+schema-hard / style-soft validation working, transport hardened,
+two theory-layer corrections folded in. The phrase-motif
+recommendation reads as the most likely correct next step;
+verification on the recommendation itself appears in the chat
+response.**
+
+## Session 11 — 2026-05-22 — Stage 3 (harmonic plan). The fourth (and final back-half) LLM stage.
+
+**What landed (commits):**
+- feat(jingle): add Stage 3 harmonic-plan LLM stage + chain it in the runner
+  - `js/jingle/pipeline/stage-3-harmony.js` — generateHarmonicPlan +
+    validateHarmonicPlan + buildHarmonicPlanPrompt (mirrors stage-4-motifs.js)
+  - `js/jingle/pipeline/pipeline-runner.js` — runPipelineGenerating now chains
+    FIVE stages (harmony → motifs → phrase → texture → sync core);
+    `__mockHarmonyResponse` / `onHarmonyTrace`; sync runPipeline now also requires
+    `input.harmonicPlan`
+  - `js/jingle/pipeline/pipeline-config.js` — `harmonic_adventurousness` on all four
+    presets; `balanced.allow_modal_interchange` flipped false→true (first consumer)
+- feat(jingle): wire Stage 3 into the inspector + add the offline verifier
+  - `js/jingle/debug/pipeline-inspector-cases.js` — new `sunrise-fully-llm-harmony`
+    case (harmonicPlan + motifs + phrasePlan + texturePlan all omitted)
+  - `js/jingle/debug/pipeline-inspector.html` — a harmonic-adventurousness selector,
+    a Stage-3 panel above Stage-4, and a harmony-then-motifs-then-phrase-then-texture
+    flow for the incl.-harmony case (the audition view widens by one panel)
+  - `js/jingle/theory/verify-stage3.mjs` — committed offline regression check
+- docs(jingle): record Session 11 implementation (this entry)
+
+**Exit criteria status:**
+- [x] `stage-3-harmony.js` exports `generateHarmonicPlan` + `validateHarmonicPlan` +
+  `buildHarmonicPlanPrompt`, mirroring stage-4-motifs.js's architecture (prompt
+  builder separated from the fetch; wrapped LLM envelope unwrapped to the canonical
+  §3 shape; collect-all-defects validation; validate-then-retry-once;
+  `__mockResponse` offline fallback; model pinned to `claude-sonnet-4-20250514`;
+  shared `llm-call.js` transport).
+- [x] The prompt includes the available-chords-for-mode listing (via
+  `listAvailableChords` + `resolveRoman`, each chord with its concrete pitch +
+  quality), the cadence/mode compatibility table (all seven cadences, their
+  final-chord + mode requirements), the harmonic_adventurousness knob (active level
+  only), the memorable-progression exemplars (I–V–vi–IV, i–bVII–bVI–V, ii–V–I, …),
+  and the explicit compositional guidance on function + harmonic rhythm + B-section
+  contrast + reprise.
+- [x] The validator catches every hard defect with retry-actionable messages
+  (key set, bars shape/range, coverage gap/overlap, empty progression, cadence
+  value, unparseable Roman, out-of-mode chord with interchange off, cadence/
+  final-chord mismatch for all 7 types, mode/cadence incompatibility) and emits the
+  documented soft warnings (all-tonic, single-chord static, cross-boundary repeat,
+  modal-borrow) via the returned `warnings` (surfaced through onTrace).
+- [x] pipeline-runner chains all five LLM stages; sync `runPipeline` requires
+  harmonicPlan + motifs + phrasePlan + texturePlan and throws cleanly (pointing at
+  `runPipelineGenerating`) if any is missing.
+- [x] `pipeline-inspector.html` shows all four generated artifacts side-by-side
+  (Stage-3 harmony → Stage-4 motifs → Stage-5a phrase → Stage-5b texture) on the
+  incl.-harmony case.
+- [x] `verify-stage3.mjs` passes offline (no API calls); all prior verifiers still
+  pass (verify-spelling / -forms / -motif / -stage6 / -stage8 / -textures / -stage7 /
+  -stage5b / -stage5a / -stage4 / -llm-call — twelve total, all exit 0).
+- [x] This journal entry (covering the prompt-design choices, esp. the
+  memorable-progressions exemplars + the cadence-compatibility table).
+- [ ] **Human checkpoint** — SUBSTANTIAL; NOT yet run. Added after Steven's
+  listening pass.
+
+**THE SHAPE DECISION (the load-bearing call this session).** The kickoff's OUTPUT
+sketch wrote the unwrapped HarmonicPlan as a flat `{ <label>: { progression:
+[{roman, bars:[s,e]}], cadence } }` map. But its binding requirement is "exactly
+what Sessions 4–10 already consume" — and that is NOT the flat `{roman,bars}` map.
+The actual downstream contract (buildplan §3; the hand-supplied inspector cases;
+`harmonySummary` in Stages 4/5a/5b; Stage 6's `romanForBar` and Stage 8) is:
+
+    { sections: [ { label, progression: [<roman STRING>, …], cadence }, … ] }
+
+— an ARRAY of sections, each `progression` a flat array of Roman STRINGS, realized
+ONE CHORD PER BAR via `romanForBar(progression, barRel) = progression[(barRel-1) %
+len]`. So, exactly as Session 10 resolved `position` → `at_position` in favor of the
+real consumer, Stage 3 resolves this inconsistency the same way:
+- The LLM emits — and `validateHarmonicPlan` checks — a richer WRAPPED envelope
+  `{ sections: { <label>: { progression: [{roman, bars:[s,e]}], cadence } } }`. The
+  per-chord BAR RANGES let the model express harmonic rhythm (a chord held across
+  two bars vs. a chord per bar) and let the validator check the harmony tiles the
+  whole section (the same coverage rule Stage 5b uses).
+- `generateHarmonicPlan` then UNWRAPS by EXPANDING each `{roman, bars:[s,e]}` into
+  (e−s+1) copies of `roman`, producing the canonical per-bar string array of length
+  `section.bars`, in the array-of-sections shape. A chord at [1,2] → `["I","I"]`; a
+  chord at [3,3] → `["vi"]`. So `input.harmonicPlan` is one consistent shape (the §3
+  array) whether hand-supplied or generated, and `romanForBar` indexes it one chord
+  per bar with no surprises.
+
+Why expand rather than pass the chord-list through: `romanForBar` CYCLES a short
+progression, so an un-expanded `["I","V"]` over 4 bars would realize I-V-I-V (one
+per bar, alternating), NOT the intended I-I-V-V. Expansion makes the realized
+harmonic rhythm exactly what the model drew with its bar ranges.
+
+ONE CHORD PER BAR is the realizable ceiling (integer `bars` ranges + `romanForBar`):
+a chord per bar, or a chord held across N bars — never two chords WITHIN one bar. The
+prompt's harmonic-rhythm guidance is phrased to match (slow = a chord across two
+bars; fast = a chord per bar), softening the kickoff's "2 chords per bar" line, which
+integer bar ranges can't express anyway.
+
+**Verification anchors that passed (`verify-stage3.mjs`, committed, OFFLINE):**
+- `validateHarmonicPlan` on a valid wrapped plan (C major AABA; every section tiled
+  one chord per bar, every final chord a V for its V-cadence) → `{ ok:true,
+  errors:[] }`. Each documented defect → `{ ok:false }` with a message naming it:
+  envelope shape, missing/extra section, empty/missing progression, bars-not-tuple,
+  bars-out-of-range, coverage gap, coverage overlap, bad cadence value, unparseable
+  Roman, out-of-mode chord (interchange OFF), and a cadence/final-chord mismatch for
+  EACH of the seven cadence types (PAC/IAC/half/deceptive given a wrong final chord;
+  plagal given V; modal_iv_i given V AND given a major IV in dorian; phrygian_ii_i
+  given i), plus mode/cadence incompatibility (modal_iv_i in C major → "minor tonic";
+  phrygian_ii_i in C lydian → "flat-2").
+- Positive controls: plagal→IV, modal_iv_i→iv (A aeolian), phrygian_ii_i→"II" (E
+  phrygian, where degree 2 IS the flat-2) all validate. Soft warnings emit WITHOUT
+  failing: a single chord over 4 bars (static), and V across a section boundary
+  (A ends V, B starts V), and a `bVII` borrow with interchange ON.
+- `generateHarmonicPlan({ __mockResponse })`: a valid mock returns the canonical §3
+  ARRAY (`{ sections: [ {label, progression:[strings], cadence} ] }`, NOT the
+  {roman,bars} envelope), per-bar expanded (A1 → `["I","V"]`; a [1,2] hold →
+  `["I","I","V","V"]`). Threaded through `runPipelineGenerating` with Stages 4 + 5a +
+  5b ALSO mocked, it runs end-to-end (3 → 4 → 5a → 5b → 6 → 7 → 8 → toSynthString) to
+  a FinalJingle whose every pitch parses through the real synth.js `noteToFreq`, all
+  three voices beat-aligned. A malformed mock (bad JSON) throws; a semantically-
+  invalid mock (PAC ending on vi) throws on validation. A static section's soft
+  warning fires via `onTrace`.
+- `buildHarmonicPlanPrompt` is pure and names the required section labels, the
+  AVAILABLE DIATONIC CHORDS (with a resolved "C major" pitch+quality), the CADENCE
+  TYPES table (all seven names), HARMONIC RHYTHM guidance, the memorable-progression
+  exemplars (I–V–vi–IV, i–bVII–bVI–V), the function + B-contrast coaching, the active
+  adventurousness directive, the mood signal, and "MODAL INTERCHANGE: ON/OFF"
+  conditional on the flag. D-dorian / wild request body = 6.4 KB (proxy cap 64 KiB).
+
+**Prompt design choices (the musical-quality differentiator this session):**
+- **System prompt** per the kickoff: "You are a composer writing the harmonic
+  progression and cadence for a chiptune piece. Your output is a strict JSON object
+  matching the given schema; no commentary."
+- **Available-chords-for-mode is the vocabulary anchor.** `listAvailableChords(mode)`
+  + `resolveRoman` print each diatonic degree with its concrete pitch and quality
+  ("i (D minor)", "III (F major)", "vi° (B diminished)"), so the model sees exactly
+  what it has, in this key. Single source of truth — the listing can't drift from
+  what the validator accepts.
+- **The cadence/mode compatibility table is embedded inline** so the model can pick a
+  compatible cadence rather than guess. Each of the seven cadences names its required
+  final ("approach") chord and its mode requirement. The validator enforces both, so
+  the table is the model's map of the rules, not decoration.
+- **The memorable-progression exemplars are the "what good looks like" anchor** (the
+  Session-10 lesson: concrete exemplars move output more than abstract guidance). Six
+  named progressions with identities (pop standard, rhythm-changes cycle, minor
+  descending tetrachord, ii–V–I, modal mixolydian, dorian i–iv–i), told to "pick
+  something WITH a recognizable shape for each section, then fit it to the bars" —
+  steering the model away from a diatonic random walk toward a progression with an
+  identity.
+- **Explicit compositional guidance** beyond the vocabulary: (1) clear harmonic
+  function (tonic / predominant / dominant / resolution areas), (2) harmonic rhythm
+  is structural (vary chords-per-bar with the bar ranges), (3) contrast the B section
+  (related key area, chromatic chord, shifted rhythm, non-PAC cadence), (4)
+  re-establish home at the reprise, (5) write with identity.
+- **Adventurousness directive prints only the ACTIVE level** (same idiom as S8/9/10):
+  tame = functional/diatonic, standard cadences; adventurous = modal interchange
+  welcome + ≥1 non-PAC cadence + surprise; wild = chromatic mediants + modal mixture +
+  phrygian cadence where the mode allows + one anomaly-slot chord, still coherent.
+- **Modal-interchange invitation is conditional on the actual flag**, named
+  separately from the level so the prompt is honest in every config: ON names the
+  conventional borrowings (major-ish: bVII/bVI/bIII/iv/ii°; minor-ish: V/VII/II/IV);
+  OFF tells the model to stay strictly diatonic.
+
+**Validation strategy (the music-theory work this session):**
+- `validateHarmonicPlan(wrapped, macroParams, config?)` returns `{ ok, errors,
+  warnings }` and collects ALL hard errors in one pass (like 4/5a/5b) so the single
+  retry sees them together; warnings never affect `ok`. `config` is an optional 3rd
+  arg (the kickoff's 2-arg signature still works, modal interchange defaulting OFF —
+  matching `isValidInMode`'s own default) — it supplies
+  `knobs.allow_modal_interchange`.
+- HARD checks lean on theory/roman-numeral.js for ground truth: each chord's
+  `resolveRoman` (parse failure → error) and `isValidInMode(roman, mode, false)`
+  (diatonicity). A non-diatonic chord is a hard error when interchange is OFF, an
+  accepted borrow + soft warning when ON — using `isValidInMode` (not raw
+  `listAvailableChords` membership) so "V7" reads as diatonic and only true
+  chromatics hit the borrow branch.
+- **Cadence/final-chord compatibility is mode-aware.** PAC/IAC/half/deceptive need a
+  final V (degree 5, no accidental, any quality/extension); plagal a IV or iv;
+  modal_iv_i a chord that RESOLVES MINOR on degree 4 (so a major IV in D dorian is
+  correctly rejected as plagal-not-modal — the distinction the kickoff drew);
+  phrygian_ii_i a bII, or a no-accidental degree-2 chord when the mode names degree 2
+  as the flat-2 (detected by the degree-1→degree-2 interval being a semitone, via
+  `degreeToPitch` + `toMidi`).
+- **Mode/cadence compatibility is HARD and independent of the final chord:**
+  modal_iv_i requires a non-major tonic triad (`resolveRoman('I', mode, tonic)`
+  quality ≠ major/augmented); phrygian_ii_i requires the mode to have a diatonic
+  flat-2. When the mode itself is incompatible, that error is pushed and the
+  final-chord check is SKIPPED for that section (changing the cadence resolves both —
+  one clear message instead of two overlapping ones).
+- **Soft warnings (Session-10's schema-hard / style-soft discipline):** all-tonic
+  section (no harmonic motion), single-chord section when bars ≥ 4 (static),
+  repeated chord across a section boundary (mild), and each borrowed chord when
+  interchange is ON (informational). Surfaced via the returned `warnings` →
+  `generateHarmonicPlan` emits an `onTrace({ attempt:'soft-note', warnings })` and
+  `console.warn`s each, never retry-triggering.
+
+**Surprises / decisions made:**
+- **Unwrapped output is the §3 ARRAY shape, not the kickoff's flat map** (the SHAPE
+  DECISION above) — the binding "exactly what Sessions 4–10 consume" requirement wins
+  over the kickoff sketch, exactly as Session 10 resolved `position`→`at_position`.
+- **The cadence/final-chord rule is a NEW constraint the hand-supplied cases do not
+  follow** (e.g. Sunrise A1 is `['I','V','vi','IV']` + IAC — final chord IV, not V).
+  That is fine: the hand-supplied cases flow through the SYNC path and are never seen
+  by `validateHarmonicPlan`; the rule applies only to GENERATED plans, where it makes
+  the harmony leading into the cadence coherent (Stage 8 still overwrites the final
+  two beats regardless — the rule is about the approach reading sensibly, not about
+  Stage 8's mechanics).
+- **`harmonic_adventurousness` is a new knob (≠ the texture/phrase/motif knobs);
+  `allow_modal_interchange` is consumed for the FIRST time.** Added the knob to all
+  four presets (conservative→tame … wild→wild) and aligned `allow_modal_interchange`
+  to the level: OFF for tame, ON for adventurous/wild. That flips the `balanced`
+  preset's flag false→true. Safe: a repo grep confirms no stage read
+  `allow_modal_interchange` before this session (only the preset definitions and
+  `isValidInMode`'s signature referenced it), so flipping it changes nothing already
+  shipped — and balanced's harmonic level is `adventurous`, which the kickoff says
+  defaults modal interchange ON. The validator reads the flag directly; the prompt
+  reads it to decide whether to invite borrowings, so the two never disagree.
+- **`config` added as a 3rd validator arg.** The kickoff's signature is
+  `validateHarmonicPlan(wrapped, macroParams)`, but rule (b) needs the
+  `allow_modal_interchange` flag to decide reject-vs-warn. Made it an OPTIONAL 3rd arg
+  (default → interchange OFF, matching `isValidInMode`), so the 2-arg form still works
+  and `generateHarmonicPlan` passes config through.
+- **`mood` carries the harmonic-language signal** (same convention Stage 4
+  established): `macroParams.mood` is read in `pieceSummary` as "the strongest signal
+  for the harmonic language." Stage 2 (Session 12) will set it from the
+  AestheticBrief; the incl.-harmony inspector case surfaces the case's top-level mood
+  into macroParams.
+- **Stage 3 slots FIRST in `runPipelineGenerating` (harmony → motifs → phrase →
+  texture).** All three later stages reference the harmony, so it must resolve first;
+  the resolved `harmonicPlan` (not `input.harmonicPlan`) is threaded into them and
+  into the final sync `runPipeline`. New mock channel `__mockHarmonyResponse` + trace
+  hook `onHarmonyTrace`. Sync `runPipeline` gains a harmonicPlan guard (it already
+  failed without one, deeper in buildBass; the guard makes it a clear up-front error).
+- **Compatibility table kept INLINE in stage-3-harmony.js, not extracted to
+  cadence-formulas.js.** The kickoff offered exporting a declarative
+  `CADENCE_FINAL_CHORD_REQUIRES = { PAC:["V"], … }` from the theory layer. But the
+  real rules are mode-AWARE (modal_iv_i needs a chord that resolves minor; phrygian
+  needs a flat-2 detected from the scale; the mode/cadence compat resolves the tonic
+  triad), so a flat string-map wouldn't capture them — it would split the logic
+  awkwardly across two files. Keeping the whole compatibility decision cohesive in the
+  validator (which already imports `resolveRoman` / `parseRoman` / `degreeToPitch`) is
+  cleaner. theory/cadence-formulas.js is untouched.
+- **No DEC/CHANGELOG entry** — consistent with Sessions 1–10 and the buildplan: the new
+  pipeline is built alongside the deployed app and is not user-visible until Session 12,
+  where the DEC/CHANGELOG/architecture updates are scheduled.
+
+**Deferred:**
+- **Live prompt tuning (the headline of this session's checkpoint).** Verification here
+  was OFFLINE only (no API key in the build context); `__mockResponse` exercises
+  parse+validate+unwrap+e2e and the prompt structure/size were checked, but no live
+  model harmony was generated or judged. Whether the generated harmony reads as
+  functionally CLEARER / MORE MEMORABLE than the hand-supplied harmony (the A/B against
+  the Session-10 fully-LLM case) is exactly what Steven's listening pass evaluates — and
+  per the checkpoint rules, an aesthetic finding ("the LLM plays it safe even at wild")
+  is a reason to revise the prompt IN-SESSION (add an exemplar, sharpen a directive),
+  not to ship and defer.
+- **Two-chords-per-bar harmonic rhythm.** Integer `bars` ranges + `romanForBar` cap the
+  realizable rhythm at one chord per bar (or held across N bars). Sub-bar harmonic
+  rhythm would need a beat-resolution chord map in Stage 6 — a back-half change, out of
+  scope here.
+- **Per-section modulation / borrowed-mode realization.** A borrowed chord (interchange
+  on) is resolved by `resolveRoman`'s chromatic strategy (root shifted, triad built in
+  the altered root's key) — fine for the chord itself, but the buildplan §7.4
+  `degreeToPitchInBorrowedMode` (using parallel-mode pitches for a borrowed bar's
+  melody/texture) is still deferred; it first matters when the melody needs to track a
+  borrowed chord's altered tones, which the current motif→pitch path does not do.
+- **Anomaly-budget enforcement** (buildplan §7.1) — the wild "one strange chord in
+  exactly one section" is a PROMPT directive, not a counted hard rule; cross-stage
+  anomaly accounting against `anomaly_budget_per_section` remains deferred.
+
+**Notes for next session (Session 12 — Stages 1 + 2 + full wire-up):**
+- Stage 3 completes the four back-half LLM stages. `runPipelineGenerating` now fills
+  harmony → motifs → phrase → texture in dependency order; Session 12's Stages 1
+  (aesthetic) + 2 (macro params) prepend to this, producing `macroParams` (incl. the
+  `mood` string Stages 3/4 read) from the GuestInput, so the front end can run the
+  whole pipeline.
+- The `harmonicPlan` Stage 3 returns is the §3 array shape; everything downstream
+  already consumes it. Stage 2 will produce `macroParams` (tonic/mode/form/sections/
+  tempo/register/mood); Stage 3 reads exactly those.
+- `verify-stage3.mjs` runs with the throwaway-package.json dance like the others.
+
+**HUMAN CHECKPOINT — SUBSTANTIAL; NOT YET RUN.** The session is not closed until Steven
+completes the listening pass:
+1. Open the inspector, run "Sunrise Fanfare — fully LLM (incl. harmony)" (live LLM for
+   Stage 3 + 4 + 5a + 5b). Listen.
+2. A/B against the Session-10 "Sunrise Fanfare — fully LLM" (hand-supplied harmony).
+   Does the generated harmony read as functionally clearer / more memorable? If yes,
+   the LLM harmony is pulling its weight; if no, that's a prompt-tuning finding.
+3. Try harmonic_adventurousness (tame / adventurous / wild): tame = functional pop-style
+   progressions; adventurous = modal interchange + non-PAC cadences; wild = chromatic
+   mediants / modal mixture.
+4. Inspect the generated HarmonicPlan in the Stage-3 panel: Roman numerals sensible for
+   the mode; cadence types match section roles (A often PAC, B often non-PAC); harmonic
+   rhythm varies meaningfully (not one chord per bar in every section).
+5. (Re-listen for the motif-architecture question.) With richer LLM harmony underneath,
+   does melodic memorability lift? Notes either way feed the phrase-motif decision.
+Per the checkpoint rules: validation gaps / ill-formed plans / cadence-mode mismatches
+the validator missed are FIX-NOW items (small commits per fix, recorded here); aesthetic
+findings ("safe progressions even at wild") are prompt-tuning findings to iterate
+in-session (add an exemplar, sharpen the directive) as Session 10 did. His verdict, any
+in-pass commits, and the close-out get appended here afterward.
+
+**Verdict: Session 11 implementation complete; all twelve verifiers pass offline (the
+eleven prior + verify-stage3). The fourth LLM stage — the chords themselves — is wired
+end-to-end with theory-grounded validation (Roman-numeral validity, bar coverage,
+cadence/final-chord + mode compatibility), a one-shot retry, a deterministic offline
+fallback, the available-chords + cadence-table + memorable-progression prompt, and the
+harmonic_adventurousness freedom knob. With Stage 3 in, the entire back-half creative
+content (harmony → motifs → phrase → texture) is LLM-generated; only macroParams remain
+hand-supplied until Session 12. The session closes after Steven's listening pass confirms
+the generated harmony works end-to-end and produces audibly different progressions across
+the knob range. Do NOT start Session 12 or the phrase-motif session automatically.**
