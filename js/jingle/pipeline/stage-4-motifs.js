@@ -103,9 +103,13 @@ const MOTIF_ADVENTUROUSNESS_DIRECTIVE = {
     + 'singable but predictable. Keep intervals small (mostly steps, the odd third); favor rising_arc or '
     + 'falling_arc. Use NO anomalies.',
   adventurous:
-    'Allow larger intervals (leaps of a fourth or fifth). At least one motif should have a clear arc shape '
-    + '(rising_arc or peak_descend) with a real high point. Differentiate the motifs in contour AND rhythm. '
-    + 'At most ONE anomaly across the whole set — a single tasteful surprise, or none.',
+    'Use larger intervals — at least one real leap of a fourth or fifth somewhere in the set. At least one motif '
+    + 'must have a clear arc (rising_arc or peak_descend) with a genuine high point. Do NOT let a motif be merely a '
+    + 'triad arpeggiated up or down: give at least one a memorable hook — a stepwise non-chord passing tone between '
+    + 'chord tones, a distinctive leap, or a syncopated rhythm. Differentiate the motifs in contour AND rhythm (do '
+    + 'not reuse one rhythm for every motif). At most ONE anomaly across the set, and only a REAL one (an actual '
+    + 'leap larger than a fifth for large_leap, an off-beat onset for rhythmic_displacement) — a single tasteful '
+    + 'surprise, or none.',
   wild:
     'Reach for bolder shapes — wide leaps, byzantine flourishes, contour types deliberately NOT symmetric '
     + 'across the motifs. If the mode offers colour degrees (a b2, #4, raised 7, natural 6, …) lean on them. A '
@@ -217,10 +221,14 @@ function anomalyVocabulary() {
     'ANOMALY TYPES — "anomaly" is null, or ONE object {"type": …, "at_position": <index into degrees>}:',
     '  - chromatic_neighbor: a chromatic passing tone at at_position — genuinely out of the mode; it survives '
       + 'the deterministic chiptune voice-leading pass (a DECLARED anomaly, not a stray accidental).',
-    '  - large_leap: a leap larger than a fifth at at_position — the realizer keeps it; it will not be repaired.',
-    '  - rhythmic_displacement: a syncopation at at_position — give that note a ½-beat (0.5) or 1.5-beat duration '
-      + 'so its onset falls off the beat.',
-    'At most ONE anomaly per motif. An anomaly is FLAVOR, not structure (see MOTIF ADVENTUROUSNESS below).',
+    '  - large_leap: an ACTUAL leap larger than a fifth at at_position — the degrees must really jump there (the '
+      + 'note and an adjacent note differ by 5 or more scale steps: a sixth or wider, e.g. degree 1 next to 6 or 7). '
+      + 'The realizer keeps it; it will not be repaired.',
+    '  - rhythmic_displacement: a REAL syncopation at at_position — that note must start off the beat (give an '
+      + 'earlier note a 0.5 or 1.5 duration so the onset lands off the beat).',
+    'At most ONE anomaly per motif, and a declared anomaly must be REAL — do not attach an anomaly label to '
+      + 'ordinary material (validation rejects a large_leap with no real leap, or a rhythmic_displacement on the '
+      + 'beat). An anomaly is FLAVOR, not structure (see MOTIF ADVENTUROUSNESS below).',
   ].join('\n');
 }
 
@@ -259,7 +267,8 @@ function compositionalGuidance() {
       + 'naturally over the harmony. The cadence is enforced over the section\'s final two beats downstream, so the '
       + 'motif\'s tail should head TOWARD the cadence\'s approach — land on a chord tone, not a leading tone left hanging.',
     '  3. DISTINCT MOTIFS MUST SOUND DISTINCT. If motif "a" is a rising_arc starting on degree 1, motif "b" must '
-      + 'NOT also be a rising_arc starting on degree 1. Differentiate by contour, register, AND rhythm.',
+      + 'NOT also be a rising_arc starting on degree 1. Differentiate by contour, register, AND rhythm — do NOT '
+      + 'reuse the same rhythm array across motifs.',
     '  4. RHYTHM MATTERS AS MUCH AS PITCH. A motif of all equal notes is rhythmically inert. Mix durations — '
       + 'eighths (0.5), quarters (1), dotted quarters (1.5) — and let one note breathe. Syncopation (the '
       + 'rhythmic_displacement anomaly) is one tool; a well-placed long note is another.',
@@ -546,15 +555,48 @@ function validateOneMotif(motif, name, push) {
     if (typeof anomaly !== 'object' || Array.isArray(anomaly)) {
       push(`Motif "${name}" anomaly must be null or an object {"type", "at_position"}.`);
     } else {
-      if (!ANOMALY_TYPES.includes(anomaly.type)) {
+      const typeOk = ANOMALY_TYPES.includes(anomaly.type);
+      if (!typeOk) {
         push(`Motif "${name}" anomaly.type ${JSON.stringify(anomaly.type)} is not one of: ${ANOMALY_TYPES.join(', ')}.`);
       }
       const maxIndex = Array.isArray(degrees) && degrees.length > 0 ? degrees.length - 1 : 0;
       const pos = anomaly.at_position;
-      if (!Number.isInteger(pos) || pos < 0 || (Array.isArray(degrees) && pos > maxIndex)) {
+      const posOk = Number.isInteger(pos) && pos >= 0 && (!Array.isArray(degrees) || pos <= maxIndex);
+      if (!posOk) {
         push(
           `Motif "${name}" anomaly.at_position must be an integer index into degrees, in [0, ${maxIndex}], got ${JSON.stringify(pos)}.`
         );
+      }
+
+      // ANOMALY HONESTY — a declared large_leap / rhythmic_displacement must
+      // correspond to a REAL event in the motif, not just a label slapped on
+      // ordinary material. (A chromatic_neighbor is realized as a half-step bend
+      // downstream and has no degree-space signature, so it is not checked here.)
+      if (typeOk && posOk && anomaly.type === 'large_leap' && Array.isArray(degrees)) {
+        const adjacentIntervals = [];
+        if (pos - 1 >= 0) adjacentIntervals.push(Math.abs(degrees[pos] - degrees[pos - 1]));
+        if (pos + 1 <= maxIndex) adjacentIntervals.push(Math.abs(degrees[pos] - degrees[pos + 1]));
+        const widest = adjacentIntervals.length ? Math.max(...adjacentIntervals) : 0;
+        if (widest < 5) {
+          push(
+            `Motif "${name}" declares a large_leap at position ${pos}, but the widest interval there is only `
+              + `${widest} scale step(s) — a large_leap must be larger than a fifth (a sixth or wider: the two `
+              + 'adjacent degrees differ by 5+, e.g. 1 next to 7). Make the degrees actually leap there, or drop the anomaly.'
+          );
+        }
+      }
+      if (
+        typeOk && posOk && anomaly.type === 'rhythmic_displacement' && Array.isArray(rhythm)
+        && rhythm.slice(0, pos).every((b) => typeof b === 'number' && Number.isFinite(b))
+      ) {
+        const onset = rhythm.slice(0, pos).reduce((total, b) => total + b, 0);
+        if (Math.abs(onset - Math.round(onset)) < EPSILON) {
+          push(
+            `Motif "${name}" declares a rhythmic_displacement at position ${pos}, but that note's onset (beat `
+              + `${Number(onset.toFixed(3))}) falls ON the beat — give an earlier note a 0.5 or 1.5 duration so the `
+              + 'onset lands off the beat, or drop the anomaly.'
+          );
+        }
       }
     }
   }
@@ -664,6 +706,33 @@ function chordToneDegrees(root) {
   return [wrap(root - 1), wrap(root + 1), wrap(root + 3)];
 }
 
+// A soft warning when 2+ motifs share the exact same rhythm array. Distinct
+// rhythms are what let two motifs read as different ideas rather than the same
+// idea re-pitched (the spec allows shared rhythm, so this is a note, not a
+// failure). Surfaced in the inspector + console alongside the chord-tone notes.
+function rhythmSamenessWarnings(flatMotifs) {
+  const names = Object.keys(flatMotifs);
+  if (names.length < 2) return [];
+  const byRhythm = new Map();
+  for (const name of names) {
+    const rhythm = flatMotifs[name]?.rhythm;
+    if (!Array.isArray(rhythm)) continue;
+    const key = JSON.stringify(rhythm);
+    if (!byRhythm.has(key)) byRhythm.set(key, []);
+    byRhythm.get(key).push(name);
+  }
+  const warnings = [];
+  for (const [key, group] of byRhythm) {
+    if (group.length >= 2) {
+      warnings.push(
+        `motifs ${group.map((g) => `"${g}"`).join(' and ')} share the identical rhythm ${key} — distinct rhythms `
+          + 'make motifs more memorable (soft note, not a failure).'
+      );
+    }
+  }
+  return warnings;
+}
+
 // One soft warning per motif whose last degree is not a chord tone of its
 // section's starting chord. Returns [] when the harmony or section plan is
 // unavailable (the check simply doesn't run).
@@ -742,11 +811,15 @@ export async function generateMotifs({
   const { system, user } = buildMotifsPrompt({ macroParams, harmonicPlan, config });
   const trace = typeof onTrace === 'function' ? onTrace : () => {};
 
-  // Emit (and log) the soft end-on-chord-tone warnings for a validated motif set.
+  // Emit (and log) the soft notes for a validated motif set — end-on-chord-tone
+  // mismatches and shared-rhythm sameness. Diagnostics, never failures.
   const emitSoftWarnings = (flatMotifs) => {
-    const warnings = chordToneWarnings(flatMotifs, macroParams, harmonicPlan);
+    const warnings = [
+      ...chordToneWarnings(flatMotifs, macroParams, harmonicPlan),
+      ...rhythmSamenessWarnings(flatMotifs),
+    ];
     if (warnings.length > 0) {
-      trace({ attempt: 'chord-tone', raw: null, ok: true, errors: [], warnings });
+      trace({ attempt: 'soft-note', raw: null, ok: true, errors: [], warnings });
       for (const warning of warnings) console.warn(`Stage 4 (soft): ${warning}`);
     }
     return flatMotifs;

@@ -2640,3 +2640,65 @@ deterministic offline fallback, the seed-exemplars + compositional-guidance prom
 motif_adventurousness freedom knob. The session closes after Steven's listening pass on the
 fully-LLM case confirms the motifs sound like composed melodies (or surfaces a prompt-tuning
 finding to iterate on in-session). Do NOT start Session 11 automatically.**
+
+### Checkpoint findings (2026-05-22, mid-pass — Steven's first listening notes + in-pass iteration)
+
+Steven ran "Sunrise Fanfare — fully LLM" live with all three knobs (motif / phrase /
+texture) on `adventurous`. Verdict, verbatim: *"It sounds pleasant-but-a-bit-forgettable.
+Not bad though. The A2 melody is a bit off … the fact that it has an E‑F 16th note pattern
+in the middle there, followed directly by a gap in the melody … that's the one main awkward
+part in it."* The generated set validated clean on the first pass (no retries) and read as a
+genuine fanfare — but the trace exposed one specific artifact and three "playing-it-safe"
+tells. Diagnosis + the in-pass fixes:
+
+1. **The A2 awkwardness — ornament on the phrase-final note, then a gap (FIXED, Stage 5a).**
+   A2 bar 1 was `motif a` with `ornament_upper_neighbor` and NO `at_position`, so it defaulted
+   to decorating the motif's LAST note (theory/transformations.js's documented default),
+   splitting the final E (0.5) into E(0.25)‑F(0.25) — the "E‑F 16th flick" — landing the
+   ornament right at the phrase end. Then, because the 3‑beat motif sits in a 4‑beat bar, a
+   1‑beat rest followed: flick → silence. An ornament is a passing decoration; on the final
+   note before a rest it stutters. Fix: Stage 5a's prompt now steers ornaments to an INTERIOR
+   note via `params.at_position` (decorating the last note "flicks into the following rest").
+   The per-bar breath (motif < bar) itself is left as-is — a gap after a clean note is a normal
+   phrase breath; only the flick-into-silence was the defect. (NOT a theory-layer change: the
+   transform default stays last-note so the pinned Desert Caravan realization in verify-stage6/7/8
+   is untouched.)
+
+2. **Fake `large_leap` anomaly (FIXED, Stage 4 validator — ANOMALY HONESTY).** Motif `b =
+   [4,6,5,3,1]` declared `large_leap` at position 3, but its widest interval is a third — the
+   model attached an anomaly label to ordinary material ("anomaly theater"). `validateMotifs`
+   now checks that a declared `large_leap` is a REAL leap (the note and an adjacent note differ
+   by ≥5 scale steps — a sixth or wider) and a `rhythmic_displacement` is a REAL syncopation
+   (the note's onset, summed from the rhythm, falls off the beat). A fake anomaly is now a
+   retry-actionable validation failure, so the model must either make the degrees actually leap
+   or drop the label. (`chromatic_neighbor` has no degree-space signature — it's a realization-
+   time bend — so it is not checked.) The prompt's anomaly section now states the honesty rule.
+
+3. **Identical rhythm across motifs (FIXED, Stage 4 prompt + soft warning).** Both motifs used
+   the exact same rhythm array, which made them feel same-y. The buildplan distinctness rule
+   explicitly ALLOWS shared rhythm (only the full {degrees, rhythm, contour} triple must differ),
+   so this is not a hard failure — but the prompt's compositional guidance now says "do NOT reuse
+   the same rhythm array across motifs", and `generateMotifs` emits a soft warning (alongside the
+   chord-tone note) when 2+ motifs share a rhythm, surfaced in the inspector's Stage-4 panel.
+
+4. **Safe diatonic triad-outlines (PROMPT SHARPENED, Stage 4).** Both motifs were pure triad
+   arpeggios — the "by-the-books / not memorable like v1" gap. The `adventurous` directive now
+   demands at least one real 4th/5th leap in the set, forbids a motif being merely a triad
+   arpeggiated up/down, and asks for a memorable hook (a stepwise non-chord passing tone between
+   chord tones, a distinctive leap, or a syncopated rhythm). Whether this is enough is the next
+   listen.
+
+**Deferred finding — the `register` hint is inert.** Motif `b` was tagged `"high"` but
+Stage 6 ([stage-6-voice.js] `realizeLeadAssignment`) places every motif at the piece-global
+octave (from `register_center`) and never reads the motif's `register` field — so `b` sounded
+in the same octave as `a`, which contributed to the same-y feel. Wiring `low/mid/high` → an
+octave offset would make the differentiation audible, but it shifts pitches for the hand-supplied
+cases too and would break the pinned verify-stage6/7/8 expectations, so it is a deliberate,
+separate change (a Stage-6 enhancement), not a checkpoint drive-by. Logged for when the pinned
+expectations can be re-baselined.
+
+**Verification.** verify-stage4 updated: anomaly-honesty (fake vs. real large_leap; fake vs.
+real rhythmic_displacement) and the rhythm-sameness soft warning are now asserted. All ten
+verifiers pass offline. The human checkpoint stays OPEN — Steven re-runs the fully-LLM case
+(at `adventurous` and `wild`) after this iteration to judge whether the motifs now read as
+memorable rather than safe, and whether the A2 flick is gone.

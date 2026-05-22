@@ -97,8 +97,8 @@ const TRANSFORM_DESCRIPTIONS = {
   diminute_2x: 'halve the durations (twice as fast)',
   fragment_head: 'keep only the first half',
   fragment_tail: 'keep only the last half',
-  ornament_upper_neighbor: 'decorate a note with the scale step above it',
-  ornament_lower_neighbor: 'decorate a note with the scale step below it',
+  ornament_upper_neighbor: "decorate a note with the scale step above it — prefer an INTERIOR note via params.at_position (e.g. {\"name\":\"ornament_upper_neighbor\",\"params\":{\"at_position\":1}}); decorating the motif's LAST note flicks a fast ornament straight into the following rest, which sounds awkward",
+  ornament_lower_neighbor: 'decorate a note with the scale step below it — prefer an INTERIOR note via params.at_position (decorating the last note flicks into the following rest)',
   ornament_chromatic_passing: 'insert a chromatic passing tone (CONSUMES the anomaly budget — use sparingly)',
 };
 

@@ -204,6 +204,30 @@ const anomalyMissing = clone(VALID);
 delete anomalyMissing.motifs.a.anomaly;
 expectInvalid('a:anomaly-missing', validateMotifs(anomalyMissing, MACRO), 'anomaly');
 
+// --- anomaly honesty: a declared anomaly must be a REAL event ---
+// a = [1,3,5,4,3]; position 2 (degree 5) sits between 3 and 4 — no real leap.
+const fakeLeap = clone(VALID);
+fakeLeap.motifs.a.anomaly = { type: 'large_leap', at_position: 2 };
+expectInvalid('a:fake-large-leap', validateMotifs(fakeLeap, MACRO), 'large_leap');
+
+// A genuine seventh (1 -> 7) at position 1 IS a large_leap.
+const realLeap = clone(VALID);
+realLeap.motifs.a.degrees = [1, 7, 5, 3, 1];
+realLeap.motifs.a.rhythm = [0.5, 0.5, 1, 0.5, 0.5];
+realLeap.motifs.a.contour = 'peak_descend';
+realLeap.motifs.a.anomaly = { type: 'large_leap', at_position: 1 };
+expectOk('a:real-large-leap', validateMotifs(realLeap, MACRO));
+
+// a's rhythm [0.5,0.5,1,0.5,0.5]: position 2 starts at beat 1.0 (on the beat) — not displaced.
+const fakeDisplacement = clone(VALID);
+fakeDisplacement.motifs.a.anomaly = { type: 'rhythmic_displacement', at_position: 2 };
+expectInvalid('a:fake-rhythmic-displacement', validateMotifs(fakeDisplacement, MACRO), 'rhythmic_displacement');
+
+// position 1 starts at beat 0.5 (off the beat) — a real displacement.
+const realDisplacement = clone(VALID);
+realDisplacement.motifs.a.anomaly = { type: 'rhythmic_displacement', at_position: 1 };
+expectOk('a:real-rhythmic-displacement', validateMotifs(realDisplacement, MACRO));
+
 // --- distinctness (2+ motifs identical in degrees/rhythm/contour) ---
 const dup = clone(VALID);
 dup.motifs.b = clone(VALID.motifs.a);
@@ -379,6 +403,26 @@ if (offToneResult) {
   const warnings = softTraces.flatMap((t) => t.warnings ?? []);
   if (warnings.length === 0) fail('b6:soft-warning', 'expected a soft chord-tone warning, got none');
   if (!warnings.some((w) => w.includes('"b"'))) fail('b6:soft-warning', `expected the warning to name motif "b": ${JSON.stringify(warnings)}`);
+}
+
+// (b7) soft rhythm-sameness check: two motifs sharing the identical rhythm array
+// pass validation (the spec allows shared rhythm) but emit a soft warning.
+const sameRhythm = clone(VALID);
+sameRhythm.motifs.b.degrees = [4, 6, 5, 4, 3, 1];          // distinct shape, falling_arc
+sameRhythm.motifs.b.rhythm = [0.5, 0.5, 1, 0.5, 0.5, 0.5]; // identical to motif a's rhythm
+expectOk('b7:same-rhythm-valid', validateMotifs(sameRhythm, MACRO));
+const rhythmTraces = [];
+const sameRhythmResult = await generateMotifs({
+  macroParams: MACRO,
+  harmonicPlan: HARMONIC,
+  __mockResponse: JSON.stringify(sameRhythm),
+  onTrace: (t) => rhythmTraces.push(t),
+});
+if (sameRhythmResult) {
+  const warnings = rhythmTraces.flatMap((t) => t.warnings ?? []);
+  if (!warnings.some((w) => w.toLowerCase().includes('rhythm'))) {
+    fail('b7:rhythm-warning', `expected a rhythm-sameness warning, got ${JSON.stringify(warnings)}`);
+  }
 }
 
 // Sanity: hand-supplied CASES still carry motifs + phrasePlan + texturePlan
