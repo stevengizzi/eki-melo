@@ -2775,3 +2775,34 @@ is only a metadata/consistency hint — it does not drive realization — so loo
 removes a class of spurious retry-failures. verify-stage4 gains tests: a wiggly valley_ascend and a
 wiggly peak_descend now validate, while a "trough" at the very start is still rejected. All eleven
 verifiers pass offline.
+
+### Checkpoint findings (2026-05-22) — chromatic imitation + hollow reprise
+
+A run sounded good in A1/B but had two problems Steven flagged: A2 had "serious dissonance … the
+harmony is doing something out of key," and A3 had "a large melody gap in the middle … too long."
+
+1. **A2 — `imitation_one_beat_delay` was transposing CHROMATICALLY (fixed; theory).** The texture
+   computed a fixed SEMITONE shift to land its first echo note on a chord tone, then applied that same
+   semitone offset to every echoed note — a "real answer." Transposing a diatonic line by a constant
+   number of semitones leaves the key: the A2 echo emitted `D#5`/`A#4` against a C-major lead, the
+   clash Steven heard. Fixed: imitation now transposes by a fixed number of SCALE STEPS (a DIATONIC /
+   "tonal answer") via pitchFromLinear, so the echo stays in the mode. The dead chromatic helpers
+   (`shiftToNearestChordTone`, `midiToPitch`, `SHARP_SPELLING`, and the now-unused
+   `pitchFromLetterAndAccidental` import) were removed. This is a Session-6 theory change, made in-pass
+   because it's a real correctness bug (out-of-key output). It touches Desert Caravan (which uses
+   imitation in A'): verify-stage7's pinned cpp_strict count for Desert dropped 9 → 8 — the diatonic
+   echo no longer emits an out-of-mode note, so there's one fewer snap_to_mode repair (now 6 uncross +
+   1 snap_to_mode + 1 tritone_passing). Verified the reduction is exactly that and re-baselined the
+   pin with a comment. verify-textures gains an imitation-in-mode guard (every echo pitch class must be
+   in the active scale, checked across all four probe modes).
+
+2. **A3 — a hollow reprise (Stage 5a prompt nudge).** A3 stacked two SHORTENING transforms:
+   `a/fragment_tail` (the last 3 notes ≈ 2 beats) in bar 1 and `b/diminute_2x` (≈ 1.75 beats) in bar 2,
+   with a `dropout` harmony in bar 2. So bar 1 played 2 beats then sat silent for ~2 beats (the gap
+   Steven heard), and the recap came out sparse right before the PAC. Stage 5a places motifs in BAR
+   units and cannot see the sub-bar rest a short transform leaves, so this is a transform-CHOICE issue,
+   addressed with a non-enforced PHRASING guidance block in the Stage-5a prompt: don't make a
+   shortening transform the sole content of a bar (it leaves a long rest); don't stack two of them; keep
+   the reprise fuller than the development. Soft nudge, not a hard rule (the validator can't measure the
+   sub-bar gap from bar indices) — a deterministic gap detector (apply the transform, sum beats, flag a
+   long internal rest) is the deeper fix if it persists. All eleven verifiers pass offline.

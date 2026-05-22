@@ -53,7 +53,7 @@
    no pipeline — keeps the theory layer portable.
    ================================================================= */
 import { degreeToPitch } from './mode-engine.js';
-import { toMidi, pitchClassOf, pitchFromLetterAndAccidental } from './pitch.js';
+import { toMidi, pitchClassOf } from './pitch.js';
 
 const DEGREES_PER_OCTAVE = 7;
 const HARMONY_LOW_MIDI = 60; // C4
@@ -62,14 +62,6 @@ const HARMONY_ABOVE_HIGH_MIDI = 96; // C7 — headroom for an upper harmony over
 const EPSILON = 1e-9;
 const OCTAVE_GUARD = 16; // the window is 2 octaves wide; this never trips in practice
 
-// Sharp-spelling table for respelling a bare MIDI number (imitation transposes
-// in semitones, which has no diatonic letter to preserve). Audibly identical to
-// any enharmonic; the synth boundary collapses spelling anyway.
-const SHARP_SPELLING = [
-  ['C', 0], ['C', 1], ['D', 0], ['D', 1], ['E', 0], ['F', 0],
-  ['F', 1], ['G', 0], ['G', 1], ['A', 0], ['A', 1], ['B', 0],
-];
-
 // --- meter / register helpers ----------------------------------------------
 
 const beatsPerBarOf = (meter) => meter?.numerator ?? 4;
@@ -77,13 +69,6 @@ const beatsPerBarOf = (meter) => meter?.numerator ?? 4;
 // An eighth note in the meter's beat-unit (0.5 in x/4, 1 in x/8) — see
 // bass-patterns.js and buildplan §7.3.
 const eighthDurOf = (meter) => (meter?.denominator ?? 4) / 8;
-
-function midiToPitch(midi) {
-  const pitchClass = ((midi % 12) + 12) % 12;
-  const octave = Math.floor(midi / 12) - 1;
-  const [letter, accidental] = SHARP_SPELLING[pitchClass];
-  return pitchFromLetterAndAccidental(letter, accidental, octave);
-}
 
 // --- degree-space helpers --------------------------------------------------
 
@@ -296,41 +281,44 @@ export function drone_on_5(leadEventsInRange, chordsByAbsBar, mode, tonic, leadO
 // IMITATION
 // =================================================================
 
-// The signed semitone shift (smallest magnitude, ties resolved downward) that
-// lands `fromPitch`'s pitch class on the nearest chord-tone pitch class.
-function shiftToNearestChordTone(fromPitch, chord) {
+// The signed number of SCALE STEPS (smallest magnitude, ties resolved downward)
+// that lands `fromEvent`'s scale degree on the nearest chord-tone pitch class.
+// This is a DIATONIC (tonal) transposition: the echo stays in the mode, instead
+// of the chromatic notes a fixed-semitone shift produces when it transposes a
+// diatonic line by a constant interval.
+function scaleStepShiftToNearestChordTone(fromEvent, chord, mode, tonic, leadOctave) {
   const targets = chord.members.map(pitchClassOf);
-  const fromPc = pitchClassOf(fromPitch);
-  let best = 0;
-  let bestAbs = Infinity;
-  for (let delta = -6; delta <= 6; delta++) {
-    const pc = (((fromPc + delta) % 12) + 12) % 12;
-    if (!targets.includes(pc)) continue;
-    const abs = Math.abs(delta);
-    if (abs < bestAbs || (abs === bestAbs && delta < best)) {
-      bestAbs = abs;
-      best = delta;
+  const baseLinear = leadLinearOf(fromEvent);
+  for (let mag = 0; mag <= DEGREES_PER_OCTAVE; mag++) {
+    for (const delta of mag === 0 ? [0] : [-mag, mag]) { // ties resolve downward
+      const pc = pitchClassOf(pitchFromLinear(baseLinear + delta, mode, tonic, leadOctave));
+      if (targets.includes(pc)) return delta;
     }
   }
-  return best;
+  return 0;
 }
 
 /**
- * Harmony plays the lead's line one beat later, transposed (in semitones) so
- * its first note lands on the chord tone nearest the lead's first pitch — a
- * one-beat-delay canon. Every echo note sounds (the overlap with the lead IS
- * the canon); the only trim is CLIPPING THE TAIL: the one-beat delay would push
- * the final echo past the passage, so events starting at/after the passage end
- * are dropped and a straddler is truncated — imitation never spills into the
- * next texture or the cadence.
+ * Harmony plays the lead's line one beat later, transposed by a fixed number of
+ * SCALE STEPS so its first note lands on the chord tone nearest the lead's first
+ * note — a one-beat-delay canon realized as a DIATONIC (tonal) answer. Every echo
+ * note sounds (the overlap with the lead IS the canon); the only trim is CLIPPING
+ * THE TAIL: the one-beat delay would push the final echo past the passage, so
+ * events starting at/after the passage end are dropped and a straddler is
+ * truncated — imitation never spills into the next texture or the cadence.
  *
- * The buildplan's "rest wherever the harmony would overlap a still-sounding
- * lead note" clause is NOT implemented: the lead sounds continuously, so a
- * literal reading silences the whole voice, and the audition's first cut (which
- * read it as "rest on a coincident attack") gutted the canon to one or two
- * stray notes because the one-beat delay snaps the echo onto the lead's own
- * beat grid. A true overlapping canon is the musically correct realization of
- * "plays the lead's pitches one beat later." See the Session-6 journal entry.
+ * DIATONIC, NOT CHROMATIC (Session-10 checkpoint fix). The echo transposes in
+ * scale steps via pitchFromLinear, so it stays in the mode. The earlier version
+ * shifted by a fixed number of SEMITONES (a "real answer"), which transposed a
+ * diatonic lead chromatically and produced out-of-key notes (e.g. D#/A# in a C
+ * major passage) that clashed audibly with the melody. A tonal answer is the
+ * correct realization for the diatonic / modal pieces this engine writes.
+ *
+ * The buildplan's "rest wherever the harmony would overlap a still-sounding lead
+ * note" clause is NOT implemented: the lead sounds continuously, so a literal
+ * reading silences the whole voice. A true overlapping canon is the musically
+ * correct realization of "plays the lead's pitches one beat later." See the
+ * Session-6 journal entry.
  *
  * VOICE CROSSING is allowed here (the documented exception): a delayed echo
  * legitimately overlaps and may sit above or below the lead. Output is only
@@ -346,7 +334,7 @@ export function imitation_one_beat_delay(leadEventsInRange, chordsByAbsBar, mode
   const first = leadEventsInRange[0];
   const firstBar = Math.floor(first.beat / beatsPerBar);
   const chord = chordsByAbsBar.get(firstBar) ?? (bars.length > 0 ? chordsByAbsBar.get(bars[0]) : null);
-  const shift = chord ? shiftToNearestChordTone(first.pitch, chord) : 0;
+  const shiftSteps = chord ? scaleStepShiftToNearestChordTone(first, chord, mode, tonic, leadOctave) : 0;
 
   const events = [];
   for (const event of leadEventsInRange) {
@@ -355,7 +343,7 @@ export function imitation_one_beat_delay(leadEventsInRange, chordsByAbsBar, mode
     const duration = Math.min(event.duration, passageEndBeat - onset);
     if (duration <= EPSILON) continue;
     events.push({
-      pitch: clampToRange(midiToPitch(toMidi(event.pitch) + shift)),
+      pitch: clampToRange(pitchFromLinear(leadLinearOf(event) + shiftSteps, mode, tonic, leadOctave)),
       beat: onset,
       duration,
     });

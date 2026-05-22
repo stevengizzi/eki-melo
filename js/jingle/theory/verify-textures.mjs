@@ -35,9 +35,9 @@
    The browser loads these modules directly and needs none of this.
    ================================================================= */
 import { TEXTURE_REGISTRY } from './textures.js';
-import { degreeToPitch } from './mode-engine.js';
+import { degreeToPitch, pitchSetForScale } from './mode-engine.js';
 import { resolveRoman } from './roman-numeral.js';
-import { toMidi, toScoreString } from './pitch.js';
+import { toMidi, toScoreString, pitchClassOf } from './pitch.js';
 import { renderMotifToDegreeEvents } from './motif.js';
 import { runPipeline } from '../pipeline/pipeline-runner.js';
 import { noteToFreq } from '../synth.js';
@@ -205,6 +205,21 @@ for (const name of Object.keys(TEXTURE_REGISTRY)) {
   if (hetOut.length > hetLead.length * 2) {
     fail('heterophony:density', `produced ${hetOut.length} events from ${hetLead.length} lead notes (> 2× — over-subdivided)`);
   }
+}
+
+// --- 1c. imitation stays in the mode (Session-10 checkpoint regression) -----
+// The old imitation transposed in SEMITONES (a "real answer"), turning a diatonic
+// lead chromatic — out-of-key D#/A# clashed with the melody. The tonal (scale-step)
+// answer must keep every echo pitch class in the active scale.
+for (const { mode, tonic, progression } of PROBES) {
+  const { lead, chordsByAbsBar } = buildPassage(mode, tonic, progression);
+  const out = TEXTURE_REGISTRY.imitation_one_beat_delay(lead, chordsByAbsBar, mode, tonic, LEAD_OCTAVE, METER, {});
+  const inScale = new Set(pitchSetForScale(mode, tonic).map(pitchClassOf));
+  out.forEach((event, i) => {
+    if (!inScale.has(pitchClassOf(event.pitch))) {
+      fail('imitation:in-mode', `${mode}: echo ${i} ${toScoreString(event.pitch)} is out of the ${mode} scale`);
+    }
+  });
 }
 
 // --- 2. dispatch reaches every registry entry ------------------------------

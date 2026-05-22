@@ -158,9 +158,13 @@ for (const testCase of CASES) {
 const countType = (repairs, type) => repairs.filter((r) => r.type === type).length;
 
 // Locked per-case totals (regression anchor — see the Session-7 journal table).
+// Desert dropped 9 → 8 in Session 10: the imitation_one_beat_delay texture became
+// a DIATONIC (scale-step) answer instead of a chromatic (semitone) one, so its
+// A' echo no longer emits an out-of-mode note — one fewer snap_to_mode repair
+// (now 6 uncross + 1 snap_to_mode + 1 tritone_passing).
 expect('b:count:sunrise', cppRepairs['c-major-aaba'].length, 6);
 expect('b:count:wanderer', cppRepairs['d-dorian-aba'].length, 0);
-expect('b:count:desert', cppRepairs['e-phrygian-dominant-aba'].length, 9);
+expect('b:count:desert', cppRepairs['e-phrygian-dominant-aba'].length, 8);
 
 // Only the imitation case crosses among the inspector cases — uncross fires on
 // Desert and nowhere else, and every uncross there is inside the A' passage.

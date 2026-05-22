@@ -352,6 +352,23 @@ function developmentRules() {
   ].join('\n');
 }
 
+// Non-enforced guidance against hollow sections — a Session-10 checkpoint finding
+// (a reprise stacked fragment_tail + diminute_2x and came out sparse, with a long
+// mid-section rest). The model places motifs in BAR units and can't see the
+// sub-bar gap a short transform leaves, so this steers the transform CHOICE.
+function phrasingGuidance() {
+  return [
+    'PHRASING (make each section sound full, not hollow):',
+    '- The SHORTENING transforms — fragment_head, fragment_tail, diminute_2x — produce material well under a '
+      + 'bar. Do NOT make one the sole content of a bar you want to feel full: alone in a bar it leaves a long '
+      + 'rest. Pair it with a second entry in the same bar, or use a fuller transform there.',
+    '- Do NOT stack two shortening transforms back-to-back (e.g. fragment_tail then diminute_2x) — together they '
+      + 'hollow the section out.',
+    '- The REPRISE (the returning A section) should restate the theme with enough material to feel conclusive '
+      + 'into its cadence — keep it fuller than the development.',
+  ].join('\n');
+}
+
 // The JSON skeleton the model fills in, listing each section with its bar count
 // so placements land in range.
 function schemaSkeleton(plan) {
@@ -405,6 +422,7 @@ export function buildPhrasePlanPrompt({ macroParams, motifs, harmonicPlan, confi
     phraseStructureVocabulary(),
     transformVocabulary(),
     developmentRules(),
+    phrasingGuidance(),
     `PHRASE ADVENTUROUSNESS — ${adventurousness}:\n  ${PHRASE_ADVENTUROUSNESS_DIRECTIVE[adventurousness]}`,
     schemaBlock(plan),
   ].join('\n\n');
