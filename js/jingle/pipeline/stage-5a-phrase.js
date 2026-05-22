@@ -72,11 +72,14 @@ const STAGE_5A_MAX_TOKENS = 2500;
 // listing (and what validation accepts) can never drift from the library.
 // =================================================================
 
+// Descriptions express each structure's internal SHAPE as proportions, not fixed
+// bar counts, so the model can fit one to a section of any length (a 4-bar
+// section compresses an 8-bar model). See phraseStructureVocabulary().
 const PHRASE_STRUCTURE_DESCRIPTIONS = {
-  period: '4+4 antecedent–consequent; parallel openings, the antecedent ends open (half), the consequent closes',
-  sentence: '2+2+4: a statement, a varied repetition of it, then a continuation that drives to the cadence',
-  phrase_group: '4+4 of two complementary phrases (not strict antecedent–consequent)',
-  hybrid: '2+2+4: a sentence-like opening with a period-like cadential close',
+  period: 'antecedent–consequent (a 1:1 split): an opening phrase that ends open, answered by a parallel phrase that closes',
+  sentence: 'statement → varied repetition → continuation (a 1:1:2 feel): short ideas that accelerate into the cadence',
+  phrase_group: 'two complementary phrases of roughly equal length (a 1:1 split), not strict antecedent–consequent',
+  hybrid: 'a sentence-like opening (short, accelerating ideas) closed by a period-like cadence',
 };
 const PHRASE_STRUCTURES = new Set(Object.keys(PHRASE_STRUCTURE_DESCRIPTIONS));
 
@@ -280,7 +283,13 @@ function formMetadataSummary(relationships, plan) {
 
 function phraseStructureVocabulary() {
   const lines = Object.entries(PHRASE_STRUCTURE_DESCRIPTIONS).map(([name, desc]) => `  - ${name}: ${desc}`);
-  return [`PHRASE STRUCTURES (choose one per section for "phrase_structure"):`, ...lines].join('\n');
+  return [
+    'PHRASE STRUCTURES (choose one per section for "phrase_structure"). These name the section\'s '
+      + 'internal SHAPE as proportions, not fixed bar counts — they scale to the section\'s length, so a '
+      + 'short (e.g. 4-bar) section compresses the model (a period becomes 2+2, a sentence 1+1+2). Pick the '
+      + 'shape that best fits the section\'s bar count and role:',
+    ...lines,
+  ].join('\n');
 }
 
 function transformVocabulary() {
