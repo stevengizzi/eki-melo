@@ -192,6 +192,12 @@ expectOk(
   'a:coverage-full',
   validateHarmonicPlan(wrap1([{ roman: 'I', bars: [1, 2] }, { roman: 'V', bars: [3, 4] }], 'half'), gapMacro)
 );
+// the single-bar shorthand [n] is accepted (the model reliably writes it; accepting
+// it avoids a wasted retry every run). Mixed with [start,end] tiles correctly.
+expectOk(
+  'a:bars-shorthand',
+  validateHarmonicPlan(wrap1([{ roman: 'I', bars: [1] }, { roman: 'IV', bars: [2] }, { roman: 'V', bars: [3, 4] }], 'half'), gapMacro)
+);
 
 // --- cadence value ---
 const badCadence = clone(VALID);
@@ -318,6 +324,15 @@ const heldPlan = await generateHarmonicPlan({
 });
 if (JSON.stringify(heldPlan.sections[0].progression) !== JSON.stringify(['I', 'I', 'V', 'V'])) {
   fail('b1:held-expand', `held chord should expand per-bar to ["I","I","V","V"], got ${JSON.stringify(heldPlan.sections[0].progression)}`);
+}
+
+// The [n] shorthand expands the same as [n, n] through the unwrap path.
+const shorthandPlan = await generateHarmonicPlan({
+  macroParams: heldMacro,
+  __mockResponse: JSON.stringify(wrap1([{ roman: 'I', bars: [1] }, { roman: 'IV', bars: [2] }, { roman: 'V', bars: [3, 4] }], 'half')),
+});
+if (JSON.stringify(shorthandPlan.sections[0].progression) !== JSON.stringify(['I', 'IV', 'V', 'V'])) {
+  fail('b1:shorthand-expand', `[n] shorthand should expand to ["I","IV","V","V"], got ${JSON.stringify(shorthandPlan.sections[0].progression)}`);
 }
 
 // (b2) the four mocks threaded through the runner → end-to-end FinalJingle.

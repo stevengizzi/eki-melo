@@ -153,6 +153,18 @@ function tonicTriadQuality(mode, tonic) {
   }
 }
 
+// Normalize a chord entry's `bars` to a [start, end] integer pair, or null when
+// malformed. Accepts both the canonical [start, end] tuple AND the one-element
+// shorthand [n] (meaning a single bar n) — the model very reliably writes [1] for
+// "bar 1", so accepting it (and normalizing to [1, 1]) avoids a wasted retry on
+// every run while keeping the explicit tuple form valid.
+function normalizeBarRange(range) {
+  if (!Array.isArray(range)) return null;
+  if (range.length === 1 && Number.isInteger(range[0])) return [range[0], range[0]];
+  if (range.length === 2 && Number.isInteger(range[0]) && Number.isInteger(range[1])) return [range[0], range[1]];
+  return null;
+}
+
 // True when `mode` names degree 2 as a flat-2 (a minor second above the tonic) —
 // phrygian, phrygian_dominant, locrian, neapolitan, … — which is what the
 // phrygian_ii_i cadence needs to sit in harmonic context.
@@ -306,8 +318,8 @@ function schemaBlock(plan) {
     `- Use these EXACT section labels as the keys of "sections": ${labels}.`,
     '- Each section is { "progression": [ chord entries ], "cadence": one of the seven cadence names }.',
     '- Each chord entry is { "roman": <a Roman-numeral string>, "bars": [start, end] }. "bars" is 1-indexed, '
-      + 'section-relative, and inclusive: [1, 2] covers bars 1 and 2 (the chord is HELD across them); [3, 3] '
-      + 'covers only bar 3.',
+      + 'section-relative, and inclusive: [1, 2] covers bars 1 and 2 (the chord is HELD across them). For a '
+      + 'SINGLE bar write [n, n] — e.g. [2, 2] covers only bar 2 (a bare [2] is also accepted).',
     '- For EVERY section the chord entries must TILE bars 1..N with NO gaps and NO overlaps (N = that section\'s '
       + 'bar count shown above). Every bar gets exactly one chord. (A chord cannot change WITHIN a bar — to move '
       + 'faster, use one-bar entries; to move slower, span two bars.)',
@@ -535,16 +547,17 @@ function validateSection(section, label, bars, mode, tonic, allowMI, push, warn)
     }
     const { roman, bars: range } = entry;
 
-    // bars — a [start, end] integer tuple within [1, bars]
+    // bars — a [start, end] integer tuple (or the [n] single-bar shorthand) within [1, bars]
     let rangeOk = true;
-    if (!Array.isArray(range) || range.length !== 2 || !Number.isInteger(range[0]) || !Number.isInteger(range[1])) {
-      push(`Section "${label}" progression entry ${i}: "bars" must be a [start, end] tuple of integers, got ${JSON.stringify(range)}.`);
+    const normalized = normalizeBarRange(range);
+    if (!normalized) {
+      push(`Section "${label}" progression entry ${i}: "bars" must be a [start, end] tuple of integers (or [n] for a single bar), got ${JSON.stringify(range)}.`);
       rangeOk = false;
-    } else if (range[0] < 1 || range[1] > bars || range[0] > range[1]) {
-      push(`Section "${label}" progression entry ${i}: bars [${range[0]}, ${range[1]}] out of range — must be within [1, ${bars}] with start <= end.`);
+    } else if (normalized[0] < 1 || normalized[1] > bars || normalized[0] > normalized[1]) {
+      push(`Section "${label}" progression entry ${i}: bars [${normalized[0]}, ${normalized[1]}] out of range — must be within [1, ${bars}] with start <= end.`);
       rangeOk = false;
     }
-    if (rangeOk) ranges.push([range[0], range[1]]);
+    if (rangeOk) ranges.push(normalized);
 
     // roman — parseable, and valid in the mode (or a borrow when interchange is on)
     if (typeof roman !== 'string') {
@@ -706,8 +719,9 @@ export function validateHarmonicPlan(wrapped, macroParams, config = undefined) {
 function expandProgression(entries, bars) {
   const perBar = new Array(bars).fill(null);
   for (const entry of entries) {
-    if (!entry || !Array.isArray(entry.bars)) continue;
-    const [start, end] = entry.bars;
+    const normalized = entry && normalizeBarRange(entry.bars);
+    if (!normalized) continue;
+    const [start, end] = normalized;
     for (let bar = start; bar <= end; bar++) {
       if (bar >= 1 && bar <= bars) perBar[bar - 1] = entry.roman;
     }
