@@ -1187,6 +1187,21 @@ These don't block any session; flagging them for later attention:
    pipeline's output? Lightweight, useful for regression detection.
    Defer to Session 12 close-out.
 
+7. **Phrase-length motifs (recommended dedicated session — e.g. "10b").**
+   Surfaced at the Session-10 human checkpoint. Today a motif is a MICRO cell
+   (≤ 1 bar) and the macro melody is built by Stage 5a developing it; this is
+   coherent and reliable but is plausibly the ceiling on *memorability* (v1's
+   freely-authored longer melodies were more memorable). The recommendation is
+   to let the LLM author longer melodic PHRASES — either (A) raise the motif
+   length cap to be section-relative while keeping the cell+development model,
+   or (B) make the motif the section's full phrase and shrink Stage 5a to
+   arranging/varying phrases. Either needs a deterministic beat-length /
+   overflow check in Stage 5a (which also fixes the hollow-reprise + per-bar-gap
+   findings). Full design notes are in the Session-10 journal entry
+   (2026-05-22). Steven's decision: do this as its own session with its own
+   prompt, not folded into Session 10. The Session-10 pitch-range fix (motifs
+   may now reach/exceed the octave) is the half that was done immediately.
+
 ---
 
 ## 8. Conventions

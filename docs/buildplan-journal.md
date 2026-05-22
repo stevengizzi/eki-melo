@@ -2864,3 +2864,93 @@ rhythm length, sum within the placement-safe bound, value ∈ closed set, key se
 ACCURACY / STYLE (contour-shape match, anomaly reality, chord-tone ending, rhythm sameness) is a soft
 warning. Hard checks are reserved for "this would break realization or violate the schema"; everything
 that only affects taste or metadata honesty warns instead of aborting.
+
+### Checkpoint finding (2026-05-22) — motifs can reach the octave (§3 range restored)
+
+Steven (listening) named two fundamental limits on the motifs: they couldn't reach OR exceed the
+octave (capped at degrees 1–7), and they couldn't exceed 4 beats (one bar). The two are different in
+kind, and we split them:
+
+**Pitch range — fixed now (it was an unintended narrowing).** The canonical §3 Motifs contract allows
+the octave-displacement convention (1–7 in-octave, 8 the octave above, negatives below the tonic), and
+the hand-supplied motifs already use it (Wanderer's b = [5,7,8,7,5]). The Session-10 prompt I wrote
+wrongly clamped generated motifs to [1, 7] — so they were MORE restricted than the fixtures and a
+fanfare literally could not soar to the high tonic. Stage 4 now accepts non-zero integer degrees in
+[-8, 14]; Stage 6 + the motif theory already realize these (same path the fixtures use). The chord-tone
+soft check folds octave degrees to in-octave (degree 8 → tonic, a chord tone), and the prompt
+encourages reaching the octave for a soaring hook. All eleven verifiers pass.
+
+**Length / "is a motif macro or micro?" — deferred to its own session (Steven's call).** The current
+architecture treats a motif as a MICRO cell and builds the macro melody by DEVELOPING it across the
+bars (Stage 5a + the Stage-3 transform library). The 4-beat cap is consistent with that. Lifting it —
+letting a motif be a multi-bar PHRASE — shifts melodic authorship from the deterministic development
+machinery back toward the LLM (toward v1's freedom, which is plausibly the source of v1's memorability).
+That is a real architectural pivot, not a tweak, so it gets its own session with its own prompt. The
+length cap stays at one bar for now. Design notes for that session:
+
+> **RECOMMENDATION — phrase-length motifs (a future dedicated session).**
+>
+> *Why:* The standing "less memorable than v1" gap is most likely structural — a tiny cell mechanically
+> developed (sequence / invert / fragment) tends to read as "composed but forgettable," whereas a
+> memorable tune has a longer authored arc (antecedent–consequent, a hook with a peak and a resolution).
+> v1 let the LLM write that arc directly. The rebuild's value (reliable harmony / voice-leading /
+> cadence) does NOT depend on the motif being tiny — only Stage 5a's development model does.
+>
+> *Two framings to choose between in that session:*
+> - **(A) Partial-phrase / "longer cells."** Raise the length cap (tie it to the section length rather
+>   than a fixed 4.0 — a motif may be up to a full section's beats). Keep the cell+development model;
+>   the motif is just allowed to be richer. Lowest risk. Mostly a cap change + the placement work below.
+> - **(B) Full phrase-motifs.** Make the motif the section's actual melodic phrase: Stage 4 (or a new
+>   "melody" stage) writes a full per-section phrase, and Stage 5a's role shrinks to ARRANGING /
+>   VARYING phrases across the form rather than developing a cell. This demotes the Stage-3 transform
+>   library + Stage-5a development rules to optional variation tools. Highest reward (closest to v1),
+>   biggest change.
+>
+> *Mechanics to work out (shared by both):*
+> - **Length cap → section-relative.** A motif may span up to its section; don't hard-code 4.0.
+> - **Stage 5a placement + a deterministic beat-length check.** A multi-bar motif needs
+>   `length_bars` = its realized bar-span; add a check that the motif's realized beats (apply the
+>   transform, sum the rhythm) fit `length_bars` and don't overflow into the next assignment. This is
+>   the "gap/overflow detector" flagged earlier — it would ALSO fix the hollow-reprise and per-bar-gap
+>   findings structurally (those are the same root: short material in a bar-sized slot).
+> - **Development / distinctness rules re-thought for phrases.** A phrase reprise = "restate with
+>   variation," not "reuse the cell"; the contrast section develops the phrase, etc.
+> - **Prompt.** Coach the model to write a memorable PHRASE — a clear antecedent–consequent shape with a
+>   peak and a cadential resolution — not a cell. The seed-exemplar idea carries over (give phrase-level
+>   exemplars).
+> - **32-beat cap interaction.** With today's 2-bar sections a phrase-motif ≈ a section; once Stage 2
+>   (Session 12) sets `total_bars` and section sizes, phrases scale with the section.
+>
+> Suggest slotting this as a dedicated session (e.g. "Session 10b — phrase-length motifs") with its own
+> paste-able prompt, before or alongside Session 11, since it touches Stage 4 + Stage 5a + the
+> length/placement contracts. A pointer is added to buildplan §7.
+
+**HUMAN CHECKPOINT — CLEARED (2026-05-22, the melodic-creativity pressure point).** Across the listening
+pass Steven A/B'd the fully-LLM case repeatedly and steered a series of in-pass fixes; his read landed
+positive ("It's sounding good!"; "the A1 and B sections are solid") with each remaining issue a concrete
+defect that was fixed in-session, not a structural wall. What the pass surfaced and resolved:
+- the A2 ornament flick-into-rest → ornaments steered to interior notes (Stage 5a prompt);
+- forgettable / same-y motifs → anomaly honesty (soft) + distinct-rhythm + sharpened "adventurous";
+- couldn't complete a run (413 / 529) → proxy body cap raised + transport retry-with-backoff;
+- inhuman heterophony → reshaped to a tasteful varied doubling;
+- out-of-key A2 → imitation made a DIATONIC (tonal) answer instead of chromatic;
+- hollow A3 reprise → Stage 5a phrasing nudge;
+- a run of validator ABORTS (strict-monotonic contours, fake-anomaly hard-fail, the 4-beat/octave caps)
+  → the unifying fix: SCHEMA stays hard, ACCURACY / STYLE / cosmetic becomes a soft warning, and the
+  motif degree range was widened to reach the octave.
+
+The big finding of the session is the macro/micro insight above: the micro-cell + mechanical-development
+model is coherent and reliable but is plausibly the ceiling on memorability, and the path forward is to
+let the LLM author longer melodic phrases — deferred to its own session by Steven's decision. The
+melodic-DNA stage (Stage 4) is now live, validates robustly, reads as intentional/composed, reaches the
+octave, and exposes the motif_adventurousness knob — clearing Session 10's bar with the phrase-length
+expansion consciously scoped as the next step.
+
+**Verdict: Session 10 complete and confirmed by ear. Stage 4 (motivic material) is wired end-to-end with
+schema-hard / style-soft validation, a one-shot retry, transport retry-with-backoff, a deterministic
+offline fallback, the seed-exemplars + compositional-guidance prompt, the octave-capable degree range,
+and the motif_adventurousness knob; the in-pass texture fixes (heterophony, diatonic imitation) and the
+proxy/transport fixes also landed. All eleven verifiers pass offline. The phrase-length-motif expansion
+is the recommended next session (notes above + buildplan §7). Cleared for the Claude.ai-side review and,
+after that, Session 11 (Stage 3 — harmonic plan) or the phrase-motif session, at Steven's direction. Do
+NOT start the next session automatically.**
