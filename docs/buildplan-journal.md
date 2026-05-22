@@ -2333,3 +2333,310 @@ manifestation now flows in and varies by register; the transform-param bug is cl
 are capped at 32 beats. All nine verifiers pass offline. Cleared to proceed to Session 10
 (Stage 4 — motivic material, where the melodies themselves start being generated) when Steven
 kicks it off. Do NOT start Session 10 automatically.**
+
+**Claude.ai-side verification (Steven + Claude Opus 4.7):**
+- All nine verify scripts re-run independently — PASSED:
+  verify-spelling, verify-forms, verify-motif, verify-stage6,
+  verify-stage8, verify-textures, verify-stage7, verify-stage5b,
+  verify-stage5a (all exit 0, all offline).
+- Cadence manifestation revision verified case-by-case in C major:
+  · A1 IAC: motif D5-F5-A5 flows in, cadence D5-E5 in octave 5
+  · A2 deceptive: motif descends to F4, cadence D4-E4 in octave 4
+  · B half: motif F5-E5, cadence C5-D5 (mid-register)
+  · A3 PAC: motif climbs to B5, PAC voiced D6-C6 (octave 6)
+  The line continues through the cadence rather than being snapped
+  back to register-center. Two PACs in the same piece in different
+  registers genuinely sound different.
+- The collapse from 7 formulas to 1 builder + 7 data specs is the
+  same data-driven pattern as PRESETS / TEXTURE_REGISTRY — adding
+  a new cadence type is now a data change.
+- Transform-param validator independently exercised: missing 'steps'
+  on transpose_step caught with a retry-actionable error message
+  that names the param AND points to sequence_up_step / sequence_
+  down_step as ±1 alternatives.
+- Full two-stage mocked generation through runPipelineGenerating
+  (Stage 5a + Stage 5b both via __mockResponse) produces beat-
+  aligned voices with 0 bad pitches through real noteToFreq.
+- Sync runPipeline still requires both phrasePlan AND texturePlan;
+  throws cleanly if either is missing.
+- The 32-beat cap is an architectural commitment carrying forward
+  to Stage 2 (Session 12) — verified the inspector cases now
+  reflect it; verify-stage5a and verify-stage8 updated correspondingly.
+- Steven's "not as memorable as v1" verdict is correctly diagnosed
+  in the journal as scoped to S10/S11 (motif shapes + harmonic
+  progression), not a Session-9 defect. Standing aesthetic bar
+  ([[aesthetic-bar-creative-melodies]]) carries forward.
+
+**Verdict: Session 9 complete and verified. Stage 5a phrase placement
+works end-to-end. The Stage 8 cadence-manifestation revision is a
+substantive musical improvement driven by what Session 9's LLM
+output exposed — exactly the kind of integrative finding that
+emerges only when downstream variety becomes available. Cleared to
+proceed to Session 10 — Stage 4 motivic material, where the melodic
+DNA pressure point finally has its dedicated stage.**
+
+## Session 10 — 2026-05-21 — Stage 4 motivic material (THIRD LLM stage — the melodies themselves)
+
+> Implementation entry. Stage 4 is the THIRD LLM stage and the third worked
+> instance of the LLM-stage template (siblings: Stage 5b texture, Stage 5a
+> phrase). Architecturally it copies the established patterns mechanically. The
+> deliverable that matters is the PROMPT — Stage 4 generates the motifs the user
+> actually hears, so this is where the standing aesthetic bar ("more creative /
+> soulful / memorable melodies", [[aesthetic-bar-creative-melodies]]), deferred
+> since Session 4, is met or missed. The human checkpoint is THE BIG ONE and is
+> recorded at the END of this entry AFTER Steven's listening pass — it is not
+> here yet.
+
+**What landed (commits):**
+- feat(jingle): add Stage 4 motivic material (3rd LLM stage)
+  - `js/jingle/pipeline/stage-4-motifs.js` — `generateMotifs` (with
+    `__mockResponse` offline fallback + `onTrace`), `validateMotifs`,
+    `buildMotifsPrompt`; LLM call mimics api.js / Stage 5a/5b; validate-then-
+    retry-once. Structurally identical to stage-5a-phrase.js.
+  - `js/jingle/pipeline/pipeline-config.js` — new `motif_adventurousness` knob on
+    all four presets (tame/adventurous/wild), modeled on texture/phrase knobs
+  - `js/jingle/pipeline/pipeline-runner.js` — `runPipelineGenerating` now threads
+    Stage 4 (motifs) BEFORE Stage 5a (phrase) before Stage 5b (texture); sync
+    `runPipeline` now requires motifs AND phrasePlan AND texturePlan
+- feat(jingle): wire Stage 4 into the inspector + add the offline verifier
+  - `js/jingle/debug/pipeline-inspector-cases.js` — new `sunrise-fully-llm` case in
+    `GENERATED_CASES` (motifs + phrasePlan + texturePlan all omitted; mood folded
+    into macroParams). `CASES` and the Session-8/9 generated cases unchanged
+  - `js/jingle/debug/pipeline-inspector.html` — a motif-adventurousness selector, a
+    Stage-4 panel (prompt / raw response(s) / generated motifs / soft chord-tone
+    notes) above the Stage-5a panel, and a motifs-then-phrase-then-texture flow for
+    the fully-LLM case
+  - `js/jingle/theory/verify-stage4.mjs` — committed offline regression check
+- docs(jingle): record Session 10 implementation (this entry)
+
+**Exit criteria status:**
+- [x] `stage-4-motifs.js` exports `generateMotifs` + `validateMotifs` +
+  `buildMotifsPrompt`, mirroring stage-5a-phrase.js's architecture (prompt builder
+  separated from the fetch; wrapped LLM envelope `{ motifs: {…} }` unwrapped to the
+  flat §3 map; collect-all-defects validation; validate-then-retry-once;
+  `__mockResponse` offline fallback; model pinned to `claude-sonnet-4-20250514`).
+- [x] The prompt includes the SEED EXEMPLARS (the four Session-6 "bolder demo
+  motifs") and EXPLICIT COMPOSITIONAL GUIDANCE on shape, distinctness, rhythm, and
+  anomaly scarcity, plus the shape vocabulary, anomaly vocabulary, and the active
+  motif_adventurousness directive.
+- [x] The validator catches every documented defect with retry-actionable messages
+  (key set, degree range/count, rhythm length/sum/sign, contour value AND contour
+  consistency, register, anomaly type/position, distinctness, envelope) — each
+  asserted in `verify-stage4.mjs` with a keyword check.
+- [x] pipeline-runner chains all four LLM stages (motifs → phrase → texture →
+  sync core); sync `runPipeline` requires motifs + phrasePlan + texturePlan and
+  throws cleanly (pointing at `runPipelineGenerating`) if any is missing.
+- [x] `pipeline-inspector.html` shows all three generated artifacts side-by-side
+  (Stage-4 motifs panel above Stage-5a phrase panel above Stage-5b texture panel)
+  on the fully-LLM case.
+- [x] `verify-stage4.mjs` passes offline (no API calls); all prior verifiers still
+  pass (verify-spelling / -forms / -motif / -stage6 / -stage8 / -textures / -stage7 /
+  -stage5b / -stage5a — all exit 0).
+- [x] This journal entry (covering the prompt-design choices, esp. the seed-exemplars
+  + compositional-guidance reasoning).
+- [ ] **Human checkpoint** — THE BIG ONE (the melodic-creativity pressure point);
+  NOT yet run. Added after Steven's listening pass.
+
+**Verification anchors that passed (`verify-stage4.mjs`, committed, OFFLINE):**
+- `validateMotifs` on a valid wrapped object (C major AABA; a = peak_descend
+  ending on the tonic, b = falling_arc ending on a IV chord tone) → `{ ok:true,
+  errors:[] }`; a valid motif WITH a chromatic_neighbor anomaly also passes. Each
+  documented defect → `{ ok:false }` with a message naming it (the keyword-checked
+  list above).
+- `generateMotifs({ __mockResponse })`: a valid mock parses + validates and returns
+  the FLAT §3 map (keys = motif letters, no `motifs` wrapper). Threaded through
+  `runPipelineGenerating` with Stages 5a + 5b ALSO mocked, it runs end-to-end
+  (4 → 5a → 5b → 6 → 7 → 8 → toSynthString) to a FinalJingle whose every pitch
+  parses through the real synth.js `noteToFreq`, all three voices beat-aligned
+  (32/32/32 for the 8-bar case). A malformed mock (bad JSON) throws; a
+  semantically-invalid mock (out-of-range degree, inconsistent contour) throws on
+  validation. The soft end-on-chord-tone check (motif "b" ending on degree 2 over
+  a IV chord) fires a warning via `onTrace` WITHOUT failing.
+- `buildMotifsPrompt` is pure and names the required motif keys, the shape +
+  anomaly vocabularies, the seed exemplars (bright_arpeggio … byzantine_flourish),
+  the `at_position` anomaly key, the COMPOSITIONAL GUIDANCE block, the rhythm-sum
+  window (1.5–3.5), the mood signal, and the active adventurousness directive.
+
+**Prompt design choices (THE musical-quality differentiator this session):**
+- **System prompt** establishes the role per the kickoff: "You are a composer
+  writing memorable melodic hooks for a chiptune jingle. Each motif you write must
+  work as a singable phrase with a clear shape and a recognizable identity. Your
+  output is a strict JSON object matching the given schema; no commentary."
+- **User prompt** is assembled from labeled blocks: PIECE (key/mode/form/tempo/
+  meter/register/harmonic-rhythm/sections + the MOOD, flagged as the single most
+  important shape signal), HARMONIC PLAN (per-section progression + cadence, with
+  the instruction that a motif's opening lands on chord tones and its tail leads
+  toward the cadence), REQUIRED MOTIFS (exactly which letters, and which sections
+  use each), the SHAPE VOCABULARY (the six contours with examples), the ANOMALY
+  TYPES (the three kinds explained), the SEED EXEMPLARS, the COMPOSITIONAL GUIDANCE,
+  the active MOTIF ADVENTUROUSNESS directive, and the JSON schema block.
+- **Seed exemplars are the concrete "what good looks like for THIS project" anchor.**
+  Four motifs (bright_arpeggio, dorian_call, wide_leaps_major, byzantine_flourish),
+  labeled as exemplars to emulate in identity, NOT to copy verbatim. The reasoning:
+  a model asked to "write a memorable motif" with only abstract guidance defaults to
+  a scale-walk; concrete examples of arpeggiated shapes, a modal-signature reach, bold
+  consonant leaps, and an exotic chromatic flourish give it a target vocabulary of
+  *gestures*. (Two reconciliations on the exemplars — see Surprises below.)
+- **Compositional guidance is explicit instruction, not just examples.** Five
+  numbered rules — clear contour, end on a chord tone, distinct motifs must sound
+  distinct, rhythm matters as much as pitch, anomalies are scarce. The model has been
+  making textures and phrase placement work since S8/S9; the missing ingredient for
+  *shape* is being told, in prose, what a melodic hook is versus a scale run.
+- **Adventurousness directive only prints the ACTIVE level**, to keep the steer sharp
+  (same idiom as S8/S9). tame ≈ conjunct/stepwise, no anomalies; adventurous ≈ leaps
+  of a 4th/5th, ≥1 clear arc, ≤1 anomaly across the set; wild ≈ wide leaps, byzantine
+  flourishes, colour degrees, up to one anomaly per motif.
+- **Forced-JSON by instruction**, fences-stripped + brace-matched parse — identical to
+  Stage 5a/5b / api.js. Model pinned to `claude-sonnet-4-20250514` (the /api/generate
+  allow-list), max_tokens 2000.
+
+**Validation strategy (the motif-integrity work this session):**
+- `validateMotifs(wrapped, macroParams)` collects ALL defects in one pass (like 5a/5b)
+  so the single retry sees them together. Per-motif: schema (degrees 4–8 ints in
+  [1,7]; rhythm same length, positive, sum 1.5–3.5), contour value ∈ the six AND
+  contour CONSISTENCY with the trajectory, register ∈ low/mid/high, anomaly null or
+  {type ∈ 3, at_position ∈ [0, len-1]}. Cross-motif: exact key set (derived from the
+  form's section labels via `computeSectionPlan`), and distinctness (no two motifs
+  share the exact {degrees, rhythm, contour} triple).
+- **Contour consistency uses the kickoff's Session-10 rules, NOT theory/motif.js's
+  `contourOfDegrees`.** The two classifiers differ (the theory one counts monotonic
+  runs; the validator one checks net-rise / interior-peak-then-descend / range-≤3 /
+  etc.), and the kickoff specifies the validator's rules explicitly. Implemented them
+  directly over the raw in-octave degrees (all positive 1..7, so they order
+  monotonically with pitch — no linear conversion needed). The validator is the
+  contract for *generated* motifs; it deliberately does not import the theory
+  classifier so its rules can't drift from the spec.
+- **The soft end-on-chord-tone check is a WARNING, not a failure, and lives in
+  `generateMotifs` (not `validateMotifs`).** Rationale: the kickoff's validator
+  signature is `validateMotifs(wrapped, macroParams)` — no harmonicPlan — but the
+  chord-tone check needs the per-section starting chord, which is in the harmonicPlan.
+  `generateMotifs` has it, so the soft check runs there: for each motif, if its last
+  degree is not the root/third/fifth (degree-space) of its first section's starting
+  chord, a warning is emitted via `onTrace` (and `console.warn`). The composer-knob
+  exists; we respect the LLM's choice. The chord root is parsed straight from the
+  Roman numeral (degree only, ignoring quality/accidentals/extensions) — enough for a
+  soft diagnostic without dragging the full roman-numeral resolver into this stage.
+
+**Surprises / decisions made:**
+- **Anomaly key is `at_position`, NOT the kickoff sketch's `position`.** The kickoff's
+  OUTPUT schema wrote `{ position, type }`, but its binding requirement is "exactly
+  what Sessions 4–9 already consume", and the actual consumer — Stage 6's
+  `realizeLeadAssignment` (stage-6-voice.js) — reads `anomaly.at_position` to realize
+  the chromatic bend, as do buildplan §3's Motifs example and the Stage 5a/5b motif
+  summaries. Emitting `position` would silently DROP the anomaly at realization
+  (Stage 6 would read `at_position` as undefined and never bend the note) — defeating
+  the entire point of declaring it, on the one session whose job is making melodies
+  audibly bolder. So Stage 4 emits `at_position` end to end (prompt, exemplar,
+  validator). This resolves the kickoff's internal inconsistency in favor of the
+  downstream consumer + the §3 cross-session contract.
+- **Seed-exemplar rhythms trimmed to ≤ 3.5 beats.** Three of the four kickoff
+  exemplars (bright_arpeggio, dorian_call, wide_leaps_major) sum to 4.0 beats — they
+  are Session-6 one-bar (4/4) cells — but the Stage-4 contract caps a motif's rhythm
+  sum at 1.5–3.5 (an exit criterion, and the right shape for a short ~32-beat arrival
+  jingle, per [[jingle-length-cap-32-beats]]). An exemplar that fails the validator
+  would teach the model to fail validation on every call. Resolved by trimming the
+  exemplars' rhythms to sum to 3.5 (shortening the final note), preserving their
+  degree SHAPES and contours — the exemplars' actual lesson. byzantine_flourish was
+  already 3.5 and is kept verbatim. (Note: the hand-supplied inspector fixtures' own
+  motifs are 4.0-beat cells too, but they flow through a separate path and are never
+  checked by `validateMotifs`, so there is no runtime conflict — only the *prompt's*
+  exemplars had to comply.)
+- **bright_arpeggio's contour is labeled `peak_descend` (matching Session 6 + the
+  validator), not the kickoff prose's `rising_arc`.** `[1,3,5,4,3,1]` ends equal to
+  its start, so it cannot be rising_arc under the validator's net-rise rule; it rises
+  to an interior peak (5) then descends — peak_descend. Session 6's own label is
+  peak_descend. dorian_call `[1,3,4,6,5,3]` is labeled `rising_arc` (its last degree 3
+  > first 1 — passes the net-rise rule, and the kickoff prose says rising_arc). Every
+  exemplar's stated contour now passes the shipped validator, so the prompt never
+  teaches a contradiction.
+- **`macroParams.mood` carries the mood signal.** The kickoff says pieceSummary should
+  include mood ("the most important signal for shape choice"), but neither
+  `generateMotifs` nor `buildMotifsPrompt` takes a mood argument. Resolved by reading
+  `macroParams.mood` (an optional free-form string) — forward-looking, since Stage 2
+  (Session 12) will fold a mood/character string into macroParams from Stage 1's
+  AestheticBrief. For the fully-LLM inspector case, the case's top-level `mood`
+  ('triumphant') is surfaced into its macroParams; the top-level mood is still read by
+  the runner for FinalJingle metadata, unchanged.
+- **New `motif_adventurousness` knob (≠ texture/phrase knobs).** Added a distinct knob
+  on all four presets (conservative→tame, balanced→adventurous, adventurous→adventurous,
+  wild→wild), modeled on Sessions 8/9. Additive — no other stage reads it; the reader
+  falls back to `adventurous` if absent. The "anomaly per motif" budget under wild is a
+  PROMPT directive, not a hard validator rule (the validator allows ≤1 anomaly per
+  motif structurally; anomaly *budget* accounting across the whole piece, buildplan
+  §7.1, remains deferred).
+- **Stage 4 slots FIRST in `runPipelineGenerating` (motifs → phrase → texture).** Both
+  the phrase and texture prompts reference the motifs, so motifs must resolve before
+  them. New mock channel `__mockMotifResponse` + trace hook `onMotifTrace`, matching the
+  `__mockPhraseResponse`/`__mockResponse` precedent. Sync `runPipeline` gains a motifs
+  guard that points at `runPipelineGenerating`.
+- **No DEC/CHANGELOG entry** — consistent with Sessions 1–9 and the buildplan: the new
+  pipeline is built alongside the deployed app and is not user-visible until Session 12,
+  where the DEC/CHANGELOG/architecture updates are scheduled.
+
+**Deferred:**
+- **Live prompt tuning (the headline of this session's checkpoint).** Verification here
+  was OFFLINE only (no API key in the build context); the `__mockResponse` path exercises
+  parse+validate+e2e and the prompt structure/size were checked, but no live model motif
+  output was generated or judged. Whether the motifs sound like COMPOSED MELODIES rather
+  than scale-walks is exactly what Steven's listening pass evaluates — and per the
+  checkpoint rules, an aesthetic finding ("still too stepwise") is a reason to revise the
+  prompt IN-SESSION (more exemplars, sharper guidance, adjusted adventurousness), not to
+  ship and defer.
+- **Anomaly-budget enforcement** (buildplan §7.1) still untouched — the validator allows
+  ≤1 anomaly per motif structurally; counting anomaly usage across Stage 4 + Stage 3 +
+  Stage 5a against `anomaly_budget_per_*` is a later cross-stage concern.
+- **large_leap / rhythmic_displacement realization.** The schema accepts all three anomaly
+  types, but Stage 6 only specially realizes `chromatic_neighbor` (the bend). A declared
+  large_leap is realized as-is by the ordinary degree→pitch path (the leap is in the
+  degrees), and rhythmic_displacement is realized by the rhythm value itself — so both are
+  audible without special handling, but neither is *flagged* downstream the way the
+  chromatic bend is (Stage 7 exempts only the chromatic-neighbor note). Fine for now;
+  revisit if the voice-leading pass starts "repairing" a declared large_leap.
+- **Mood → macroParams is hand-supplied this session** (the fully-LLM case sets it). Stage 2
+  (Session 12) owns deriving it from the AestheticBrief.
+
+**Notes for next session (Session 11 — Stage 3 harmonic plan):**
+- Mimic this stage's structure (now the FOURTH worked LLM-stage example): pure
+  `build<Stage>Prompt`, `validate<Output>(…, macroParams)` collecting ALL defects and
+  reusing `computeSectionPlan` + theory libraries for ground truth, `generate<Output>({…,
+  __mockResponse, onTrace})` with the offline fallback + one-shot retry, model pinned,
+  wrapped envelope unwrapped to the flat shape.
+- Stage 3 generates the HarmonicPlan (per-section Roman-numeral progressions + cadence),
+  which is currently hand-supplied to Stage 4. In `runPipelineGenerating` it slots in
+  BEFORE Stage 4 (harmony → motifs → phrase → texture), since Stage 4 reads the harmonic
+  plan to fit motifs to it. It will need its own mock channel (`__mockHarmonyResponse`).
+  `roman-numeral.js` (`isValidInMode`, `resolveRoman`, `listAvailableChords`) is the
+  ground truth its validator should lean on — every numeral must be valid in the active
+  mode (or modal interchange is allowed by config and the borrowed chord is flagged), and
+  each cadence must come from the allowed `cadence_palette`.
+- After S11, Stage 4's soft chord-tone check becomes more meaningful (the harmony is then
+  itself generated); the seam stays the same.
+- `verify-stage4.mjs` runs with the throwaway-package.json dance like the others.
+
+**HUMAN CHECKPOINT — THE BIG ONE; NOT YET RUN.** This is the explicit point where Steven's
+"want memorable melodies" bar gets met or doesn't. The session is NOT closed until Steven
+completes the listening pass:
+1. Open the inspector, run "Sunrise Fanfare — fully LLM" (live LLM for Stage 4 + 5a + 5b).
+   Listen.
+2. A/B against the hand-supplied Sunrise Fanfare and the partial-generated twins from
+   Sessions 8/9 — do the LLM's motifs sound like A COMPOSED MELODY (singable, recognizable,
+   with identity)?
+3. Try motif_adventurousness (tame / adventurous / wild) — genuinely different shapes?
+4. Inspect the generated motifs in the Stage-4 panel — clear contour, sensible rhythm,
+   meaningful anomaly placement when non-null?
+5. Generate the same case 3–5 times — different motif sets each time (the creativity surface)?
+Per the checkpoint rules: validation failures / ill-formed motifs are fix-now items;
+aesthetic findings ("still too stepwise / scale-walky") are reasons to revise the PROMPT
+in-session (more exemplars, sharper guidance, adjusted adventurousness), not to ship and
+defer. If after prompt iteration the motifs still read as scale-walks, that is a real
+finding worth logging carefully — it would mean the LLM-creativity surface has structural
+limits in this domain that future tuning may or may not lift. His verdict, any prompt-
+iteration commits, and the close-out get appended here afterward.
+
+**Verdict: Session 10 implementation complete; all ten verifiers pass offline (the nine
+prior + verify-stage4). The third LLM stage — the one that writes the melodies themselves —
+is wired end-to-end with strict motif-integrity validation, a one-shot retry, a
+deterministic offline fallback, the seed-exemplars + compositional-guidance prompt, and the
+motif_adventurousness freedom knob. The session closes after Steven's listening pass on the
+fully-LLM case confirms the motifs sound like composed melodies (or surfaces a prompt-tuning
+finding to iterate on in-session). Do NOT start Session 11 automatically.**
