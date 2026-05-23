@@ -4247,3 +4247,91 @@ second download); exports a backup and confirms the `diagnostics` key; imports a
 pre-Session-14 backup (no diagnostics) and confirms it restores + reconstructs on
 demand; and sends back 2–3 JSON files (inspired vs uninspired) to drive the
 prompt-iteration discussion.
+
+## Session 15 — 2026-05-23 — MIDI export (the third download slot)
+
+**Goal.** Light up the disabled `MIDI — Session 15` dropdown placeholder Session 14
+shipped. Any already-generated jingle (v1 or v2/pipeline) downloads as a Standard
+MIDI File openable in a DAW or notation tool. One focused module + one verifier + a
+small UI/handler change; no architectural change anywhere.
+
+**What landed.**
+- `js/jingle/midi-writer.js` — a pure, self-contained Format 1 SMF writer. Exports
+  `buildMidiFile(jingle, options)` → `Uint8Array`, `pitchStringToMidi(noteString)` →
+  `number | null`, and `writeVlq(value)` → `number[]` (the last two exposed for the
+  verifier). Four tracks: a meta track (tempo, 4/4 time signature, file name, section
+  Markers) + Lead/Harmony/Bass. Zero audio dependency — it only MIRRORS synth.js's
+  NOTE_MAP + octave math; it does not import synth.js.
+- `js/ui.js` — the placeholder `<button class="coming-soon" disabled>MIDI …</button>`
+  became `<button data-act="downloadMidi" …>MIDI (notation)</button>`. `styles.css`
+  untouched (the disabled state was the only difference; `.coming-soon`/`.soon-tag`
+  are now unused but harmless).
+- `js/handlers.js` — `handleDownloadMidi(id)` (same guest + active-jingle lookup as
+  the WAV/JSON paths; build bytes → `Blob` `audio/midi` →
+  `<name>-<title>.mid` download → "MIDI DOWNLOADED ♪"; build error → inline
+  `showError`). Wired into the delegated click handler's `data-act` switch.
+- `js/jingle/theory/verify-midi.mjs` — the offline byte verifier (no live API).
+- CHANGELOG v2.2.0.
+
+**Decisions + rationale.**
+- *General MIDI patch hints (Lead 1 / Lead 2 / Synth Bass 1 = programs 80 / 81 / 38).*
+  The chiptune sound was always synth-specific (pulse-50/pulse-25 waves + triangle
+  bass — DEC-003); no GM patch reproduces it. So the program changes are deliberately
+  just IMPORT HINTS — a DAW or notation tool substitutes its own patches anyway, and
+  what carries over faithfully is the pitches, rhythms, tempo, and structure. Channel
+  assignment lead=0 / harmony=1 / bass=2 skips channel 9 (GM percussion).
+- *96 ticks per beat + an INTEGER tick accumulator.* 96 is divisible by every common
+  subdivision (16th = 24, 8th-triplet = 32, dotted-8th = 72, quarter = 96), so the
+  durations the engine produces land on clean integers. Crucially, ticks are
+  accumulated as integers (`Math.round(beats × tpb)` PER NOTE, summed), not by scaling
+  a floating-point beat-cursor — so rounding can't drift across a long piece and the
+  voices stay sample-aligned to the end. Delta times are computed against the last
+  emitted event's absolute tick, and a rest just advances the cursor without emitting,
+  so a leading rest becomes the next note's delta and a trailing rest lands in the
+  end-of-track delta.
+- *Section labels as MIDI Markers in track 0.* A nice-to-have for DAW import (markers
+  show on the timeline / arrangement ruler) at minor cost: one Marker meta-event per
+  section at its beat→tick position. Both engines already carry `sections:
+  [{ label, start }]` (pipeline via `sectionMarkers`, v1 from the model's JSON), so
+  the same code serves both. A jingle with no `sections` simply emits no markers.
+- *Full notated durations, not the synth's 94%.* The synth shortens notes to 94% for
+  articulation; a score wants the notated length, so MIDI notes run back-to-back
+  (legato). Velocity is a uniform 90 — the synth carries no per-note dynamics, so
+  there's nothing truer to export.
+
+**In-pass discoveries.**
+- *The buildplan's VLQ "max" test vector had a dropped leading zero.* It listed
+  `0xFFFFFF → [0xFF, 0xFF, 0xFF, 0x7F] // max for SMF delta times`. Those bytes ARE
+  the SMF delta-time maximum, but that maximum's value is `0x0FFFFFFF` (268435455),
+  not `0xFFFFFF` (`0xFFFFFF` actually encodes to `[0x87, 0xFF, 0xFF, 0x7F]`). The
+  verifier honors the documented INTENT (the bytes + the "max for SMF delta times"
+  label) and tests `0x0FFFFFFF`, with a comment recording the discrepancy.
+- *Round-trip read-back earns its keep.* Beyond the structural anchors, the verifier
+  includes a ~50-line inline SMF reader that walks the produced MTrk chunks and pairs
+  Note-On/Note-Off back into notes, then asserts the per-voice note sequence equals
+  the input `[pitch, duration]` tuples after pitch→MIDI + duration→tick conversion.
+  This is what actually proves the delta-time / cursor bookkeeping is correct (the
+  anchors only prove the header is well-formed).
+
+**Verification (offline, no live API).** All SIXTEEN verifiers pass (the fifteen prior
++ the new `verify-midi`). The new verifier covers: `pitchStringToMidi` (the synth
+convention incl. rests, missing octave, bad letter, the 0–127 boundary at C-1=0 /
+G9=127); `writeVlq` (every documented vector + the corrected SMF max); and
+`buildMidiFile` on three fixtures — a v1-shaped 4-note piece (header anchors + names +
+tempo + marker count + round-trip), the **Sunrise Fanfare** pipeline output via
+`runPipeline(CASES[0])` (four-track shape, tempo meta = `round(60e6/jingle.tempo)`,
+marker count = `jingle.sections.length`, round-trip), and an **empty-harmony dropout**
+edge case (harmony track has zero notes yet is a valid length-prefixed MTrk ending in
+end-of-track; lead's leading rest correctly skipped). `node --check` clean on every
+edited browser module. `composition.js` / `api.js` / `render.js` / `synth.js` /
+`engines.js` / all pipeline + theory modules untouched; the legacy cell/development
+stages untouched.
+
+**Status: Session 15 implementation COMPLETE; all sixteen verifiers green offline.
+THE HUMAN CHECKPOINT IS PENDING** — Steven generates or picks a jingle, clicks
+↓ DOWNLOAD → MIDI, confirms a `.mid` downloads, and opens it in a DAW / notation tool
+(or e.g. https://signal.vercel.app/edit) to confirm four tracks, notes lining up with
+the expected pitches/times, tempo matching, visible track names, and (where the tool
+shows them) section markers — across a pipeline jingle, a v1 jingle, and a dropout
+edge case. After this, the download surface (WAV / JSON / MIDI) is complete; Session
+16+ is whatever the diagnostic iteration surfaces.

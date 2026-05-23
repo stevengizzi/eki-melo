@@ -8,6 +8,7 @@
 import { guests, setGuests, saveGuests, migrateGuest } from './storage.js';
 import { render, showError, hideError, toast } from './ui.js';
 import { synth, renderJingleToWav } from './jingle/synth.js';
+import { buildMidiFile } from './jingle/midi-writer.js';
 import { generateJingle, DEFAULT_ENGINE, otherEngine, engineLabel } from './jingle/engines.js';
 import { generateAvatar } from './avatar/api.js';
 import {
@@ -238,6 +239,26 @@ async function handleDownloadWav(id) {
     showError(`WAV render failed: ${e.message}`);
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = 'WAV (audio)'; }
+  }
+}
+
+// Download the guest's CURRENT jingle as a Standard MIDI File (Session 15).
+// Synchronous build (no audio render, unlike WAV), so no spinner — just build
+// the bytes, trigger the .mid download, and toast. Any build error surfaces as
+// an inline error rather than a silent no-op.
+function handleDownloadMidi(id) {
+  const guest = guests.find(g => g.id === id);
+  if (!guest) return;
+  const jingle = guest.jingles[guest.currentJingleIndex];
+  if (!jingle) return;
+  try {
+    const bytes = buildMidiFile(jingle);
+    const blob = new Blob([bytes], { type: 'audio/midi' });
+    const fname = `${sanitizeFilename(guest.name)}-${sanitizeFilename(jingle.title)}.mid`;
+    triggerDownload(blob, fname);
+    toast('MIDI DOWNLOADED ♪');
+  } catch (e) {
+    showError(`MIDI build failed: ${e.message}`);
   }
 }
 
@@ -484,6 +505,7 @@ export function handleGuestListClick(e) {
     case 'downloadToggle': toggleDownloadMenu(btn); break;
     case 'downloadWav':    closeAllDownloadMenus(); handleDownloadWav(id); break;
     case 'downloadJson':   closeAllDownloadMenus(); handleDownloadJson(id); break;
+    case 'downloadMidi':   closeAllDownloadMenus(); handleDownloadMidi(id); break;
     case 'delete':         handleDelete(id); break;
     case 'prevJingle':     handlePrevJingle(id); break;
     case 'nextJingle':     handleNextJingle(id); break;

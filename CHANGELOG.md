@@ -2,6 +2,30 @@
 
 All notable changes to EKI Melo. Most recent first.
 
+## [v2.2.0] — 2026-05-23
+
+Additive, non-breaking: every existing jingle, backup, and engine keeps working
+exactly as before. Lights up the third download slot.
+
+### Added
+- **MIDI export from the download dropdown.** The previously-disabled
+  `MIDI — Session 15` placeholder is now a live **MIDI (notation)** option. Any
+  already-generated jingle (v1 or v2/pipeline) downloads as a Format 1 Standard
+  MIDI File (`.mid`) with four tracks: a meta track (tempo, 4/4 time signature,
+  the jingle's title, and each section as a MIDI Marker) plus one track each for
+  Lead, Harmony, and Bass — named, and program-mapped to General MIDI hints
+  (Lead 1 / Lead 2 / Synth Bass 1). Opens in any DAW or notation tool. The GM
+  patches only APPROXIMATE the chiptune sound, which was always synth-specific;
+  pitches, rhythms, tempo, and section labels carry over exactly.
+
+### Notes
+- The download surface is now complete: **WAV (audio)** / **JSON (diagnostic)** /
+  **MIDI (notation)**.
+- New verifier `verify-midi.mjs` (pitch convention, VLQ encoding, structural
+  anchors, and a round-trip read-back across three fixtures); all sixteen
+  verifiers pass offline. No architectural change — `styles.css` is untouched
+  (removing the disabled state was the only dropdown difference).
+
 ## [v2.1.0] — 2026-05-22
 
 Additive, non-breaking: every existing jingle, backup, and engine keeps working
