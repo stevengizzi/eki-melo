@@ -7,6 +7,7 @@
    ================================================================= */
 import { loadGuests } from './storage.js';
 import { render } from './ui.js';
+import { synth } from './jingle/synth.js';
 import {
   handleGenerate,
   handleExportBackup,
@@ -26,5 +27,14 @@ initDownloadMenus();
 document.getElementById('guest-desc').addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleGenerate();
 });
+
+// Prime the AudioContext on the first interaction anywhere on the page. iOS only
+// resumes audio from inside a user gesture, and the post-COMPOSE auto-play fires
+// from a timer (no gesture of its own) — so unlocking on the first tap/key keeps
+// it audible. unlock() is idempotent; once:true keeps each listener one-shot.
+const unlockAudio = () => synth.unlock();
+['pointerdown', 'keydown'].forEach((evt) =>
+  document.addEventListener(evt, unlockAudio, { once: true, passive: true })
+);
 
 loadGuests().then(render);

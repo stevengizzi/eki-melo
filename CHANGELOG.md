@@ -2,6 +2,28 @@
 
 All notable changes to EKI Melo. Most recent first.
 
+## [v2.2.1] — 2026-05-23
+
+Mobile (iOS Safari) bug fixes. No change on desktop.
+
+### Fixed
+- **Jingles are now audible on mobile.** Tapping play (or adding a guest)
+  animated the "playing" indicator but produced no sound on iPhone. The synth
+  scheduled notes against a still-suspended AudioContext's frozen clock, so by
+  the time iOS resumed audio every note had already "ended" silently. Playback
+  now waits for the audio clock to be live before scheduling, and the
+  AudioContext is unlocked on the first tap/keypress anywhere on the page.
+  (If a jingle is *still* silent on iPhone, check the hardware ring/silent
+  switch — iOS mutes Web Audio when it's set to silent.)
+- **Avatar generation is more resilient on mobile.** "Jingle saved, but avatar
+  failed: Load failed." was a dropped network request on flaky cellular
+  connections. The avatar request now has a 60-second timeout and automatically
+  retries once on a network drop or timeout before giving up. A genuine
+  server-side error still surfaces immediately (no pointless retry).
+
+### Notes
+- See DEC-018. No new dependencies, no build step; all sixteen verifiers pass.
+
 ## [v2.2.0] — 2026-05-23
 
 Additive, non-breaking: every existing jingle, backup, and engine keeps working

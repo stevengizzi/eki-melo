@@ -91,7 +91,36 @@ export class LiveSynth {
       this.master.connect(this.ctx.destination);
       this.pw = { p50: makePulseWave(this.ctx, 0.50), p25: makePulseWave(this.ctx, 0.25) };
     }
-    if (this.ctx.state === 'suspended') this.ctx.resume();
+    // 'interrupted' (iOS, after a call/Siri grabbed audio) and 'suspended' both
+    // need a kick; only 'running' is good to go.
+    if (this.ctx.state !== 'running') this.ctx.resume();
+  }
+
+  // iOS/Safari unlock. The AudioContext is born 'suspended' and only resumes
+  // from inside a user gesture — and on stricter iOS builds it is *starting a
+  // source node* within that gesture, not resume() alone, that opens output.
+  // main.js wires this to the first tap/keypress so the auto-play that fires
+  // from a timer right after COMPOSE has a live context to play into.
+  unlock() {
+    this.init();
+    try {
+      const blip = this.ctx.createBufferSource();
+      blip.buffer = this.ctx.createBuffer(1, 1, 22050);
+      blip.connect(this.ctx.destination);
+      blip.start(0);
+    } catch (e) { /* unlock is best-effort */ }
+  }
+
+  // Resolve only once the clock is actually advancing. Awaiting resume() here is
+  // what fixes "I see it play but hear nothing": resume() is async, so reading
+  // currentTime before it lands gave a frozen timestamp, and every note (plus
+  // its gain envelope) got scheduled into what became the past — leaving each
+  // note pinned at its release-end gain of 0. With a live currentTime, notes are
+  // scheduled in the real future and sound.
+  async ensureRunning() {
+    this.init();
+    if (this.ctx.state === 'running') return;
+    try { await this.ctx.resume(); } catch (e) { /* stays suspended; play no-ops */ }
   }
 
   stop() {
@@ -102,8 +131,8 @@ export class LiveSynth {
     this.currentId = null;
   }
 
-  play(jingle, id) {
-    this.init();
+  async play(jingle, id) {
+    await this.ensureRunning();
     this.stop();
     const startTime = this.ctx.currentTime + 0.06;
     const { oscs, totalDur } = scheduleJingle(this.ctx, this.master, jingle, startTime, this.pw);

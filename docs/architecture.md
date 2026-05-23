@@ -91,7 +91,7 @@ eki-melo/
 │   ├── storage.js          ← STORAGE_KEY, guests, setGuests, migrate/load/save
 │   ├── jingle/
 │   │   ├── engines.js      ← dual-engine dispatcher (v1 | pipeline) + 60s timeout
-│   │   ├── synth.js        ← pulse synthesis, LiveSynth, synth singleton, WAV render [read-only]
+│   │   ├── synth.js        ← pulse synthesis [read-only], LiveSynth playback + iOS unlock, synth singleton, WAV render
 │   │   ├── composition.js  ← JINGLE_SYSTEM_PROMPT — the v1 musical brief [read-only]
 │   │   ├── api.js          ← v1 generateJingle (the single-prompt request to Claude) [read-only]
 │   │   ├── render.js       ← renderPianoRoll + playhead animation [read-only]
@@ -111,7 +111,7 @@ eki-melo/
 │   │   └── render.js       ← renderAvatar dispatch, mountAvatars, avatarAnimations
 │   ├── ui.js               ← render, renderGuestCard, escapeHtml, errors, toast
 │   ├── handlers.js         ← orchestration: click/keyboard handlers
-│   └── main.js             ← event wire-up + loadGuests() init
+│   └── main.js             ← event wire-up + first-gesture audio unlock + loadGuests() init
 ├── README.md
 ├── CHANGELOG.md
 ├── CLAUDE.md

@@ -474,3 +474,68 @@ Live capture is strictly better than reconstruction (the real LLM raws), so it's
 **Cross-References:**
 - Related decisions: DEC-014 (the dual-engine + read-only synthesis files), DEC-016 (the diagnostics this feeds), DEC-010 (key stays server-side — unchanged)
 - Source: `js/jingle/engines.js`, `js/jingle/pipeline/pipeline-runner.js`, `js/jingle/pipeline/stage-2-macro.js`.
+
+---
+
+**DEC-018:** Mobile audio-unlock seam + avatar fetch resilience
+**Date:** 2026-05-23
+**Sprint:** Mobile bug-fix
+
+**Decision:**
+Two mobile-specific fixes, each addressing a distinct iOS Safari behavior:
+
+1. *Audio.* `LiveSynth.play()` is now `async` and awaits a new `ensureRunning()`
+   before scheduling. The old `play()` called `resume()` (fire-and-forget) and
+   read `ctx.currentTime` on the next line — but `resume()` is async, so on iOS
+   it read a *frozen* suspended-context clock and scheduled every note (and its
+   gain envelope) into what became the past once the clock advanced, pinning
+   each note at its release-end gain of 0: audible nowhere, while the wall-clock
+   `setTimeout` kept the "playing" UI animating. `ensureRunning()` awaits
+   `resume()` so `currentTime` is live before scheduling. `init()` now kicks any
+   non-`running` state (covers iOS `'interrupted'`, not just `'suspended'`). A
+   new `unlock()` (resume + start a 1-sample silent buffer) is wired in
+   `main.js` to the first `pointerdown`/`keydown` on the page, so the auto-play
+   that fires from a timer right after COMPOSE — which owns no gesture of its
+   own — plays into an already-unlocked context.
+
+2. *Avatar.* `generateAvatar()` wraps its `fetch` in an `AbortController`
+   timeout (60s, matching the jingle engine's `ENGINE_TIMEOUT_MS`) and retries
+   once on a *transient* failure (an `AbortError` timeout or a network-level
+   `TypeError` — the "Load failed" Safari reports for a dropped connection),
+   with a 700ms backoff. An HTTP error status (e.g. a 502 from a failed PixelLab
+   call) is a definitive server answer and is surfaced without retry.
+
+**Alternatives Rejected:**
+1. *Looping-silent-`<audio>` "unmute" hack to defeat the iOS ringer switch.*
+   Rejected for now: it risks hijacking the OS "now playing" widget and
+   interrupting the user's background music, and Web Audio honoring the hardware
+   mute switch is expected iOS behavior, not a bug. If sound is still absent
+   after this fix, the ringer switch is the remaining cause — diagnosed to the
+   user rather than worked around.
+2. *Keep `play()` synchronous and just await `resume()` inside `init()`.*
+   `init()` is also called from the COMPOSE gesture where we don't want to block;
+   the await belongs at the play site, where a live `currentTime` is required.
+3. *No avatar retry — only a timeout.* A timeout alone makes the failure
+   legible but doesn't recover it; the single most common mobile failure (a
+   dropped cellular request) is exactly the retryable case, so one retry
+   materially raises the success rate.
+
+**Rationale:**
+Both bugs are iOS Safari realities (gesture-gated audio; flakier long-lived
+connections) invisible on desktop. The audio fix is a correctness fix — never
+schedule against a suspended clock — plus a standard first-gesture unlock seam.
+The avatar fix mirrors the timeout pattern the jingle path already uses, adding
+the one retry that converts a transient drop into a success.
+
+**Constraints:**
+- No new dependencies, no build step. `unlock()`/`ensureRunning()` are
+  best-effort and never throw. The artifact runtime is unaffected (avatars are
+  already gated off there; the audio path is identical).
+- Synthesis exports (`scheduleJingle`, `renderJingleToWav`, et al.) are
+  untouched; all sixteen verifiers pass offline.
+
+**Cross-References:**
+- Related decisions: DEC-002 (the three-voice synth this plays), DEC-014 (the
+  read-only synthesis files — `synth.js`'s class methods are not those), DEC-010
+  (avatar key stays server-side — unchanged)
+- Source: `js/jingle/synth.js`, `js/main.js`, `js/avatar/api.js`.
