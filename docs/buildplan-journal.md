@@ -4113,7 +4113,7 @@ Four real fixes landed:
    celebratory → AABA at 32 beats; explicit AABA hint honored; no downsize warning.
 4. **Engine label v2.** Per Steven: the pipeline engine now shows as **v2** in the
    UI (badge, selector main label, retry button), with the selector description
-   "new · 10-stage composer pipeline". The stored engine id stays `pipeline` (no
+   "new · work in progress". The stored engine id stays `pipeline` (no
    migration); only `engineLabel('pipeline')` + the badge + the radio text changed.
 
 All fourteen verifiers still pass offline; an updated e2e smoke confirms the title
