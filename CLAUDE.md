@@ -12,12 +12,15 @@ EKI Melo — vanilla-JS web app that generates 8-bit chiptune arrival jingles an
 2. `docs/project-knowledge.md` — current state, tech stack, communication preferences
 3. `docs/architecture.md` — components, patterns, file structure
 4. `docs/decision-log.md` — why things are the way they are
+5. `docs/composition-engine-buildplan.md` + `docs/buildplan-journal.md` — for composition-engine questions specifically. The buildplan is the 10-stage architecture; the journal is the 15-session iteration history with the patterns that emerged (schema-hard / style-soft validation, deterministic-correction-for-LLM-quirks, audition discipline).
 
 ## File Layout
 
-Client code is split into ES modules under `js/`. `index.html` is markup only; it loads `styles.css` and `js/main.js` as a single module entry point. Load order is the import graph, not script-tag order. The full layout and rationale are in DEC-013.
+ Client code is split into ES modules under `js/`. `index.html` is markup only; it loads `styles.css` and `js/main.js` as a single module entry point. Load order is the import graph, not script-tag order. The full layout and rationale are in DEC-013.
 
-Server-side Pages Functions live in `functions/api/`. `generate.js` proxies jingle requests to Anthropic; `avatar.js` runs the Claude→PixelLab pipeline. Their paths ARE their routes (Cloudflare Pages convention), so don't relocate them.
+ The composition pipeline lives in `js/jingle/pipeline/` (ten stages plus the runner + config) with deterministic music theory in `js/jingle/theory/`. The dual-engine dispatcher is `js/jingle/engines.js`. Diagnostic capture + sidecar storage are `js/jingle/diagnostics.js` + `js/storage-diagnostics.js`.
+
+ Server-side Pages Functions live in `functions/api/`. `generate.js` proxies jingle requests to Anthropic; `avatar.js` runs the Claude→PixelLab pipeline. Their paths ARE their routes (Cloudflare Pages convention), so don't relocate them.
 
 ## Common Operations
 
@@ -72,3 +75,6 @@ This project uses a light subset of `claude-workflow`: decision logging, canon d
 - Don't change `STORAGE_KEY` without writing a migration that preserves existing guest data. See DEC-007.
 - Don't make reroll overwrite the existing version. The versioned-array structure is deliberate. See DEC-006.
 - Don't move files under `functions/api/` — their paths are their routes.
+- Don't modify the synthesis math in `js/jingle/synth.js` (`noteToFreq`, `scheduleNote`, the pulse-wave builder). It is reproducibility-locked so diagnostic JSON's C-replay property holds. The LiveSynth playback orchestration (resume / unlock / async play) is editable; the synthesis exports are not. See DEC-017, DEC-018.
+- Don't touch `js/jingle/composition.js` or `js/jingle/api.js`. They are the v1 engine, the dual-engine's permanent fallback path; they must remain bit-identical. See DEC-014.
+- Don't prune `js/jingle/pipeline/stage-4-cells-LEGACY.js` or `stage-5a-development-LEGACY.js`. They are deliberate temporary debt, retained pending the Session-12 phrase-motif pivot proving out across more real-use listening. Pruning is a deliberate decision worth a journal note, not a cleanup pass.

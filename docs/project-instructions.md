@@ -21,6 +21,10 @@ developer (Steven), deployed via Cloudflare Pages.
 2. Read in priority order based on the conversation type:
    - **All conversations:** `docs/project-knowledge.md`, `CHANGELOG.md`
    - **Architectural questions:** `docs/architecture.md`, `docs/decision-log.md`
+   - **Composition-engine questions:** `docs/composition-engine-buildplan.md`
+     (the architecture + rationale) and `docs/buildplan-journal.md` (the
+     iteration history, including the schema-hard / style-soft and
+     deterministic-correction-for-LLM-quirks patterns)
    - **Client code changes:** the relevant file(s) under `js/`, plus
      `index.html` if markup is involved, `styles.css` if styling is involved
    - **Server code changes:** the relevant file(s) under `functions/api/`

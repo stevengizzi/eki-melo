@@ -11,13 +11,11 @@ This is a weekend project built for one real birthday party. It is not a product
 
 ## Current State
 
-- **Versions shipped:** v1 (single jingle per guest), v2 (versioned jingles + animated pixel avatars + WAV download + JSON backup + multi-section musical form)
-- **Deployment status:** Not yet deployed publicly — currently runs as a Claude.ai artifact only. Repo exists at https://github.com/stevengizzi/eki-melo with v1 and v2 commits.
-- **Open work:**
-  - Refactor storage layer to use `localStorage` adapter (with `window.storage` fallback for artifact context)
-  - Build serverless proxy for the Anthropic API (platform TBD)
-  - Wire up GitHub → platform auto-deploy
-  - Light per-IP rate limit in the proxy to protect API spend
+- **Latest release:** v2.2.1 (2026-05-23). Composition-engine rebuild is shipped; download surface complete (WAV / MIDI / JSON); mobile playback fixed.
+- **Deployment:** Live at https://eki-melo.pages.dev via Cloudflare Pages. Auto-deploys on push to `main`.
+- **Composition engine:** Dual-engine. The user picks per-generation between v1 (the original single-call generator — preserved bit-identical as the permanent fallback) and the pipeline (the 12-session rebuild — a ten-stage composer: aesthetic → macro → harmony → motifs → arrangement → texture → voice realization → voice-leading → cadence). Each stored jingle is tagged with its engine; the archive view shows it. See DEC-014.
+- **Diagnostic export:** Any generated jingle (live or already-archived) downloads as a structured JSON capturing the prompts and per-stage artifacts that produced it, including reconstructed prompts for older jingles. Sidecar storage namespace (`eki_diagnostics_v1`); included in backup export; import accepts files with or without. See DEC-016 + DEC-017.
+- **Open work:** Composition iteration driven by diagnostic analysis (the rebuild met the architectural bar but the "memorable melody" pressure point continues — diagnostic JSONs are the next medium for that conversation). Two retained legacy files (`stage-4-cells-LEGACY.js` + `stage-5a-development-LEGACY.js`) await a "prune confidently" verdict after enough listening to confirm the phrase-motif pivot stays.
 
 ## Architecture
 
@@ -34,6 +32,13 @@ See `docs/architecture.md` for the full picture.
 - Browser `localStorage` for persistence
 - Google Fonts (Press Start 2P, VT323) for the NES aesthetic
 - **Deployment target:** Cloudflare Pages with Functions (`/api/generate`, `/api/avatar`); secrets `ANTHROPIC_API_KEY` + `PIXELLAB_API_KEY`
+- Web Audio API (online context for playback, OfflineAudioContext for WAV rendering)
+- Claude API — model: `claude-sonnet-4-20250514` (jingles + avatar character specs)
+- PixelLab API — PixFlux model (`/v2/create-image-pixflux`) renders avatar sprites
+- Standard MIDI File output via a hand-rolled writer (no library)
+- Browser `localStorage` for persistence
+- Sidecar `eki_diagnostics_v1` namespace for per-jingle diagnostic bundles
+- Google Fonts (Press Start 2P, VT323) for the NES aesthetic
 
 ## Key Active Decisions
 
@@ -46,6 +51,9 @@ See `docs/decision-log.md` for full rationale. Headlines:
 - **DEC-008:** WAV download via `OfflineAudioContext` + hand-rolled 16-bit PCM encoder (no external libraries)
 - **DEC-010:** Serverless proxy in front of the Anthropic API to keep the key off the client (platform TBD)
 - **DEC-012:** Avatars rendered by PixelLab (PixFlux); Claude is the character designer. Two-stage `/api/avatar` Pages Function. Ends the three-iteration LLM-pixel-art run (DEC-005/DEC-011); legacy hex avatars still render via `renderAvatarLegacy`. Avatars unavailable in artifact mode.
+- **DEC-014:** Composition-engine rebuild ships as a user-selected dual-engine (v1 + pipeline). v1 stays bit-identical as the deliberate fallback path; pipeline is the new default; the user picks per-generation; the archive preserves the engine choice per jingle.
+- **DEC-016:** Diagnostic capture + sidecar storage architecture. Every jingle generation can be reconstructed as a structured bundle (prompts + artifacts + traces); old jingles get retroactive reconstruction; sidecar namespace isolates the diagnostic blobs from the main guest store.
+- **DEC-017:** `engines.js` gains a narrow `onDiagnostic` hook to expose live capture without touching the read-only contracts on `composition.js` + `api.js`. Synthesis exports (synth.js's `noteToFreq`, `scheduleNote`, the pulse-wave builder) are reproducibility-locked — the diagnostic JSON's C-replay property depends on them being unchanged.
 
 ## Workflow
 
