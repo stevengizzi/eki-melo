@@ -249,6 +249,9 @@ export function runPipeline(input, config = DEFAULT_CONFIG) {
  *     phrasePlan, texturePlan })` is called once with every resolved upstream
  *     artifact just before the deterministic back-half runs (engines.js uses it
  *     for pipelineMetadata).
+ *   - `input.onConfig(effectiveConfig)` is called once with the knob-derived
+ *     config the run used (Session 14 — engines.js stores it as
+ *     pipelineMetadata.config_used for diagnostic fixture-replay).
  */
 export async function runPipelineGenerating(input, config = DEFAULT_CONFIG) {
   // --- Stage 1 + 2: aesthetic → macroParams + the effective (knob-derived) config.
@@ -325,6 +328,16 @@ export async function runPipelineGenerating(input, config = DEFAULT_CONFIG) {
       __mockResponse: input.__mockResponse,
       onTrace: input.onTrace,
     });
+  }
+
+  // Config hook (never required): hand the EFFECTIVE config (the passed config with
+  // its knobs overlaid by Stage 2's intensity-derived defaults) to the caller. The
+  // dual-engine dispatcher stores it as pipelineMetadata.config_used so a diagnostic
+  // can be reconstructed under the exact knobs the run used (Session 14, the
+  // fixture-replay target). Emitted before onArtifacts so a single capture pass sees
+  // both.
+  if (typeof input.onConfig === 'function') {
+    input.onConfig(effectiveConfig);
   }
 
   // Inspection hook (never required): hand the fully-resolved upstream artifacts

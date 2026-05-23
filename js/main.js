@@ -12,7 +12,8 @@ import {
   handleExportBackup,
   handleImportClick,
   handleImportFile,
-  handleGuestListClick
+  handleGuestListClick,
+  initDownloadMenus
 } from './handlers.js';
 
 document.getElementById('generate-btn').addEventListener('click', handleGenerate);
@@ -20,6 +21,7 @@ document.getElementById('export-btn').addEventListener('click', handleExportBack
 document.getElementById('import-btn').addEventListener('click', handleImportClick);
 document.getElementById('import-file').addEventListener('change', handleImportFile);
 document.getElementById('guest-list').addEventListener('click', handleGuestListClick);
+initDownloadMenus();
 
 document.getElementById('guest-desc').addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleGenerate();

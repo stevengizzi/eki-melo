@@ -410,3 +410,67 @@ The read-only treatment of these files was a build-phase discipline — it kept 
 
 **Cross-References:**
 - Related decisions: DEC-013 (the multi-file layout these files live in), DEC-007 (non-destructive migration), DEC-009 (backup format), DEC-014 (the dual-engine this enables)
+
+---
+
+**DEC-016:** Diagnostic capture + sidecar storage architecture
+**Date:** 2026-05-22
+**Sprint:** Composition-engine rebuild (Session 14 — diagnostics)
+
+**Decision:**
+Any already-generated jingle can be downloaded as a structured JSON DIAGNOSTIC — a single bundle capturing the prompts + artifacts that produced it, for compositional iteration discussion ("which STAGE made this take feel uninspired?"). The design has four pillars:
+
+1. **A versioned bundle schema** (`diagnostic_version`, semver, currently `1.0.0`) so it can evolve. Top-level: `diagnostic_type` (`live` | `reconstructed`), `generated_at` / `captured_at`, `app_version`, `engine`, a `summary`, a `final` (the realized synth tracks), and an engine-specific block — `pipeline` (a `config_snapshot` + the seven stage entries: stage 1 aesthetic, stage 2 macro with a `deterministic_trace`, stages 3/4/5a/5b each with `input` / `prompt` / `raw_response_text` / `artifact` / `soft_warnings`, and `stages_6_through_8_realization` beat-stamped tracks) or `v1` (`system_prompt` / `user_prompt` / `raw_response_text` / `parsed_jingle`). Lives in `js/jingle/diagnostics.js` with the two builders + the validator + the serializer.
+
+2. **Two builders — LIVE and RECONSTRUCTED — with honest provenance.** A LIVE bundle is assembled at generation time from data captured AS the jingle generates: every per-stage `raw_response_text` is the real model output (`provenance: "live"`). A RECONSTRUCTED bundle is rebuilt after the fact from a stored jingle: the LLM raw responses were never stored, so they are irrecoverable (`raw_response_text: null`), but everything DETERMINISTIC is re-derived — the prompts (re-running each stage's exported `build*Prompt`), Stage 2's rule trace (re-running `generateMacroParams` with a trace hook), each stage's soft warnings (re-running its `validate*` on the stored artifact), and the Stage 6→8 realization (re-running the deterministic sync core). A field that genuinely can't be recovered is marked `"provenance": "unknown"`, never guessed.
+
+3. **The C-replay target.** The realization tracks and the prompts are deterministic functions of the stored artifacts, so a reconstructed bundle's `final` + realization reproduce the original jingle. The LLM stages are NOT re-run (no network, model is stochastic) — their VALIDATED artifacts ARE the model's output to the validator's tolerance, so the stored artifact is the faithful record.
+
+4. **A SIDECAR namespace, not inline storage.** Bundles are bulky (full prompts, every artifact, the tracks) and only a few are inspected at a time. Storing them inline on each jingle would bloat the main guest store (re-read+rewritten on every play/page/reroll/delete). So they live in a SEPARATE store (`js/storage-diagnostics.js`, key `eki_diagnostics_v1`, shape `{ [jingleId]: bundle }`), loaded only when a download asks. The jingle's record carries just a lightweight `diagnosticsRef: <jingleId>` pointer; absence of the field IS the absence-of-capture marker, so the migration is a pure no-op for old data. New generations populate it at save time; old jingles get it lazily on first reconstruction (which optionally caches the result back so a repeat download is O(1)). Loaded bundles (from the sidecar or a backup import) flow through `validateDiagnostic` so a corrupt bundle is detected, not silently malformed.
+
+**Alternatives Rejected:**
+1. *Store the diagnostic INLINE on the jingle.* Bloats the hot guest store and couples diagnostic writes to every guest mutation. The sidecar isolates the bulk and means a diagnostic failure can never touch guest data (DEC-007).
+2. *Capture ONLY live (no reconstruction).* Then every jingle generated before this session — and any future jingle whose live capture failed — would have no diagnostic. Reconstruction makes the feature retroactive; the deterministic pieces are faithfully recoverable, and the irrecoverable LLM raws are honestly null rather than fabricated.
+3. *Re-run the LLM stages during reconstruction to recover the "real" responses.* Costs money + latency and is non-deterministic — a re-run would NOT reproduce the stored artifact. The stored validated artifact is the honest record of what the model produced.
+4. *Download a partial/broken bundle when reconstruction fails.* Rejected: a misleading file is worse than none (the user would paste it back for analysis and we'd argue against data we can't trust). A clean failure (error toast, no file) beats a wrong file.
+
+**Rationale:**
+The feature's purpose is compositional iteration — comparing "uninspired" vs "inspired" jingles to find which STAGE's prompt to tune. That needs the prompts + artifacts in one structured, stable, comparable artifact. The schema is the honest shape for that; the live/reconstructed split with explicit provenance keeps it truthful about what each path can know; the sidecar keeps the bulk out of the hot path; the semver lets the schema grow as the iteration loop teaches us what to capture.
+
+**Constraints:**
+- Storage stays non-destructive (DEC-007 / DEC-009): the `diagnosticsRef` migration is a no-op (the field's absence is meaningful); the backup export includes the sidecar diagnostics (backup `version: 3`), and import accepts files WITH or WITHOUT the `diagnostics` key — pre-Session-14 backups import fine with an empty sidecar, and a corrupt bundle in an import is skipped with a console warning, never stored.
+- Diagnostic capture is SECONDARY to the jingle: if live capture (or its persistence) fails, the failure is logged and the generation still succeeds (the jingle is the product).
+- No network, both runtime contexts: the sidecar uses the same `js/env.js` storage adapter; reconstruction + validation are pure/offline.
+
+**Cross-References:**
+- Related decisions: DEC-014 (the dual-engine whose pipelineMetadata reconstruction reads), DEC-007 / DEC-009 (non-destructive storage + backup), DEC-017 (the narrow engine hook this consumes)
+- Source: `js/jingle/diagnostics.js`, `js/storage-diagnostics.js`, `js/jingle/theory/verify-diagnostics.mjs`, and the Session-14 journal entry.
+
+---
+
+**DEC-017:** `engines.js` gains a narrow `onDiagnostic` hook to expose live capture
+**Date:** 2026-05-22
+**Sprint:** Composition-engine rebuild (Session 14 — diagnostics)
+
+**Decision:**
+`generateJingle` accepts an OPTIONAL `options.onDiagnostic` callback. On a successful generation the engine emits a structured LIVE CAPTURE (the raw material a bundle is assembled from):
+- **v1:** `{ engine:'v1', system_prompt, user_prompt, raw_response_text }`. v1's prompts are exposed by duplicating api.js's short user-prompt template into `engines.js` (with a "MUST stay in sync with api.js" comment — api.js is read-only by design) and importing the read-only `JINGLE_SYSTEM_PROMPT`. v1's RAW response text is NOT exposed by api.js's contract (it returns the parsed jingle only), so the field carries an honest sentinel.
+- **pipeline:** `{ engine:'pipeline', config, aesthetic|harmony|motifs|phrase|texture: { raw, warnings } }` — each LLM stage's last successful raw response + soft warnings, collected via the runner's per-stage `onTrace` hooks, plus the effective knob-derived config. This required ONE additive hook on `pipeline-runner.js` — `onConfig(effectiveConfig)` — so the run's resolved config can be stored as `pipelineMetadata.config_used` (for reconstruction fixture-replay). Stage 2's `onTrace` (previously a no-op) now emits one `{ decision, rule, value }` per macro decision — a pure read of the decisions, additive, only fires when a callback is supplied.
+
+The `composition.js` / `api.js` / `render.js` / `synth.js` files and the bodies of the two engine runners stay behaviorally unchanged; this is callback plumbing + the synced v1 template copy. Diagnostic capture NEVER fails a generation — the emit is guarded.
+
+**Alternatives Rejected:**
+1. *Make `api.js` return its raw response so v1 can expose it.* Rejected: api.js is read-only by design (DEC-014 keeps v1 bit-identical). The honest sentinel is the cost of that boundary.
+2. *Thread an `onPrompts` hook through all five stage modules.* Unnecessary: each stage already exports a pure `build*Prompt`, so the prompts are rebuilt deterministically in `diagnostics.js` (identical to what the stage used) — no per-stage behavior change. Only the additive `onConfig` hook + Stage 2's trace emission were needed.
+3. *Build the full bundle inside `engines.js`.* Rejected: the assembler belongs in `diagnostics.js` (with the schema). The engine emits raw captures; `handlers.js` calls `buildLiveDiagnostic` with the engine output + captures.
+
+**Rationale:**
+Live capture is strictly better than reconstruction (the real LLM raws), so it's worth a hook — but the hook must not compromise the read-only contract that guarantees v1's stability or churn the five stage modules. Rebuilding prompts from the already-exported pure builders, plus one config hook and one trace emission, is the minimal surface that yields a faithful live bundle.
+
+**Constraints:**
+- `composition.js` / `api.js` / `render.js` / `synth.js` stay byte-for-byte unchanged; the two engine-runner bodies change only by adding capture plumbing.
+- `pipelineMetadata` gains `config_used` (additive; opaque to storage). All fifteen verifiers pass offline.
+
+**Cross-References:**
+- Related decisions: DEC-014 (the dual-engine + read-only synthesis files), DEC-016 (the diagnostics this feeds), DEC-010 (key stays server-side — unchanged)
+- Source: `js/jingle/engines.js`, `js/jingle/pipeline/pipeline-runner.js`, `js/jingle/pipeline/stage-2-macro.js`.

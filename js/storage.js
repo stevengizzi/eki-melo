@@ -13,6 +13,19 @@
      - pipelineMetadata: object    (optional; present only on 'pipeline' jingles —
                                     the resolved aesthetic / macroParams / harmony /
                                     motifs / phrase / texture plans, for inspection)
+
+   Session-14 (diagnostic capture) adds ONE more optional jingle field:
+     - diagnosticsRef: <jingleId>  (optional; present when a diagnostic bundle has
+                                    been saved to the sidecar — js/storage-diagnostics.js.
+                                    The ref IS the jingle's own id, one bundle per
+                                    jingle. ABSENT means no live diagnostic was
+                                    captured; the absence is the marker, so the
+                                    migration is a NO-OP for old data — migrateJingle
+                                    preserves every existing field, including this one
+                                    once present, and never invents it. New generations
+                                    populate it at save time; old jingles get it lazily
+                                    on first reconstruction. The bundles live in a
+                                    separate namespace so this store stays lean.)
    ================================================================= */
 import { storageBackend } from './env.js';
 

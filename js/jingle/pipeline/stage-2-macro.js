@@ -202,11 +202,47 @@ export function deriveKnobs({ aesthetic, config = DEFAULT_CONFIG } = {}) {
 // THE STAGE — generateMacroParams
 // =================================================================
 
+// Per-decision rule explanations for the diagnostic trace — a short sentence
+// naming WHY each value fired (which hint was honored, or which mood-keyed default).
+// Recorded only when an `onTrace` is supplied (Session 14); never affects output.
+function tonicRule(aesthetic) {
+  return aesthetic.tonic_hint && aesthetic.tonic_hint !== 'auto'
+    ? `honored Stage 1's tonic_hint "${aesthetic.tonic_hint}".`
+    : `tonic_hint was "auto"; chose the per-mood default for "${aesthetic.mood_label}" (MOOD_TONIC).`;
+}
+function modeRule(aesthetic) {
+  if (aesthetic.mode_hint && aesthetic.mode_hint !== 'auto') {
+    return `honored Stage 1's mode_hint "${aesthetic.mode_hint}" (natural_minor normalized to aeolian).`;
+  }
+  if (aesthetic.mood_label === 'intimate') {
+    return 'mode_hint was "auto"; "intimate" splits on intensity (>0.6 → aeolian, else major).';
+  }
+  return `mode_hint was "auto"; chose the per-mood default for "${aesthetic.mood_label}" (MOOD_MODE).`;
+}
+function tempoRule(aesthetic) {
+  const tier = FAST_MOODS.has(aesthetic.mood_label) ? 'fast 132–152' : SLOW_MOODS.has(aesthetic.mood_label) ? 'slow 96–112' : 'medium 112–132';
+  return `derived from mood + intensity (${tier} tier, scaling with intensity); the LLM's tempo_hint is intentionally NOT honored (it clusters).`;
+}
+function formRule(aesthetic) {
+  return `derived from mood ("${aesthetic.mood_label}" → MOOD_FORM); the LLM's form_hint is intentionally NOT honored (it clusters to ABA).`;
+}
+function registerRule(aesthetic) {
+  return aesthetic.register_hint && aesthetic.register_hint !== 'auto'
+    ? `register_hint "${aesthetic.register_hint}" → octave ${REGISTER_OCTAVE[aesthetic.register_hint] ?? 5}.`
+    : 'register_hint was "auto"/absent; defaulted to the mid octave (C5).';
+}
+
 /**
  * Turn an Aesthetic into MacroParams. `lengthBudget` is the total piece length in
- * beats (default 32 — the jingle length cap); `config` and `onTrace` are accepted
- * for sibling-parity but do not affect the §3 fields (knobs are deriveKnobs's job,
- * and the stage no longer emits soft warnings).
+ * beats (default 32 — the jingle length cap); `config` is accepted for
+ * sibling-parity but does not affect the §3 fields (knobs are deriveKnobs's job).
+ *
+ * `onTrace`, if supplied, is called ONCE with an array of `{ decision, rule, value }`
+ * entries — one per macro decision (tonic, mode, tempo, form, register_center,
+ * harmonic_rhythm) — recording which hint was honored or which mood-keyed default
+ * fired. This is the diagnostic rule trace (Session 14); it is a pure read of the
+ * decisions just made and never changes the output. (The knobs decision rides on
+ * deriveKnobs, a separate concern, so it is not part of this trace.)
  *
  * Tempo and form are derived from mood + intensity (see chooseTempo / chooseForm);
  * the LLM's tempo_hint / form_hint are intentionally NOT honored because they
@@ -217,7 +253,6 @@ export function deriveKnobs({ aesthetic, config = DEFAULT_CONFIG } = {}) {
  */
 export function generateMacroParams({ aesthetic, lengthBudget = 32, config, onTrace } = {}) {
   void config; // §3 fields don't read knobs; accepted for sibling-parity.
-  void onTrace; // the stage no longer emits soft warnings; accepted for parity.
   if (!aesthetic || typeof aesthetic !== 'object' || Array.isArray(aesthetic)) {
     throw new Error('generateMacroParams requires an aesthetic object (Stage 1 output).');
   }
@@ -233,10 +268,27 @@ export function generateMacroParams({ aesthetic, lengthBudget = 32, config, onTr
   const mode = chooseMode(aesthetic);
   const tempo = chooseTempo(aesthetic);
   const form = chooseForm(aesthetic);
+  const register_center = chooseRegisterCenter(aesthetic);
+  const harmonic_rhythm = chooseHarmonicRhythm(total_bars, mood, intensity);
 
   const counts = distributeBars(form, total_bars);
   const labels = getForm(form).section_labels;
   const sections = labels.map((label, i) => ({ label, bars: counts[i] }));
+
+  if (typeof onTrace === 'function') {
+    onTrace([
+      { decision: 'tonic', rule: tonicRule(aesthetic), value: tonic },
+      { decision: 'mode', rule: modeRule(aesthetic), value: mode },
+      { decision: 'tempo', rule: tempoRule(aesthetic), value: tempo },
+      { decision: 'form', rule: formRule(aesthetic), value: form },
+      { decision: 'register_center', rule: registerRule(aesthetic), value: register_center },
+      {
+        decision: 'harmonic_rhythm',
+        rule: `derived from total_bars (${total_bars}) + mood/intensity — short pieces let chords breathe, long high-energy ones may move twice a bar.`,
+        value: harmonic_rhythm,
+      },
+    ]);
+  }
 
   return {
     tonic,
@@ -245,9 +297,9 @@ export function generateMacroParams({ aesthetic, lengthBudget = 32, config, onTr
     total_bars,
     sections,
     meter,
-    register_center: chooseRegisterCenter(aesthetic),
+    register_center,
     tempo,
-    harmonic_rhythm: chooseHarmonicRhythm(total_bars, mood, intensity),
+    harmonic_rhythm,
     mood,
   };
 }

@@ -4143,3 +4143,107 @@ still honored. verify-stage2 re-pinned to the mood-derived tempo tiers + form sp
 and to assert tempo_hint/form_hint are ignored. All fourteen verifiers green.
 
 The human deployment-verification checkpoint remains open.
+
+## Session 14 — 2026-05-22 — diagnostic capture + JSON export + download dropdown
+
+**Goal.** Make any already-generated jingle downloadable as a structured JSON
+DIAGNOSTIC — the prompts + artifacts that produced it — for compositional iteration
+discussion ("which STAGE made this take feel uninspired?"). WAV download stays; MIDI
+is Session 15 (a disabled dropdown placeholder ships now).
+
+**What landed.**
+- `js/jingle/diagnostics.js` — the bundle schema (semver `diagnostic_version`
+  `1.0.0`) + the two builders (`buildLiveDiagnostic`, `reconstructDiagnostic`), the
+  validator (`validateDiagnostic`), and the stable serializer (`serializeDiagnostic`).
+- `js/storage-diagnostics.js` — the sidecar store (`eki_diagnostics_v1`, shape
+  `{ [jingleId]: bundle }`) with load/save/delete/list/clearAll + an export helper.
+- `js/storage.js` — documented the additive `diagnosticsRef` jingle field; migration
+  is a no-op (the field's ABSENCE is the no-live-capture marker, and `migrateJingle`
+  already preserves every field, so nothing functional changed).
+- `js/jingle/engines.js` — the ONE narrow engine change: `generateJingle` accepts
+  `options.onDiagnostic`; v1 emits its prompts (synced api.js template copy + the
+  read-only `JINGLE_SYSTEM_PROMPT`) with an honest "raw not captured" sentinel; the
+  pipeline collects each stage's raw + soft warnings via the runner's `onTrace`
+  hooks, the effective config via the new `onConfig`, and stores `config_used` in
+  `pipelineMetadata`. Guarded so capture never fails a generation.
+- `js/jingle/pipeline/pipeline-runner.js` — one additive `onConfig(effectiveConfig)`
+  hook. `js/jingle/pipeline/stage-2-macro.js` — `generateMacroParams` now emits a
+  `{ decision, rule, value }` rule trace via `onTrace` (was a no-op); purely additive.
+- `js/ui.js` + `styles.css` — the `↓ DOWNLOAD ▾` dropdown (WAV / JSON / disabled
+  MIDI-Session-15), pixel-card chrome, outside-click + Escape close, arrow-key nav.
+- `js/handlers.js` — `handleDownloadJson` (sidecar-cache fast path → reconstruct →
+  download-then-cache), the dropdown wiring + the document-level dismiss/keyboard
+  handler, live-capture persistence on generate + reroll, and the backup
+  export/import of diagnostics.
+- `js/jingle/theory/verify-diagnostics.mjs` — the offline verifier (schema fixtures,
+  stable serialize, v1 + pipeline reconstruction, live round-trip).
+- DEC-016 (diagnostics + sidecar architecture), DEC-017 (the narrow engine hook),
+  CHANGELOG v2.1.0.
+
+**Retroactive reconstruction — what's recoverable, the honest gaps.** Two builders
+with explicit provenance:
+- LIVE bundles (built at generation time) carry the REAL per-stage LLM raw responses;
+  `provenance: "live"`.
+- RECONSTRUCTED bundles (rebuilt from a stored jingle) are best-effort. The LLM raws
+  were never stored → irrecoverable (`raw_response_text: null`). Everything
+  DETERMINISTIC is re-derived: prompts (re-running each stage's `build*Prompt`),
+  Stage 2's rule trace (re-running `generateMacroParams` with the new trace hook),
+  soft warnings (re-running each `validate*` on the stored artifact, re-wrapped into
+  the validator's envelope), and the Stage 6→8 realization (re-running the sync core).
+  An unrecognizable artifact shape sets `provenance: "unknown"` rather than guessing.
+  - v1 reconstruct: system prompt is the CURRENT `JINGLE_SYSTEM_PROMPT` (if
+    composition.js evolved since the jingle, the bundle reflects today's brief —
+    flagged for the human check); user prompt from the synced template;
+    `parsed_jingle` = the stored jingle.
+
+**C-replay design.** The realization tracks + prompts are deterministic functions of
+the stored artifacts, so a reconstructed bundle's `final` + `stages_6_through_8`
+reproduce the original jingle (the verifier asserts the reconstructed `final` tracks
+equal the stored jingle's tracks byte-for-byte). The LLM stages are NOT re-run (no
+network, model is stochastic) — but each stage's VALIDATED artifact IS the model's
+output to the validator's tolerance, so the stored artifact is the faithful record.
+For fixture-replay the bundle carries a `config_snapshot` (the knobs the run used);
+new pipeline jingles store `pipelineMetadata.config_used`, old ones re-derive it from
+the stored aesthetic via `deriveKnobs` (reproducible, not a guess).
+
+**No new stage exports were needed.** The reconstruction path leans entirely on the
+LLM-stage template's existing surface — every `build*Prompt` and `validate*` was
+already exported (so the inspector + verifiers could use them). The only stage-side
+additions were ADDITIVE behavior on hooks that already existed: Stage 2's `onTrace`
+(previously `void`-ed) now emits the rule trace, and the runner gained one `onConfig`
+hook. Signatures unchanged; no behavior change to any generated jingle.
+
+**Decisions.**
+- *Diagnostic is SECONDARY to the jingle.* If live capture (or its persistence)
+  errors, it is logged and the generation still succeeds — the jingle is the product.
+- *Reconstruction failure downloads NOTHING.* A partial/broken bundle is worse than
+  none (it would be pasted back for analysis and we'd argue against data we can't
+  trust). Reconstruction errors → an error toast, no file.
+- *Sidecar, not inline.* Bundles are bulky and rarely read; storing them inline would
+  re-read+rewrite them on every guest mutation (play/page/reroll/delete). A separate
+  namespace keyed by jingle id keeps the hot guest store lean and means a diagnostic
+  failure can never touch guest data (DEC-007). The jingle holds only a
+  `diagnosticsRef` pointer; reconstruction optionally caches its result back so a
+  repeat download is O(1).
+- *Backup carries diagnostics (version 3); import is tolerant.* Export bundles the
+  sidecar; import accepts files with or without the `diagnostics` key (old backups
+  restore fine, empty sidecar) and skips corrupt bundles with a console warning.
+
+**Verification (offline, no live API).** All FIFTEEN verifiers pass (the fourteen
+prior + the new `verify-diagnostics`). The new verifier covers: schema fixtures (good
+pipeline + v1 bundles validate; missing field / bad version / bad enum / malformed
+stage entry each fail specifically); byte-deterministic + key-order-stable serialize;
+v1 + pipeline reconstruction (clean validation, prompts/trace/realization populated,
+C-replay tracks matching, correct provenance + null raws); and a live `__mockResponse`
+pipeline run round-tripping losslessly through serialize → parse → validate. `node
+--check` clean on every edited browser-only module. `composition.js` / `api.js` /
+`render.js` / `synth.js` and the legacy cell/development stages untouched.
+
+**Status: Session 14 implementation COMPLETE; all fifteen verifiers green offline.
+THE HUMAN CHECKPOINT IS PENDING** — Steven generates a new pipeline jingle and a new
+v1 jingle, downloads each as JSON and confirms the contents; opens an OLD jingle and
+confirms reconstruction (+ the "diagnostic reconstructed + cached" toast + faster
+second download); exports a backup and confirms the `diagnostics` key; imports a
+pre-Session-14 backup (no diagnostics) and confirms it restores + reconstructs on
+demand; and sends back 2–3 JSON files (inspired vs uninspired) to drive the
+prompt-iteration discussion.

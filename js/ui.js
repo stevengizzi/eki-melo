@@ -92,7 +92,15 @@ export function renderGuestCard(g) {
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-secondary btn-small" data-act="rerollJingle" data-id="${g.id}">↻ NEW JINGLE</button>
           <button class="btn btn-tertiary btn-small" data-act="rerollAvatar" data-id="${g.id}">↻ NEW AVATAR</button>
-          <button class="btn btn-ghost btn-small" data-act="downloadWav" data-id="${g.id}">↓ WAV</button>
+          <div class="download-menu" data-id="${g.id}">
+            <button class="btn btn-ghost btn-small download-toggle" data-act="downloadToggle" data-id="${g.id}"
+                    aria-haspopup="true" aria-expanded="false">↓ DOWNLOAD ▾</button>
+            <div class="download-options" role="menu" hidden>
+              <button role="menuitem" data-act="downloadWav" data-id="${g.id}">WAV (audio)</button>
+              <button role="menuitem" data-act="downloadJson" data-id="${g.id}">JSON (diagnostic)</button>
+              <button role="menuitem" class="coming-soon" disabled>MIDI <span class="soon-tag">Session 15</span></button>
+            </div>
+          </div>
           <button class="btn btn-danger btn-small" data-act="delete" data-id="${g.id}">✕</button>
         </div>
       </div>

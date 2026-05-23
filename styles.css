@@ -348,6 +348,62 @@ textarea { min-height: 88px; resize: vertical; }
 .version-controls button:hover:not(:disabled) { border-color: var(--accent-pink); color: var(--accent-pink); }
 .version-controls button:disabled { opacity: 0.25; cursor: not-allowed; }
 
+/* ---- download dropdown (Session 14: WAV / JSON diagnostic / MIDI-soon) ---- */
+.download-menu {
+  position: relative;
+  display: inline-block;
+}
+
+/* The options panel floats below the toggle, matching the pixel-card chrome:
+   a hard 2px border + the same square drop-shadow the cards/buttons use. */
+.download-options {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 168px;
+  background: var(--bg-card-light);
+  border: 2px solid var(--accent-pink);
+  box-shadow: 4px 4px 0 #000;
+  padding: 4px;
+  gap: 2px;
+}
+.download-options[hidden] { display: none; }
+
+.download-options button {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-align: left;
+  padding: 9px 10px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+}
+.download-options button:hover:not(:disabled),
+.download-options button:focus-visible {
+  background: var(--accent-pink);
+  color: #000;
+  outline: none;
+}
+.download-options button.coming-soon,
+.download-options button:disabled {
+  color: var(--text-dim);
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.download-options button.coming-soon:hover { background: transparent; color: var(--text-dim); }
+.download-options .soon-tag {
+  display: block;
+  font-size: 7px;
+  color: var(--accent-yellow);
+  margin-top: 3px;
+  letter-spacing: 0.5px;
+}
+
 .piano-roll {
   background: #000;
   border: 2px solid var(--border);

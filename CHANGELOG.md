@@ -2,6 +2,45 @@
 
 All notable changes to EKI Melo. Most recent first.
 
+## [v2.1.0] — 2026-05-22
+
+Additive, non-breaking: every existing jingle, backup, and engine keeps working
+exactly as before. Adds a way to download how a jingle was made.
+
+### Added
+- **Download dropdown on every guest card.** The single `↓ WAV` button is now a
+  `↓ DOWNLOAD ▾` menu with three slots: **WAV (audio)** (unchanged), **JSON
+  (diagnostic)** (new), and a disabled **MIDI — Session 15** placeholder. The menu
+  opens on click, closes on outside-click or Escape, and is arrow-key navigable.
+- **JSON diagnostic export.** Any already-generated jingle can be downloaded as a
+  structured JSON capturing the prompts + artifacts that produced it — for talking
+  through which composition STAGE to iterate on. For a **pipeline (v2)** jingle the
+  bundle has the per-stage prompts, the validated artifact each stage emitted, Stage
+  2's deterministic rule trace, each stage's soft warnings, and the beat-stamped
+  realization. For a **v1** jingle it has the system + user prompt and the parsed
+  jingle. Bundles carry a semver `diagnostic_version` (`1.0.0`). See DEC-016.
+- **Live + retroactive capture.** Newly generated jingles capture a LIVE diagnostic
+  (the real LLM responses). Jingles from before this release are RECONSTRUCTED on
+  first download — the deterministic pieces (prompts, Stage 2 trace, realization) are
+  faithfully re-derived; the never-stored LLM raw responses are honestly `null`. A
+  reconstructed bundle is cached so the next download is instant.
+- **Diagnostics in the backup.** `↓ EXPORT BACKUP` now includes saved diagnostics
+  (backup `version: 3`). Import accepts backups WITH or WITHOUT them — old backups
+  restore fine (empty diagnostics; re-download reconstructs on demand). Corrupt
+  bundles in an import are skipped, not stored.
+
+### Changed
+- **`engines.js` gains an optional `onDiagnostic` capture hook** (the one narrow
+  engine change). `composition.js` / `api.js` / `render.js` / `synth.js` stay
+  byte-for-byte unchanged; v1's prompt template is duplicated into `engines.js` (kept
+  in sync with the read-only api.js). Pipeline jingles now store the resolved config
+  (`pipelineMetadata.config_used`) for diagnostic fixture-replay. Diagnostic capture
+  is secondary — if it fails, the jingle still saves. See DEC-017.
+
+### Notes
+- MIDI export is Session 15; the dropdown slot ships disabled as a placeholder.
+- New verifier `verify-diagnostics.mjs`; all fifteen verifiers pass offline.
+
 ## [v2.0.0] — 2026-05-22
 
 The composition-engine rebuild ships. This is the milestone the 12-session

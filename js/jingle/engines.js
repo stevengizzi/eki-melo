@@ -44,8 +44,26 @@
    PORTABILITY. jingle/ code: imports api.js (read-only) + the pipeline runner +
    the default config. Works in both runtime contexts (the LLM calls go through
    the same env.js endpoint adapter the rest of the app uses).
+
+   ## Session 14 — the onDiagnostic capture hook.
+   generateJingle accepts an OPTIONAL `options.onDiagnostic` callback. When supplied
+   it is called once at the end of a successful generation with a structured LIVE
+   CAPTURE — the raw material a diagnostic bundle is assembled from (see
+   js/jingle/diagnostics.js for the bundle shape):
+     - v1:       { engine:'v1', system_prompt, user_prompt, raw_response_text }
+                 (v1's raw text isn't exposed by api.js's contract, so it carries an
+                 honest sentinel; the parsed jingle is the engine's return value).
+     - pipeline: { engine:'pipeline', config, aesthetic|harmony|motifs|phrase|texture:
+                 { raw, warnings } } — each LLM stage's last successful raw response
+                 + soft warnings, collected via the runner's per-stage onTrace hooks,
+                 plus the effective (knob-derived) config from the runner's onConfig.
+   This is the ONE narrow change to engines.js: v1's prompt template is duplicated
+   here (api.js stays read-only) and the pipeline capture is callback plumbing over
+   hooks the runner already exposes. Diagnostic capture NEVER fails a generation
+   (the jingle is the product; the diagnostic is secondary) — the emit is guarded.
    ================================================================= */
 import { generateJingle as generateV1Jingle } from './api.js';
+import { JINGLE_SYSTEM_PROMPT } from './composition.js';
 import { runPipelineGenerating } from './pipeline/pipeline-runner.js';
 import { DEFAULT_CONFIG } from './pipeline/pipeline-config.js';
 
@@ -141,35 +159,114 @@ function pipelineToPlayback(finalJingle) {
 }
 
 // =================================================================
+// DIAGNOSTIC CAPTURE — the Session-14 onDiagnostic plumbing.
+// =================================================================
+
+// A synced copy of js/jingle/api.js's user-prompt template, so a v1 live diagnostic
+// can record the prompt v1 actually used. api.js is read-only by design.
+// MUST stay in sync with api.js's user-prompt template (api.js is read-only).
+function buildV1UserPrompt(name, description) {
+  return `Compose an arrival theme for this guest:
+
+NAME: ${name}
+DESCRIPTION: ${description}
+
+Translate their personality into musical choices, then construct a piece with clear sections and motivic development so the piece feels composed, not just strung together. Make it instantly memorable.`;
+}
+
+// Collect a pipeline stage's last successful raw response + its soft warnings from
+// the stage's onTrace stream ({ attempt, raw, ok, errors } per round-trip; one
+// { attempt:'soft-note', warnings } after success). Returns { cap, onTrace }.
+function stageCollector() {
+  const cap = { raw: null, warnings: [] };
+  return {
+    cap,
+    onTrace(event) {
+      if (!event) return;
+      if (event.attempt === 'soft-note') {
+        if (Array.isArray(event.warnings)) cap.warnings = event.warnings;
+        return;
+      }
+      if (typeof event.raw === 'string' && (event.ok || cap.raw === null)) cap.raw = event.raw;
+    },
+  };
+}
+
+// Emit a live capture without ever failing the generation (the jingle is primary).
+function emitDiagnostic(onDiagnostic, capture) {
+  if (typeof onDiagnostic !== 'function') return;
+  try {
+    onDiagnostic(capture);
+  } catch (error) {
+    console.warn('[jingle-engine] diagnostic capture failed (non-fatal):', error);
+  }
+}
+
+// =================================================================
 // THE TWO ENGINE RUNNERS
 // =================================================================
 
 // v1: reuse api.js's generateJingle verbatim (do NOT reimplement) and tag it.
-async function runV1Engine({ guestName, mood }) {
+async function runV1Engine({ guestName, mood, onDiagnostic }) {
   const jingle = await withTimeout(generateV1Jingle(guestName, mood), ENGINE_TIMEOUT_MS, 'v1');
+  emitDiagnostic(onDiagnostic, {
+    engine: 'v1',
+    system_prompt: JINGLE_SYSTEM_PROMPT,
+    user_prompt: buildV1UserPrompt(guestName, mood),
+    raw_response_text: "(not captured — api.js's contract returns the parsed jingle only)",
+  });
   return { ...jingle, engine: 'v1', createdAt: jingle.createdAt ?? Date.now() };
 }
 
 // pipeline: drive runPipelineGenerating from the bare { guestName, mood }; capture
-// the resolved upstream artifacts via onArtifacts for pipelineMetadata. `options`
-// may carry config / lengthBudget / the offline __mock*/on* hooks (passed through
-// for the inspector + tests); `config` is the runner's second argument.
+// the resolved upstream artifacts via onArtifacts (for pipelineMetadata), the
+// effective config via onConfig, and each LLM stage's raw + soft warnings via its
+// onTrace (for the live diagnostic). `options` may carry config / lengthBudget /
+// the offline __mock*/on* hooks; `config` is the runner's second argument.
 async function runPipelineEngine({ guestName, mood, options }) {
-  const { config = DEFAULT_CONFIG, ...inputOptions } = options;
+  const { config = DEFAULT_CONFIG, onDiagnostic, ...inputOptions } = options;
   let artifacts = {};
+  let capturedConfig = null;
+  const cols = {
+    aesthetic: stageCollector(),
+    harmony: stageCollector(),
+    motifs: stageCollector(),
+    phrase: stageCollector(),
+    texture: stageCollector(),
+  };
   const finalJingle = await withTimeout(
     runPipelineGenerating(
-      { guestName, mood, ...inputOptions, onArtifacts: (a) => { artifacts = a; } },
+      {
+        guestName,
+        mood,
+        ...inputOptions,
+        onArtifacts: (a) => { artifacts = a; },
+        onConfig: (c) => { capturedConfig = c; },
+        onAestheticTrace: cols.aesthetic.onTrace,
+        onHarmonyTrace: cols.harmony.onTrace,
+        onMotifTrace: cols.motifs.onTrace,
+        onPhraseTrace: cols.phrase.onTrace,
+        onTrace: cols.texture.onTrace,
+      },
       config
     ),
     ENGINE_TIMEOUT_MS,
     'pipeline'
   );
+  emitDiagnostic(onDiagnostic, {
+    engine: 'pipeline',
+    config: capturedConfig,
+    aesthetic: cols.aesthetic.cap,
+    harmony: cols.harmony.cap,
+    motifs: cols.motifs.cap,
+    phrase: cols.phrase.cap,
+    texture: cols.texture.cap,
+  });
   return {
     ...pipelineToPlayback(finalJingle),
     engine: 'pipeline',
     createdAt: Date.now(),
-    pipelineMetadata: artifacts,
+    pipelineMetadata: { ...artifacts, config_used: capturedConfig },
   };
 }
 
@@ -187,7 +284,7 @@ async function runPipelineEngine({ guestName, mood, options }) {
  * @param {string} args.guestName   the guest's name (prompt flavour for Stage 1 / v1)
  * @param {string} args.mood        the free-text PERSONALITY / VIBE
  * @param {'v1'|'pipeline'} args.engine
- * @param {Object} [args.options]   { config?, lengthBudget?, …offline hooks }
+ * @param {Object} [args.options]   { config?, lengthBudget?, onDiagnostic?, …offline hooks }
  */
 export async function generateJingle({ guestName, mood, engine, options = {} } = {}) {
   if (!ENGINES.includes(engine)) {
@@ -196,7 +293,7 @@ export async function generateJingle({ guestName, mood, engine, options = {} } =
   const start = now();
   try {
     const result = engine === 'v1'
-      ? await runV1Engine({ guestName, mood })
+      ? await runV1Engine({ guestName, mood, onDiagnostic: options.onDiagnostic })
       : await runPipelineEngine({ guestName, mood, options });
     logResult({ engine, status: 'success', durationMs: now() - start });
     return result;

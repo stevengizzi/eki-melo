@@ -10,6 +10,17 @@ import { render, showError, hideError, toast } from './ui.js';
 import { synth, renderJingleToWav } from './jingle/synth.js';
 import { generateJingle, DEFAULT_ENGINE, otherEngine, engineLabel } from './jingle/engines.js';
 import { generateAvatar } from './avatar/api.js';
+import {
+  buildLiveDiagnostic,
+  reconstructDiagnostic,
+  serializeDiagnostic,
+  validateDiagnostic,
+} from './jingle/diagnostics.js';
+import {
+  loadDiagnostic,
+  saveDiagnostic,
+  exportAllDiagnostics,
+} from './storage-diagnostics.js';
 
 const GENERATE_LABEL = '► COMPOSE THEME & AVATAR';
 
@@ -79,8 +90,11 @@ async function runGenerate(engine) {
   const avatarPromise = heldAvatarResult
     ? Promise.resolve(heldAvatarResult)
     : generateAvatar(name, description);
+  // Capture the live diagnostic emitted at the end of generation (secondary to the
+  // jingle; persisted below before saveGuests so the diagnosticsRef rides along).
+  let liveCapture = null;
   const [jingleResult, avatarResult] = await Promise.allSettled([
-    generateJingle({ guestName: name, mood: description, engine }),
+    generateJingle({ guestName: name, mood: description, engine, options: { onDiagnostic: (c) => { liveCapture = c; } } }),
     avatarPromise
   ]);
 
@@ -105,6 +119,7 @@ async function runGenerate(engine) {
     currentAvatarIndex: 0
   };
   guests.unshift(guest);
+  await captureLiveDiagnostic(jingleResult.value, { engine, guestName: name, mood: description, capture: liveCapture });
   await saveGuests();
 
   if (avatarResult.status === 'rejected') {
@@ -128,10 +143,17 @@ async function handleRerollJingle(id) {
   // Reroll honors the form's current engine selection (a guest can hold a mix of
   // v1 and pipeline takes; each carries its own engine tag).
   const engine = selectedEngine();
+  let liveCapture = null;
   try {
-    const jingle = await generateJingle({ guestName: guest.name, mood: guest.description, engine });
+    const jingle = await generateJingle({
+      guestName: guest.name,
+      mood: guest.description,
+      engine,
+      options: { onDiagnostic: (c) => { liveCapture = c; } },
+    });
     guest.jingles.push(jingle);
     guest.currentJingleIndex = guest.jingles.length - 1;
+    await captureLiveDiagnostic(jingle, { engine, guestName: guest.name, mood: guest.description, capture: liveCapture });
     await saveGuests();
     render();
     setTimeout(() => synth.play(jingle, id), 150);
@@ -215,21 +237,186 @@ async function handleDownloadWav(id) {
   } catch (e) {
     showError(`WAV render failed: ${e.message}`);
   } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = '↓ WAV'; }
+    if (btn) { btn.disabled = false; btn.innerHTML = 'WAV (audio)'; }
   }
 }
 
-export function handleExportBackup() {
+// =================================================================
+// DIAGNOSTIC DOWNLOAD (Session 14) — the JSON "how this jingle was made" export.
+// =================================================================
+
+// A short opaque id for a diagnostic bundle. It IS the jingle's diagnosticsRef
+// (one bundle per jingle); the sidecar is keyed by it.
+function makeDiagnosticId() {
+  return 'd_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+// Reconstructing an old jingle's bundle is cheap to cache so a repeat download is
+// O(1). On by default; a future settings panel could expose an opt-out (out of
+// scope this session, so the flag is hardcoded ON).
+const CACHE_RECONSTRUCTED_DIAGNOSTICS = true;
+
+// Serialize a bundle and trigger its download. No toast — the caller picks the
+// message (a cached hit vs. a fresh reconstruction read differently).
+function downloadDiagnostic(guest, jingle, bundle) {
+  const blob = new Blob([serializeDiagnostic(bundle)], { type: 'application/json' });
+  const fname = `${sanitizeFilename(guest.name)}-${sanitizeFilename(jingle.title)}-diagnostic.json`;
+  triggerDownload(blob, fname);
+}
+
+// Persist a freshly-reconstructed bundle to the sidecar + set the jingle's
+// diagnosticsRef so the next download is O(1). Fire-and-forget; never throws.
+async function cacheReconstructedDiagnostic(jingle, bundle) {
+  if (!CACHE_RECONSTRUCTED_DIAGNOSTICS) return;
+  try {
+    const ref = jingle.diagnosticsRef || makeDiagnosticId();
+    await saveDiagnostic(ref, bundle);
+    jingle.diagnosticsRef = ref;
+    await saveGuests();
+    toast('diagnostic reconstructed + cached');
+  } catch (e) {
+    console.warn('[diagnostics] caching reconstructed bundle failed (non-fatal):', e);
+  }
+}
+
+// Build + persist a LIVE diagnostic for a freshly-generated jingle, setting its
+// diagnosticsRef. SECONDARY to the jingle: any failure is logged, never thrown —
+// the jingle is the product (so a diagnostic bug can't break generation).
+async function captureLiveDiagnostic(jingle, { engine, guestName, mood, capture }) {
+  try {
+    const bundle = buildLiveDiagnostic({ engine, input: { guestName, mood }, output: jingle, captures: capture ?? {} });
+    const result = validateDiagnostic(bundle);
+    if (!result.ok) {
+      console.warn('[diagnostics] live bundle failed self-validation; not persisting:', result.errors);
+      return;
+    }
+    const ref = makeDiagnosticId();
+    await saveDiagnostic(ref, bundle);
+    jingle.diagnosticsRef = ref;
+  } catch (e) {
+    console.warn('[diagnostics] live capture failed (non-fatal):', e);
+  }
+}
+
+// Download the JSON diagnostic for a guest's CURRENT jingle. Fast path: a cached
+// sidecar bundle. Slow path: reconstruct from stored data, download immediately,
+// then cache in the background. A reconstruction that fails (or comes out
+// malformed) errors out rather than downloading a file we can't trust.
+async function handleDownloadJson(id) {
+  const guest = guests.find(g => g.id === id);
+  if (!guest) return;
+  const jingle = guest.jingles[guest.currentJingleIndex];
+  if (!jingle) return;
+
+  // 1/2. Cached in the sidecar? Serialize + download.
+  if (jingle.diagnosticsRef) {
+    const cached = await loadDiagnostic(jingle.diagnosticsRef);
+    if (cached) {
+      downloadDiagnostic(guest, jingle, cached);
+      toast('JSON DIAGNOSTIC SAVED ♪');
+      return;
+    }
+    // Dangling ref (sidecar cleared / different device) — fall through to reconstruct.
+  }
+
+  // 3. Reconstruct from stored data.
+  let bundle;
+  try {
+    bundle = await reconstructDiagnostic({ guest, jingle });
+  } catch (e) {
+    console.error('[diagnostics] reconstruction failed:', e);
+    showError(`Couldn't build the diagnostic for "${jingle.title}": ${e.message}`);
+    return;
+  }
+  const result = validateDiagnostic(bundle);
+  if (!result.ok) {
+    console.error('[diagnostics] reconstructed bundle is invalid:', result.errors);
+    showError(`The diagnostic for "${jingle.title}" came out malformed — not downloading a file I can't trust.`);
+    return;
+  }
+  // Download immediately (don't make the user wait twice), then cache in the bg.
+  downloadDiagnostic(guest, jingle, bundle);
+  cacheReconstructedDiagnostic(jingle, bundle);
+}
+
+// =================================================================
+// DOWNLOAD DROPDOWN — open/close + outside-click + Escape + arrow-key nav.
+// =================================================================
+
+function closeAllDownloadMenus() {
+  document.querySelectorAll('.download-menu').forEach((menu) => {
+    const panel = menu.querySelector('.download-options');
+    const toggle = menu.querySelector('.download-toggle');
+    if (panel) panel.hidden = true;
+    if (toggle) toggle.setAttribute('aria-expanded', 'false');
+  });
+}
+
+function toggleDownloadMenu(toggleBtn) {
+  const menu = toggleBtn.closest('.download-menu');
+  if (!menu) return;
+  const panel = menu.querySelector('.download-options');
+  const wasOpen = panel && !panel.hidden;
+  closeAllDownloadMenus();
+  if (!wasOpen && panel) {
+    panel.hidden = false;
+    toggleBtn.setAttribute('aria-expanded', 'true');
+    const first = panel.querySelector('button:not([disabled])');
+    if (first) first.focus();
+  }
+}
+
+/**
+ * Attach the document-level dismiss + keyboard handlers for the download menus.
+ * Called once from main.js. Outside clicks land on document AFTER the delegated
+ * guest-list handler (which owns the toggle), so a click inside a .download-menu
+ * is left alone here and everything else closes the menus.
+ */
+export function initDownloadMenus() {
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.download-menu')) closeAllDownloadMenus();
+  });
+  document.addEventListener('keydown', (e) => {
+    const openPanel = document.querySelector('.download-options:not([hidden])');
+    if (!openPanel) return;
+    if (e.key === 'Escape') {
+      const toggle = openPanel.closest('.download-menu')?.querySelector('.download-toggle');
+      closeAllDownloadMenus();
+      if (toggle) toggle.focus();
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const items = [...openPanel.querySelectorAll('button:not([disabled])')];
+      if (items.length === 0) return;
+      const here = items.indexOf(document.activeElement);
+      const next = e.key === 'ArrowDown'
+        ? items[(here + 1) % items.length]
+        : items[(here - 1 + items.length) % items.length];
+      next.focus();
+    }
+  });
+}
+
+export async function handleExportBackup() {
+  // Pull every saved diagnostic bundle so the backup is self-contained: a restore
+  // re-attaches them to the jingles' diagnosticsRefs. (Session 14 — version 3.)
+  let diagnostics = {};
+  try {
+    diagnostics = await exportAllDiagnostics();
+  } catch (e) {
+    console.warn('[diagnostics] could not read the sidecar for backup (exporting guests only):', e);
+  }
   const payload = {
     type: 'eki_greetings_backup',
-    version: 2,
+    version: 3,
     exportedAt: new Date().toISOString(),
-    guests
+    guests,
+    diagnostics
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   triggerDownload(blob, `eki-greetings-backup-${stamp}.json`);
-  toast(`BACKUP SAVED (${guests.length} GUESTS) ♪`);
+  const dCount = Object.keys(diagnostics).length;
+  toast(`BACKUP SAVED (${guests.length} GUESTS${dCount ? `, ${dCount} DIAGNOSTICS` : ''}) ♪`);
 }
 
 export function handleImportClick() {
@@ -253,8 +440,27 @@ export async function handleImportFile(e) {
       setGuests(Array.from(map.values()));
     }
     await saveGuests();
+
+    // Diagnostics are OPTIONAL in a backup (pre-Session-14 files lack the key —
+    // those still import fine, with an empty sidecar; re-downloading a JSON for
+    // such a guest reconstructs on demand). When present, validate each bundle and
+    // save only the valid ones; a corrupt bundle is skipped with a console warning
+    // rather than silently stored.
+    let importedDiagnostics = 0;
+    if (data.diagnostics && typeof data.diagnostics === 'object' && !Array.isArray(data.diagnostics)) {
+      for (const [ref, bundle] of Object.entries(data.diagnostics)) {
+        const result = validateDiagnostic(bundle);
+        if (result.ok) {
+          await saveDiagnostic(ref, bundle);
+          importedDiagnostics++;
+        } else {
+          console.warn(`[diagnostics] skipped invalid bundle "${ref}" on import:`, result.errors);
+        }
+      }
+    }
+
     render();
-    toast(`IMPORTED ${incoming.length} GUESTS ♪`);
+    toast(`IMPORTED ${incoming.length} GUESTS${importedDiagnostics ? ` + ${importedDiagnostics} DIAGNOSTICS` : ''} ♪`);
   } catch (err) {
     showError(`Import failed: ${err.message}`);
   } finally {
@@ -275,7 +481,9 @@ export function handleGuestListClick(e) {
     case 'play':           synth.play(guest.jingles[guest.currentJingleIndex], id); break;
     case 'rerollJingle':   handleRerollJingle(id); break;
     case 'rerollAvatar':   handleRerollAvatar(id); break;
-    case 'downloadWav':    handleDownloadWav(id); break;
+    case 'downloadToggle': toggleDownloadMenu(btn); break;
+    case 'downloadWav':    closeAllDownloadMenus(); handleDownloadWav(id); break;
+    case 'downloadJson':   closeAllDownloadMenus(); handleDownloadJson(id); break;
     case 'delete':         handleDelete(id); break;
     case 'prevJingle':     handlePrevJingle(id); break;
     case 'nextJingle':     handleNextJingle(id); break;
