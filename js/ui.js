@@ -97,8 +97,8 @@ export function renderGuestCard(g) {
                     aria-haspopup="true" aria-expanded="false">↓ DOWNLOAD ▾</button>
             <div class="download-options" role="menu" hidden>
               <button role="menuitem" data-act="downloadWav" data-id="${g.id}">WAV (audio)</button>
-              <button role="menuitem" data-act="downloadJson" data-id="${g.id}">JSON (diagnostic)</button>
               <button role="menuitem" data-act="downloadMidi" data-id="${g.id}">MIDI (notation)</button>
+              <button role="menuitem" data-act="downloadJson" data-id="${g.id}">JSON (diagnostic)</button>
             </div>
           </div>
           <button class="btn btn-danger btn-small" data-act="delete" data-id="${g.id}">✕</button>
